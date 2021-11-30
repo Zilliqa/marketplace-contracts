@@ -1,0 +1,21 @@
+language: node_js
+node_js:
+  - 16
+
+sudo: required
+services:
+  - docker
+
+cache:
+  directories:
+    - docker_images
+
+before_cache:
+  - docker save -o docker_images/images.tar $(docker images -aq)
+
+before_script:
+  - docker load -i docker_images/images.tar || true
+
+script: ./ci_scilla_type_check.sh && npm i && npm test
+
+skip_cleanup: true

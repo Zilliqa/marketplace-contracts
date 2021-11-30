@@ -1,0 +1,566 @@
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils
+
+library EnglishAuctionOrderbook
+
+let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint128 = Uint128 0
+let min_fee_bps = Uint128 1
+let max_fee_bps = Uint128 10000
+let true = True
+
+let one_msg = 
+  fun (msg : Message) => 
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let get_bal =
+  fun (maybe_bal: Option Uint128) =>
+    match maybe_bal with
+    | None => zero_uint128
+    | Some bal => bal
+    end
+      
+let portion = 
+  fun(amount: Uint128) =>
+  fun(bps: Uint128) => 
+    (* To avoid integer overflow, use division only. *)
+    (* amount / ( 10000 / bps ) *)
+    (* bps ranges from 1 to 10000. *)
+    let max_bps = Uint128 10000 in
+    let x = builtin div max_bps bps in
+    (* x ranges from 1 to 10000. *)
+    let result = builtin div amount x in
+    result
+
+let option_value =
+  tfun 'A =>
+  fun (default: 'A) =>
+  fun (opt_val: Option 'A) =>
+    match opt_val with
+    | Some v => v
+    | None => default
+    end
+
+let option_address = @option_value ByStr20
+
+(* maker, expiration block number, zrc2_contract, start amount *)
+type SellOrder = 
+| SellOrder of ByStr20 BNum ByStr20 with contract 
+field allowances: Map ByStr20 (Map ByStr20 Uint128)
+end Uint128
+
+(* maker, amount, dest *)
+type BuyOrder = 
+| BuyOrder of ByStr20 Uint128 ByStr20
+
+(* Error exceptions *)
+type Error =
+  | SellOrderNotFoundError
+  | SellOrderFoundError
+  | BuyOrderNotFoundError
+  | NotSpenderError
+  | NotTokenOwnerError
+  | NotSelfError
+  | LessThanMinBidError
+  | InsufficientAllowanceError
+  | NotExpiredError
+  | ExpiredError
+  | AccountNotFoundError
+  | InsufficientPaymentTokenError
+  | AssetNotFoundError
+  | NotAllowedToEndError
+  | NotAllowedPaymentToken
+  
+let make_error =
+  fun (result : Error) =>
+    let result_code = 
+      match result with
+      | SellOrderNotFoundError              => Int32 -1
+      | SellOrderFoundError                 => Int32 -2
+      | BuyOrderNotFoundError               => Int32 -3
+      | NotSpenderError                     => Int32 -4
+      | NotTokenOwnerError                  => Int32 -5
+      | NotSelfError                        => Int32 -6
+      | LessThanMinBidError                 => Int32 -7
+      | InsufficientAllowanceError          => Int32 -8
+      | NotExpiredError                     => Int32 -9
+      | ExpiredError                        => Int32 -10
+      | AccountNotFoundError                => Int32 -11
+      | InsufficientPaymentTokenError       => Int32 -12
+      | AssetNotFoundError                  => Int32 -13
+      | NotAllowedToEndError                => Int32 -14
+      | NotAllowedPaymentToken              => Int32 -15
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract EnglishAuctionOrderbook
+(
+  init_service_fee_recipient: ByStr20,
+  wzil_address: ByStr20
+)
+
+(* We assume all orders are english auction type  *)
+(* 
+  A composite primary key of a sell order consists of
+  - asset contract address (ZRC-6)
+  - token ID
+*)
+
+(* zrc6_contract -> ( token_id -> order ) *)
+field sell_orders: Map ByStr20 (Map Uint256 SellOrder) = Emp ByStr20 (Map Uint256 SellOrder)
+field buy_orders: Map ByStr20 (Map Uint256 BuyOrder) = Emp ByStr20 (Map Uint256 BuyOrder)
+
+(* owner -> ( zrc6_contract -> token set ) *)
+field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)) = Emp ByStr20 (Map ByStr20 (Map Uint256 Bool))
+
+(* owner -> ( zrc2_contract -> amount ) *)
+field payment_tokens: Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
+
+(* There must be an allowlist for the payment tokens (ZRC-2) *)
+field allowed_payment_tokens: Map ByStr20 Bool =
+let emp_map = Emp ByStr20 Bool in
+builtin put emp_map wzil_address true
+
+
+(* service fee BPS (e.g. 250 = 2.5% *)
+(* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
+(* `service_fee_bps` must range from `1` to `10000`. *)
+(* Defaults to 250 *)
+field service_fee_bps: Uint128 = Uint128 250
+
+field service_fee_recipient: ByStr20 = init_service_fee_recipient
+
+(* Procedures *)
+procedure Throw(error : Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireAllowedPaymentToken(zrc2_address: ByStr20)
+  is_allowed <- exists allowed_payment_tokens[zrc2_address];
+  match is_allowed with
+  | True =>
+  | False =>
+    error = NotAllowedPaymentToken;
+    Throw error
+  end
+end
+
+procedure RequireNotExpired(expiration_bnum: BNum)
+  cur_bnum <- & BLOCKNUMBER;  
+  is_not_expired = builtin blt cur_bnum expiration_bnum;
+  match is_not_expired with
+  | True =>
+  | False =>
+    error = ExpiredError;
+    Throw error
+  end
+end
+
+procedure RequireExpired(expiration_bnum: BNum)
+  cur_bnum <- & BLOCKNUMBER;  
+  is_not_expired = builtin blt cur_bnum expiration_bnum;
+  match is_not_expired with
+  | False =>
+  | True =>
+    error = NotExpiredError;
+    Throw error
+  end
+end
+
+procedure RequireSenderToBeTokenOwner(zrc6_contract: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
+  opt_token_owner <- & zrc6_contract.token_owners[token_id];
+  token_owner = option_address zero_address opt_token_owner;
+  is_token_owner = builtin eq _sender token_owner;
+  match is_token_owner with
+  | True =>
+  | False =>
+    error = NotTokenOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireThisToBeSpender(zrc6_contract: ByStr20 with contract field spenders: Map Uint256 ByStr20 end, token_id: Uint256)
+  (* A marketplace must be a spender and temporarily lock up ZRC-2, ZRC-6 tokens by holding them. *)
+  opt_spender <- & zrc6_contract.spenders[token_id];
+  spender = option_address zero_address opt_spender;
+  is_spender = builtin eq _this_address spender;
+  match is_spender with
+  | True =>
+  | False =>
+    error = NotSpenderError;
+    Throw error
+  end
+end
+
+procedure ZRC2Transfer(zrc2_contract: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_wzil = {
+    _tag: "Transfer";
+    _recipient: zrc2_contract;
+    _amount: Uint128 0;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_wzil;
+  send msgs
+end
+
+procedure ZRC2TransferFrom(zrc2_contract: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_wzil = {
+    _tag: "TransferFrom";
+    _recipient: zrc2_contract;
+    _amount: Uint128 0;
+    from: from;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_wzil;
+  send msgs
+end
+
+procedure ZRC6TransferFrom(zrc6_contract: ByStr20, to: ByStr20, token_id: Uint256)
+  msg_to_zrc6 = {
+    _tag: "TransferFrom";
+    _recipient: zrc6_contract;
+    _amount: Uint128 0;
+    to: to;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_zrc6;
+  send msgs
+end
+
+(* Seller calls this transition *)
+transition Start(
+  zrc6_contract: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20  
+  end,
+  token_id: Uint256,
+  zrc2_contract: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end,
+  start_amount: Uint128,
+  expiration_bnum: BNum
+  )
+  (* 
+    - Seller can start an auction for an asset only if the asset has no ongoing auction. 
+  *)
+
+  RequireNotExpired expiration_bnum;
+  RequireAllowedPaymentToken zrc2_contract;
+
+  has_sell_order <- exists sell_orders[zrc6_contract][token_id];
+  match has_sell_order with 
+  | True => 
+    (* It's already listed *)
+    error = SellOrderFoundError;
+    Throw error
+  | False => 
+    RequireSenderToBeTokenOwner zrc6_contract token_id;
+    RequireThisToBeSpender zrc6_contract token_id;
+    (* lock up token by holding it *)
+    ZRC6TransferFrom zrc6_contract _this_address token_id;
+
+    (* create a sell order *)
+    new_order = SellOrder _sender expiration_bnum zrc2_contract start_amount;
+    sell_orders[zrc6_contract][token_id] := new_order
+  end;
+  
+  e = {
+    _eventname : "Start";
+    maker: _sender;
+    zrc6_contract: zrc6_contract;
+    token_id: token_id;
+    zrc2_contract: zrc2_contract;
+    start_amount: start_amount;
+    expiration_bnum: expiration_bnum
+  };
+  event e
+end
+
+(* Seller calls this transition *)
+transition Bid(
+  (* 
+    - Bidders can bid for an existing auction.
+    - A bid must not be less than start amount of the auction.
+    - A bid must not be less than the minimum bid (Minimum Bid = Current Bid + Bid Increment).
+    - We assume that the bid increment is 10% of the current bid.
+    - Bidders must be able to set an address to receive the asset when creating a buy order.
+    - If the current bid is updated, the previous bidder can withdraw the payment tokens back. 
+  *)
+
+  zrc6_contract: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256,
+  amount: Uint128,
+  dest: ByStr20
+  )
+  (* Check the sell order does exist *)
+  maybe_sell_order <- sell_orders[zrc6_contract][token_id];
+  match maybe_sell_order with 
+  | None =>
+    (* Sell order doesn't exist *)
+    error = SellOrderNotFoundError;
+    Throw error
+  | Some (SellOrder maker expiration_bnum zrc2_contract start_amount) =>
+    (* Check the sell order is not expired *)
+    RequireNotExpired expiration_bnum;
+
+    (* Check this marketplace is the spender *)
+    maybe_bal <- & zrc2_contract.allowances[_sender][_this_address];
+    match maybe_bal with
+    | None =>
+      (* This Marketplace is not the spender *)
+      error = NotSpenderError;
+      Throw error
+    | Some bal =>
+      (* Check this marketplace has sufficient allowance *)
+      is_insufficient = builtin lt bal amount;
+      match is_insufficient with
+      | True => 
+        (* This marketplace has insufficient allowance *)
+        error = InsufficientAllowanceError;
+        Throw error  
+      | False => 
+        (* This marketplace have the sufficient allowance *)
+        (* Lock up the payment tokens *)
+        ZRC2TransferFrom zrc2_contract _sender _this_address amount; 
+
+        (* Check this bid is the first bid *)
+        maybe_buy_order <- buy_orders[zrc6_contract][token_id];
+        match maybe_buy_order with 
+        | None =>
+          (* Check if the new amount gte start_amount *)
+          is_less_than_start_amount = builtin lt amount start_amount;
+          match is_less_than_start_amount with
+          | True =>
+            error = LessThanMinBidError;
+            Throw error
+          | False =>
+            (* Create a buy order *)
+            new_order = BuyOrder _sender amount dest;
+            buy_orders[zrc6_contract][token_id] := new_order
+          end
+        | Some (BuyOrder maker cur_amount cur_dest) =>
+          (* We have the existing bid. We track the max only. *)
+          (* Minimum Bid = Current Bid + Bid Increment *)
+
+          (* Calculate min bid *)
+          ten_percent = Uint128 1000;
+          bid_increment = portion cur_amount ten_percent;
+          min_bid = builtin add cur_amount bid_increment;
+          
+          is_less_than_min_bid = builtin lt amount min_bid;
+          match is_less_than_min_bid with
+          | True => 
+            error = LessThanMinBidError;
+            Throw error
+          | False =>      
+            (* markekplace pays back the old bider the current amount *)
+            maybe_bal_of_old_buyer <- payment_tokens[maker][zrc2_contract];
+            new_bal = 
+              let cur_bal = get_bal maybe_bal_of_old_buyer in
+              (* if underflow occurs, it throws CALL_CONTRACT_FAILED *)
+              builtin add cur_bal cur_amount;
+
+            (* Update balance of the old buyer *)
+            payment_tokens[maker][zrc2_contract] := new_bal;
+            
+            (* Update the buy order with new buyer *)
+            new_order = BuyOrder _sender amount dest;
+            buy_orders[zrc6_contract][token_id] := new_order
+          end
+        end
+      end
+    end
+  end;
+
+  e = {
+    _eventname : "Bid";
+    maker: _sender;
+    zrc6_contract: zrc6_contract;
+    token_id: token_id;
+    amount: amount;
+    dest: dest
+  };
+  event e
+end
+
+transition End(
+  zrc6_contract: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256
+  )
+  (* 
+    - Seller, buyer, or admin can end the auction only after the sell order has been expired.
+    - When an auction is ended, the buyer can withdraw the asset
+    - When an auction is ended, the seller can withdraw get the payment tokens.
+  *)
+
+  (* Check the sell order does exist *)
+  maybe_sell_order <- sell_orders[zrc6_contract][token_id];
+  match maybe_sell_order with 
+  | None =>
+    (* Sell order doesn't exist *)
+    error = SellOrderNotFoundError;
+    Throw error
+  | Some (SellOrder seller expiration_bnum zrc2_contract start_amount)  => 
+    (* Check the sell order is expired *)
+    RequireExpired expiration_bnum;
+
+    (* Check the buy order does exist *)
+    maybe_buy_order <- buy_orders[zrc6_contract][token_id];
+    match maybe_buy_order with 
+    | None =>
+      (* Buy order doesn't exist *)
+      error = BuyOrderNotFoundError;
+      Throw error
+    | Some (BuyOrder buyer sale_price buy_dest) =>
+
+      (* Check _sender is the seller or the buyer *)
+      is_seller = builtin eq _sender seller;
+      is_buyer = builtin eq _sender buyer;
+      
+      is_seller_or_buyer = orb is_seller is_buyer;
+      match is_seller_or_buyer with
+      | False => 
+        (* Buy order doesn't exist *)
+        error = NotAllowedToEndError;
+        Throw error
+      | True => 
+        (* Calculate royalty amount *)
+        royalty_fee_bps <- & zrc6_contract.royalty_fee_bps;
+        royalty_amount = portion sale_price royalty_fee_bps;
+
+        (* Calculate service fee *)
+        fee_bps <- service_fee_bps;
+        service_fee = portion sale_price fee_bps;
+
+        (* Calculate seller profit *)
+        profit = builtin sub sale_price royalty_amount;
+        seller_profit = builtin sub profit service_fee;
+
+        royalty_recipient <- & zrc6_contract.royalty_recipient;
+        (* marketplace transfers royalty fee to the royalty_recipient *)
+        ZRC2Transfer zrc2_contract royalty_recipient royalty_amount;
+
+        seller_fee_recipient <- service_fee_recipient;
+        (* marketplace transfers service fee to this marketplace owner *)
+        ZRC2Transfer zrc2_contract seller_fee_recipient service_fee;
+        
+        (* Asset for buy_dest *)
+        assets[buy_dest][zrc6_contract][token_id] := true;
+        (* payment tokens for the seller *)
+        payment_tokens[seller][zrc2_contract] := seller_profit;
+
+        (* Cleanup orders *)
+        delete sell_orders[zrc6_contract][token_id];
+        delete buy_orders[zrc6_contract][token_id];
+
+        e = {
+          _eventname : "End";
+          zrc6_contract: zrc6_contract;
+          token_id: token_id;
+          zrc2_contract: zrc2_contract;
+          sale_price: sale_price;
+          seller: seller;
+          buyer: buyer;
+          asset_recipient: buy_dest;
+          payment_tokens_recipient: seller;
+          royalty_recipient: royalty_recipient;
+          royalty_amount: royalty_amount;
+          service_fee: service_fee
+        };
+        event e
+      end
+    end
+  end
+end
+
+transition WithdrawPaymentTokens(zrc2_contract: ByStr20, amount: Uint128)
+  (* - Anyone who has payment tokens can draw their tokens. *)
+  
+  maybe_balance <- payment_tokens[_sender][zrc2_contract];
+  match maybe_balance with
+  | None =>
+    error = AccountNotFoundError;
+    Throw error
+  | Some balance =>
+    is_insufficient = builtin lt balance amount;
+    match is_insufficient with 
+    | True => 
+      error = InsufficientPaymentTokenError;
+      Throw error
+    | False => 
+      (* marketplace transfers the amount to sender *)
+      ZRC2Transfer zrc2_contract _sender amount;
+      
+      left = builtin sub balance amount;
+      payment_tokens[_sender][zrc2_contract] := left;
+
+      e = {
+        _eventname : "WithdrawPaymentTokens";
+        recipient: _sender;
+        zrc2_contract: zrc2_contract;
+        amount: amount
+      };
+      event e
+    end
+  end
+end
+
+transition WithdrawAsset(zrc6_contract: ByStr20, token_id: Uint256)
+  (* - Anyone who has assets can draw their asset. *)
+  has_token <- exists assets[_sender][zrc6_contract][token_id];
+  match has_token with
+  | False =>
+    error = AssetNotFoundError;
+    Throw error
+  | True =>
+    (* marketplace transfers the zrc6 token to buyer *)
+    ZRC6TransferFrom zrc6_contract _sender token_id;
+    
+    delete assets[_sender][zrc6_contract][token_id];
+
+    e = {
+      _eventname : "WithdrawAsset";
+      recipient: _sender;
+      zrc6_contract: zrc6_contract;
+      token_id: token_id
+    };
+    event e
+  end
+end
+
+(* empty callbacks *)
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition ZRC6_TransferFromCallback(from:ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
