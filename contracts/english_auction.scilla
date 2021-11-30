@@ -173,6 +173,16 @@ procedure RequireContractOwner()
   end
 end
 
+procedure RequireSelf(x: ByStr20)
+  is_self = builtin eq x _sender;
+  match is_self with
+  | True =>
+  | False =>
+    error = NotSelfError;
+    Throw error
+  end
+end
+
 procedure RequireNotPaused()
   (* Reference: *)
   (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
@@ -242,6 +252,18 @@ procedure RequireThisToBeSpender(zrc6_contract: ByStr20 with contract field spen
     Throw error
   end
 end
+
+procedure AddToPaymentTokenBalance(to: ByStr20, zrc2_contract: ByStr20, amount: Uint128)
+  maybe_bal <- payment_tokens[to][zrc2_contract];
+  
+  new_bal = 
+    let cur_bal = get_bal maybe_bal in
+    (* if underflow occurs, it throws CALL_CONTRACT_FAILED *)
+    builtin add cur_bal amount;
+    
+  payment_tokens[to][zrc2_contract] := new_bal
+end
+
 
 procedure ZRC2Transfer(zrc2_contract: ByStr20, to: ByStr20, amount: Uint128)
   msg_to_wzil = {
@@ -398,7 +420,7 @@ transition Bid(
     (* Sell order doesn't exist *)
     error = SellOrderNotFoundError;
     Throw error
-  | Some (SellOrder maker expiration_bnum zrc2_contract start_amount) =>
+  | Some (SellOrder seller expiration_bnum zrc2_contract start_amount) =>
     (* Check the sell order is not expired *)
     RequireNotExpired expiration_bnum;
 
@@ -437,7 +459,7 @@ transition Bid(
             new_order = BuyOrder _sender amount dest;
             buy_orders[zrc6_contract][token_id] := new_order
           end
-        | Some (BuyOrder maker cur_amount cur_dest) =>
+        | Some (BuyOrder old_buyer cur_amount cur_dest) =>
           (* We have the existing bid. We track the max only. *)
           (* Minimum Bid = Current Bid + Bid Increment *)
 
@@ -453,15 +475,8 @@ transition Bid(
             Throw error
           | False =>      
             (* markekplace pays back the old bider the current amount *)
-            maybe_bal_of_old_buyer <- payment_tokens[maker][zrc2_contract];
-            new_bal = 
-              let cur_bal = get_bal maybe_bal_of_old_buyer in
-              (* if underflow occurs, it throws CALL_CONTRACT_FAILED *)
-              builtin add cur_bal cur_amount;
+            AddToPaymentTokenBalance old_buyer zrc2_contract cur_amount;
 
-            (* Update balance of the old buyer *)
-            payment_tokens[maker][zrc2_contract] := new_bal;
-            
             (* Update the buy order with new buyer *)
             new_order = BuyOrder _sender amount dest;
             buy_orders[zrc6_contract][token_id] := new_order
@@ -480,6 +495,53 @@ transition Bid(
     dest: dest
   };
   event e
+end
+
+transition Cancel(
+  zrc6_contract: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256
+  )
+  RequireNotPaused;
+
+  (* Check the sell order does exist *)
+  maybe_sell_order <- sell_orders[zrc6_contract][token_id];
+  match maybe_sell_order with 
+  | None =>
+    (* Sell order doesn't exist *)
+    error = SellOrderNotFoundError;
+    Throw error
+  | Some (SellOrder seller expiration_bnum zrc2_contract start_amount)  => 
+    (* Check the sell order is not expired *)
+    RequireNotExpired expiration_bnum;
+    (* Only seller must be able to cancel the sell order *)
+    RequireSelf seller;
+
+    (* Asset for the seller  *)
+    assets[seller][zrc6_contract][token_id] := true;
+    delete sell_orders[zrc6_contract][token_id];
+    
+    (* Check if the buy order exist *)
+    maybe_buy_order <- buy_orders[zrc6_contract][token_id];
+    match maybe_buy_order with 
+    | None =>
+      (* noop *)
+    | Some (BuyOrder buyer cur_amount buy_dest) =>  
+      (* markekplace pays back the old bider the current amount *)
+      AddToPaymentTokenBalance buyer zrc2_contract cur_amount;
+      delete buy_orders[zrc6_contract][token_id]
+    end;
+    e = {
+      _eventname : "Cancel";
+      zrc6_contract: zrc6_contract;
+      token_id: token_id
+    };
+    event e
+  end
 end
 
 transition End(

@@ -524,6 +524,101 @@ describe("Auction", () => {
         },
       },
     },
+
+    {
+      name: "throws NotSelf",
+      transition: "Cancel",
+      getSender: () => getTestAddr(STRANGER),
+      getParams: () => ({
+        zrc6_contract: globalZRC6ContractAddress,
+        token_id: 1,
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.NotSelfError,
+      want: undefined,
+    },
+    {
+      name: "throws SellOrderNotFoundError",
+      transition: "Cancel",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        zrc6_contract: globalZRC6ContractAddress,
+        token_id: 999,
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.SellOrderNotFoundError,
+      want: undefined,
+    },
+    {
+      name: "throws ExpiredError",
+      transition: "Cancel",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        zrc6_contract: globalZRC6ContractAddress,
+        token_id: 1,
+      }),
+      beforeTransition: async () => {
+        await increaseBNum(zilliqa, 5);
+      },
+      error: ENG_AUC_ERROR.ExpiredError,
+      want: undefined,
+    },
+    {
+      name: "Seller cancels a auction",
+      transition: "Cancel",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        zrc6_contract: globalZRC6ContractAddress,
+        token_id: 1,
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        events: [
+          {
+            name: "Cancel",
+            getParams: () => [
+              getJSONParam(
+                "ByStr20",
+                globalZRC6ContractAddress,
+                "zrc6_contract"
+              ),
+              getJSONParam("Uint256", "1", "token_id"),
+            ],
+          },
+        ],
+        verifyState: (state) => {
+          if (
+            JSON.stringify(
+              state.sell_orders[globalZRC6ContractAddress.toLowerCase()]
+            ) !== "{}" ||
+            JSON.stringify(
+              state.buy_orders[globalZRC6ContractAddress.toLowerCase()]
+            ) !== "{}"
+          ) {
+            return false;
+          }
+          if (
+            JSON.stringify(
+              state.assets[getTestAddr(SELLER).toLowerCase()][
+                globalZRC6ContractAddress.toLowerCase()
+              ]["1"]
+            ) !== JSON.stringify(getJSONValue(true))
+          ) {
+            return false;
+          }
+          if (
+            state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
+              globalZRC2ContractAddress.toLowerCase()
+            ] !== "10000"
+          ) {
+            return false;
+          }
+
+          return true;
+        },
+      },
+    },
     {
       name: "throws SellOrderNotFoundError",
       transition: "End",
