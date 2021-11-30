@@ -13,6 +13,7 @@ let one_msg =
     Cons {Message} msg nil_msg
 
 let zero_address = 0x0000000000000000000000000000000000000000
+let false = False
 let true = True
 
 let max_fee_bps = Uint128 10000
@@ -59,6 +60,9 @@ type Error =
   | NotMakerError
   | NotSelfError
   | NotAllowedPaymentToken
+  | NotPausedError
+  | PausedError
+  | NotContractOwnerError
 
   
 let make_error =
@@ -75,6 +79,9 @@ let make_error =
       | NotMakerError          => Int32 -8
       | NotSelfError           => Int32 -9
       | NotAllowedPaymentToken => Int32 -10
+      | NotPausedError         => Int32 -11
+      | PausedError            => Int32 -12
+      | NotContractOwnerError  => Int32 -13
       end
     in
     { _exception : "Error"; code : result_code }
@@ -85,7 +92,7 @@ let make_error =
 
 contract FixedPriceOrderbook
 (
-  init_service_fee_recipient: ByStr20,
+  initial_contract_owner: ByStr20,
   wzil_address: ByStr20
 )
 
@@ -98,6 +105,14 @@ contract FixedPriceOrderbook
   - payment token contract address (ZRC-2)
   - sale price
 *)
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
 
 (* zrc6_contract -> ( token_id -> ( zrc2_contract -> (sale_price -> sell_order  ) ) *)
 field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
@@ -117,12 +132,36 @@ builtin put emp_map wzil_address true
 (* Defaults to 250 *)
 field service_fee_bps: Uint128 = Uint128 250
 
-field service_fee_recipient: ByStr20 = init_service_fee_recipient
+field service_fee_recipient: ByStr20 = initial_contract_owner
 
 (* Procedures *)
 procedure Throw(error : Error)
   e = make_error error;
   throw e
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
 end
 
 procedure RequireAllowedPaymentToken(zrc2_address: ByStr20)
@@ -269,6 +308,44 @@ procedure HandleFulfillOrder(
   event e
 end
 
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+(* @Requirements: *)
+(* - The contract must not be paused. Otherwise, it must throw `PausedError` *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* Unpauses the contract. *)
+(* @Requirements: *)
+(* - The contract must be paused. Otherwise, it must throw `NotPausedError` *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+transition Unpause()
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    error = NotPausedError;
+    Throw error
+  end;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
 transition CreateOrder(
   zrc6_contract: ByStr20 with contract 
     field spenders: Map Uint256 ByStr20, 
@@ -284,7 +361,7 @@ transition CreateOrder(
     - Sellers can create sell orders (listings) 
     - Buyers can create buy orders (offers) 
   *)
-  
+  RequireNotPaused;
   RequireAllowedPaymentToken zrc2_contract;
   RequireThisToBeSpender zrc6_contract token_id;
 
@@ -342,6 +419,8 @@ transition CancelOrder(
   sale_price: Uint128,
   side: Uint32
   )
+  RequireNotPaused;
+
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True =>     
@@ -402,6 +481,7 @@ transition FulfillOrder(
     - When a buy order is fulfilled, the buy order is removed.
     - Buyers should be able to set an address to receive the asset when fulfilling a sell order. 
   *)
+  RequireNotPaused;
 
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 

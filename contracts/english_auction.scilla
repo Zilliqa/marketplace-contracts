@@ -11,6 +11,7 @@ let zero_address = 0x0000000000000000000000000000000000000000
 let zero_uint128 = Uint128 0
 let min_fee_bps = Uint128 1
 let max_fee_bps = Uint128 10000
+let false = False
 let true = True
 
 let one_msg = 
@@ -75,6 +76,10 @@ type Error =
   | AssetNotFoundError
   | NotAllowedToEndError
   | NotAllowedPaymentToken
+  | NotPausedError
+  | PausedError
+  | NotContractOwnerError
+
   
 let make_error =
   fun (result : Error) =>
@@ -95,6 +100,9 @@ let make_error =
       | AssetNotFoundError                  => Int32 -13
       | NotAllowedToEndError                => Int32 -14
       | NotAllowedPaymentToken              => Int32 -15
+      | NotPausedError                      => Int32 -16
+      | PausedError                         => Int32 -17
+      | NotContractOwnerError               => Int32 -18
       end
     in
     { _exception : "Error"; code : result_code }
@@ -105,9 +113,17 @@ let make_error =
 
 contract EnglishAuctionOrderbook
 (
-  init_service_fee_recipient: ByStr20,
+  initial_contract_owner: ByStr20,
   wzil_address: ByStr20
 )
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
 
 (* We assume all orders are english auction type  *)
 (* 
@@ -138,12 +154,36 @@ builtin put emp_map wzil_address true
 (* Defaults to 250 *)
 field service_fee_bps: Uint128 = Uint128 250
 
-field service_fee_recipient: ByStr20 = init_service_fee_recipient
+field service_fee_recipient: ByStr20 = initial_contract_owner
 
 (* Procedures *)
 procedure Throw(error : Error)
   e = make_error error;
   throw e
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
 end
 
 procedure RequireAllowedPaymentToken(zrc2_address: ByStr20)
@@ -240,6 +280,44 @@ procedure ZRC6TransferFrom(zrc6_contract: ByStr20, to: ByStr20, token_id: Uint25
   send msgs
 end
 
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+(* @Requirements: *)
+(* - The contract must not be paused. Otherwise, it must throw `PausedError` *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* Unpauses the contract. *)
+(* @Requirements: *)
+(* - The contract must be paused. Otherwise, it must throw `NotPausedError` *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+transition Unpause()
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    error = NotPausedError;
+    Throw error
+  end;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
 (* Seller calls this transition *)
 transition Start(
   zrc6_contract: ByStr20 with contract 
@@ -258,7 +336,7 @@ transition Start(
   (* 
     - Seller can start an auction for an asset only if the asset has no ongoing auction. 
   *)
-
+  RequireNotPaused;
   RequireNotExpired expiration_bnum;
   RequireAllowedPaymentToken zrc2_contract;
 
@@ -293,15 +371,6 @@ end
 
 (* Seller calls this transition *)
 transition Bid(
-  (* 
-    - Bidders can bid for an existing auction.
-    - A bid must not be less than start amount of the auction.
-    - A bid must not be less than the minimum bid (Minimum Bid = Current Bid + Bid Increment).
-    - We assume that the bid increment is 10% of the current bid.
-    - Bidders must be able to set an address to receive the asset when creating a buy order.
-    - If the current bid is updated, the previous bidder can withdraw the payment tokens back. 
-  *)
-
   zrc6_contract: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
     field royalty_fee_bps: Uint128, 
@@ -312,6 +381,16 @@ transition Bid(
   amount: Uint128,
   dest: ByStr20
   )
+  (* 
+    - Bidders can bid for an existing auction.
+    - A bid must not be less than start amount of the auction.
+    - A bid must not be less than the minimum bid (Minimum Bid = Current Bid + Bid Increment).
+    - We assume that the bid increment is 10% of the current bid.
+    - Bidders must be able to set an address to receive the asset when creating a buy order.
+    - If the current bid is updated, the previous bidder can withdraw the payment tokens back. 
+  *)
+  RequireNotPaused;
+
   (* Check the sell order does exist *)
   maybe_sell_order <- sell_orders[zrc6_contract][token_id];
   match maybe_sell_order with 
@@ -417,6 +496,7 @@ transition End(
     - When an auction is ended, the buyer can withdraw the asset
     - When an auction is ended, the seller can withdraw get the payment tokens.
   *)
+  RequireNotPaused;
 
   (* Check the sell order does exist *)
   maybe_sell_order <- sell_orders[zrc6_contract][token_id];
@@ -500,7 +580,8 @@ end
 
 transition WithdrawPaymentTokens(zrc2_contract: ByStr20, amount: Uint128)
   (* - Anyone who has payment tokens can draw their tokens. *)
-  
+  RequireNotPaused;
+
   maybe_balance <- payment_tokens[_sender][zrc2_contract];
   match maybe_balance with
   | None =>
@@ -532,6 +613,9 @@ end
 
 transition WithdrawAsset(zrc6_contract: ByStr20, token_id: Uint256)
   (* - Anyone who has assets can draw their asset. *)
+  
+  RequireNotPaused;
+  
   has_token <- exists assets[_sender][zrc6_contract][token_id];
   match has_token with
   | False =>

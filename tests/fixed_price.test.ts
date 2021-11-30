@@ -52,7 +52,7 @@ let globalTestAccounts: Array<{
 }> = [];
 const SELLER = 0;
 const BUYER = 1;
-const SERVICE_FEE_RECIPIENT = 2;
+const MARKETPLACE_CONTRACT_OWNER = 2;
 const STRANGER = 3;
 const getTestAddr = (index) => globalTestAccounts[index]?.address as string;
 
@@ -85,7 +85,7 @@ beforeAll(async () => {
     GENESIS_PRIVATE_KEY,
     SELLER: getTestAddr(SELLER),
     BUYER: getTestAddr(BUYER),
-    SERVICE_FEE_RECIPIENT: getTestAddr(SERVICE_FEE_RECIPIENT),
+    MARKETPLACE_CONTRACT_OWNER: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
     STRANGER: getTestAddr(STRANGER),
   });
 
@@ -168,10 +168,10 @@ beforeEach(async () => {
     throw new Error();
   }
 
-  // SERVICE_FEE_RECIPIENT is the zrc6 marketplace contract owner
-  zilliqa.wallet.setDefault(getTestAddr(SERVICE_FEE_RECIPIENT));
+  // MARKETPLACE_CONTRACT_OWNER is the zrc6 marketplace contract owner
+  zilliqa.wallet.setDefault(getTestAddr(MARKETPLACE_CONTRACT_OWNER));
   init = globalZRC6MarketplaceContractInfo.getInitParams(
-    getTestAddr(SERVICE_FEE_RECIPIENT),
+    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
     globalZRC2ContractAddress // WZIL
   );
   [, contract] = await zilliqa.contracts
@@ -479,7 +479,7 @@ describe("Fixed Price Listings and Offers", () => {
               getJSONParam("ByStr20", getTestAddr(BUYER), "sender"),
               getJSONParam(
                 "ByStr20",
-                getTestAddr(SERVICE_FEE_RECIPIENT),
+                getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                 "recipient"
               ),
               getJSONParam("Uint128", "250", "amount"),
@@ -593,7 +593,7 @@ describe("Fixed Price Listings and Offers", () => {
               getJSONParam("ByStr20", getTestAddr(BUYER), "sender"),
               getJSONParam(
                 "ByStr20",
-                getTestAddr(SERVICE_FEE_RECIPIENT),
+                getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                 "recipient"
               ),
               getJSONParam("Uint128", "250", "amount"),
