@@ -7,19 +7,34 @@ import BoolUtils IntUtils
 
 library FixedPriceOrderbook
 
+let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint128 = Uint128 0
+let false = False
+let true = True
+
+let min_fee_bps = Uint128 1
+let max_fee_bps = Uint128 10000
+
+let sell_side = Uint32 0
+let buy_side = Uint32 1
+
 let one_msg = 
   fun (msg : Message) => 
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
 
-let zero_address = 0x0000000000000000000000000000000000000000
-let false = False
-let true = True
+let two_msgs =
+fun (msg1: Message) =>
+fun (msg2: Message) =>
+  let msgs_tmp = one_msg msg2 in
+  Cons {Message} msg1 msgs_tmp
 
-let max_fee_bps = Uint128 10000
-
-let sell_side = Uint32 0
-let buy_side = Uint32 1
+let three_msgs =
+fun (msg1: Message) =>
+fun (msg2: Message) =>
+fun (msg3: Message) =>
+  let msgs_tmp = two_msgs msg2 msg3 in
+  Cons {Message} msg1 msgs_tmp
 
 let portion = 
   fun(amount: Uint128) =>
@@ -63,25 +78,26 @@ type Error =
   | NotPausedError
   | PausedError
   | NotContractOwnerError
-
+  | InvalidFeeBPSError
   
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | SellOrderNotFoundError => Int32 -1
-      | SellOrderFoundError    => Int32 -2
-      | BuyOrderNotFoundError  => Int32 -3
-      | BuyOrderFoundError     => Int32 -4
-      | NotSpenderError        => Int32 -5
-      | NotTokenOwnerError     => Int32 -6
-      | ExpiredError           => Int32 -7
-      | NotMakerError          => Int32 -8
-      | NotSelfError           => Int32 -9
-      | NotAllowedPaymentToken => Int32 -10
-      | NotPausedError         => Int32 -11
-      | PausedError            => Int32 -12
-      | NotContractOwnerError  => Int32 -13
+      | SellOrderNotFoundError      => Int32 -1
+      | SellOrderFoundError         => Int32 -2
+      | BuyOrderNotFoundError       => Int32 -3
+      | BuyOrderFoundError          => Int32 -4
+      | NotSpenderError             => Int32 -5
+      | NotTokenOwnerError          => Int32 -6
+      | ExpiredError                => Int32 -7
+      | NotMakerError               => Int32 -8
+      | NotSelfError                => Int32 -9
+      | NotAllowedPaymentToken      => Int32 -10
+      | NotPausedError              => Int32 -11
+      | PausedError                 => Int32 -12
+      | NotContractOwnerError       => Int32 -13
+      | InvalidFeeBPSError          => Int32 -14
       end
     in
     { _exception : "Error"; code : result_code }
@@ -114,17 +130,16 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Defaults to False *)
 field is_paused: Bool = false
 
-(* zrc6_contract -> ( token_id -> ( zrc2_contract -> (sale_price -> sell_order  ) ) *)
+(* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> sell_order  ) ) *)
 field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
 
-(* zrc6_contract -> ( token_id -> ( zrc2_contract -> (sale_price -> buy_order ) ) *)
+(* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> buy_order ) ) *)
 field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
 
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
 field allowed_payment_tokens: Map ByStr20 Bool =
 let emp_map = Emp ByStr20 Bool in
 builtin put emp_map wzil_address true
-
 
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
@@ -164,8 +179,28 @@ procedure RequireNotPaused()
   end
 end
 
-procedure RequireAllowedPaymentToken(zrc2_address: ByStr20)
-  is_allowed <- exists allowed_payment_tokens[zrc2_address];
+procedure RequireValidFeeBPS(fee_bps: Uint128)
+  is_gte_min = uint128_ge fee_bps min_fee_bps;
+  is_lte_max = uint128_le fee_bps max_fee_bps;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidFeeBPSError;
+      Throw error
+  end
+end
+
+procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
+  is_zero_address = builtin eq payment_token_address zero_address;
+  is_zero_amount = builtin eq _amount zero_uint128;
+  has_amount = negb is_zero_amount;
+  
+  is_native_zil = andb has_amount is_zero_address;
+  is_allowed_zrc2_address <- exists allowed_payment_tokens[payment_token_address];
+
+  is_allowed = orb is_native_zil is_allowed_zrc2_address;
   match is_allowed with
   | True =>
   | False =>
@@ -195,9 +230,8 @@ procedure RequireNotExpired(expiration_bnum: BNum)
   end
 end
 
-(* A marketplace must be a spender and it must not hold any tokens. *)
-procedure RequireThisToBeSpender(zrc6_contract: ByStr20 with contract field spenders: Map Uint256 ByStr20 end, token_id: Uint256)
-  opt_spender <- & zrc6_contract.spenders[token_id];
+procedure RequireThisToBeSpender(token_address: ByStr20 with contract field spenders: Map Uint256 ByStr20 end, token_id: Uint256)
+  opt_spender <- & token_address.spenders[token_id];
   spender = option_address zero_address opt_spender;
   is_spender = builtin eq _this_address spender;
   match is_spender with
@@ -208,8 +242,8 @@ procedure RequireThisToBeSpender(zrc6_contract: ByStr20 with contract field spen
   end
 end
 
-procedure RequireSenderToBeTokenOwner(zrc6_contract: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
-  opt_token_owner <- & zrc6_contract.token_owners[token_id];
+procedure RequireSenderToBeTokenOwner(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
+  opt_token_owner <- & token_address.token_owners[token_id];
   token_owner = option_address zero_address opt_token_owner;
   is_token_owner = builtin eq _sender token_owner;
   match is_token_owner with
@@ -220,10 +254,10 @@ procedure RequireSenderToBeTokenOwner(zrc6_contract: ByStr20 with contract field
   end
 end
 
-procedure ZRC2TransferFrom(zrc2_contract: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+procedure ZRC2TransferFrom(payment_token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
   msg_to_wzil = {
     _tag: "TransferFrom";
-    _recipient: zrc2_contract;
+    _recipient: payment_token_address;
     _amount: Uint128 0;
     from: from;
     to: to;
@@ -234,12 +268,12 @@ procedure ZRC2TransferFrom(zrc2_contract: ByStr20, from: ByStr20, to: ByStr20, a
 end
 
 procedure ZRC6TransferFrom(
-  zrc6_contract: ByStr20,
+  token_address: ByStr20,
   to: ByStr20,
   token_id: Uint256)
   msg_to_zrc6 = {
     _tag: "TransferFrom";
-    _recipient: zrc6_contract;
+    _recipient: token_address;
     _amount: Uint128 0;
     to: to;
     token_id: token_id
@@ -249,53 +283,80 @@ procedure ZRC6TransferFrom(
 end
 
 procedure HandleFulfillOrder(
-  zrc6_contract: ByStr20 with contract 
+  token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
     field royalty_fee_bps: Uint128, 
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20 
   end,
   token_id: Uint256,
-  zrc2_contract: ByStr20,
+  payment_token_address: ByStr20,
   sale_price: Uint128,
   buyer: ByStr20,
   seller: ByStr20,
   side: Uint32,
   buy_dest: ByStr20
   )
+  
   (* Assume this marketplace support royalty *)
-  (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
-
-  royalty_fee_bps <- & zrc6_contract.royalty_fee_bps;
+  royalty_fee_bps <- & token_address.royalty_fee_bps;
   royalty_amount = portion sale_price royalty_fee_bps;
 
   fee_bps <- service_fee_bps;
-  service_fee = portion sale_price fee_bps;
+  svc_fee = portion sale_price fee_bps;
 
   profit = builtin sub sale_price royalty_amount;
-  seller_profit = builtin sub profit service_fee;
+  seller_profit = builtin sub profit svc_fee;
+  
+  royalty_recipient <- & token_address.royalty_recipient;
+  svc_fee_recipient <- service_fee_recipient;
 
-  royalty_recipient <- & zrc6_contract.royalty_recipient;
-  (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
-  ZRC2TransferFrom zrc2_contract buyer royalty_recipient royalty_amount;
+  is_native_zil = builtin eq payment_token_address zero_address;
+  match is_native_zil with
+  | True =>
+    msg_to_royalty_recipient = {
+      _tag: "TransferNativeZILs";
+      _recipient: royalty_recipient;
+      _amount: royalty_amount
+    };
 
-  seller_fee_recipient <- service_fee_recipient;
-  (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
-  ZRC2TransferFrom zrc2_contract buyer seller_fee_recipient service_fee;
+    msg_to_svc_fee_recipient = {
+      _tag: "TransferNativeZILs";
+      _recipient: svc_fee_recipient;
+      _amount: svc_fee
+    };
+    
+    msg_to_seller = {
+      _tag: "TransferNativeZILs";
+      _recipient: seller;
+      _amount: seller_profit
+    };
+    
+    msgs = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
+    send msgs
+  | False =>
+    (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
 
-  (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-  ZRC2TransferFrom zrc2_contract buyer seller seller_profit;
+    (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
+    ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;
+
+    (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
+    ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
+
+    (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
+    ZRC2TransferFrom payment_token_address buyer seller seller_profit
+  end;
 
   (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
-  ZRC6TransferFrom zrc6_contract buy_dest token_id;
+  ZRC6TransferFrom token_address buy_dest token_id;
 
   e = {
     _eventname : "FulfillOrder";
     taker: _sender;
     side: side;
-    zrc6_contract: zrc6_contract;
+    token_address: token_address;
     token_id: token_id;
-    zrc2_contract: zrc2_contract;
+    payment_token_address: payment_token_address;
     sale_price: sale_price;
     seller: seller;
     buyer: buyer;
@@ -303,7 +364,7 @@ procedure HandleFulfillOrder(
     payment_tokens_recipient: seller;
     royalty_recipient: royalty_recipient;
     royalty_amount: royalty_amount;
-    service_fee: service_fee
+    service_fee: svc_fee
   };
   event e
 end
@@ -347,12 +408,12 @@ transition Unpause()
 end
 
 transition CreateOrder(
-  zrc6_contract: ByStr20 with contract 
+  token_address: ByStr20 with contract 
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20 
   end,
   token_id: Uint256,
-  zrc2_contract: ByStr20,
+  payment_token_address: ByStr20,
   sale_price: Uint128,
   side: Uint32,
   expiration_bnum: BNum
@@ -362,16 +423,17 @@ transition CreateOrder(
     - Buyers can create buy orders (offers) 
   *)
   RequireNotPaused;
-  RequireAllowedPaymentToken zrc2_contract;
-  RequireThisToBeSpender zrc6_contract token_id;
+  RequireNotExpired expiration_bnum;
+  RequireAllowedPaymentToken payment_token_address;
+  RequireThisToBeSpender token_address token_id;
 
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True => 
     (* Side: Sell *)
-    RequireSenderToBeTokenOwner zrc6_contract token_id;
+    RequireSenderToBeTokenOwner token_address token_id;
     
-    has_sell_order <- exists sell_orders[zrc6_contract][token_id][zrc2_contract][sale_price];
+    has_sell_order <- exists sell_orders[token_address][token_id][payment_token_address][sale_price];
     match has_sell_order with
     | True =>
       (* It's already listed *)
@@ -380,42 +442,73 @@ transition CreateOrder(
     | False =>
       (* create new sell order *)
       new_order = Order _sender expiration_bnum;
-      sell_orders[zrc6_contract][token_id][zrc2_contract][sale_price] := new_order
+      sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
+      
+      e = {
+        _eventname : "CreateOrder";
+        maker: _sender;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        expiration_bnum: expiration_bnum
+      };
+      event e
     end
   | False => 
     (* Side: Buy *)
-    has_buy_order <- exists buy_orders[zrc6_contract][token_id][zrc2_contract][sale_price];
+
+    (* create new buy order *)
+    new_order = Order _sender expiration_bnum;
+
+    (* It's native ZIL case if the payment_token_address is zero address and sale_price is 0 *)
+    is_zero_address = builtin eq payment_token_address zero_address;
+    is_sale_price_zero = builtin eq sale_price zero_uint128;
+    is_native_zil = andb is_sale_price_zero is_zero_address;
+    
+    match is_native_zil with 
+      | False =>
+      | True => accept
+    end;
+
+    amount = 
+      match is_native_zil with 
+        | True => _amount
+        | False =>  sale_price
+      end;
+
+    has_buy_order <- exists buy_orders[token_address][token_id][payment_token_address][amount];
     match has_buy_order with
     | True =>
       (* It's already listed *)
       error = BuyOrderFoundError;
       Throw error
     | False =>
-      (* create new buy order *)
-      new_order = Order _sender expiration_bnum;
-      buy_orders[zrc6_contract][token_id][zrc2_contract][sale_price] := new_order
-    end  
-  end;
-  e = {
-    _eventname : "CreateOrder";
-    maker: _sender;
-    side: side;
-    zrc6_contract: zrc6_contract;
-    token_id: token_id;
-    zrc2_contract: zrc2_contract;
-    sale_price: sale_price;
-    expiration_bnum: expiration_bnum
-  };
-  event e
+      buy_orders[token_address][token_id][payment_token_address][amount] := new_order
+    end;
+
+    e = {
+      _eventname : "CreateOrder";
+      maker: _sender;
+      side: side;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: amount;
+      expiration_bnum: expiration_bnum
+    };
+    event e
+  end
 end
 
 transition CancelOrder(
-  zrc6_contract: ByStr20 with contract 
+  token_address: ByStr20 with contract 
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20 
   end,
   token_id: Uint256,
-  zrc2_contract: ByStr20,
+  payment_token_address: ByStr20,
   sale_price: Uint128,
   side: Uint32
   )
@@ -425,7 +518,7 @@ transition CancelOrder(
   match is_sell_order with 
   | True =>     
     (* Side: Sell *)
-    opt_sell_order <- sell_orders[zrc6_contract][token_id][zrc2_contract][sale_price];
+    opt_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
     match opt_sell_order with
     | None =>
       error = SellOrderNotFoundError;
@@ -433,42 +526,56 @@ transition CancelOrder(
     | Some (Order maker expiration_bnum) =>  
       RequireSelf maker _sender;
       (* Remove order *)
-      delete sell_orders[zrc6_contract][token_id][zrc2_contract][sale_price]
+      delete sell_orders[token_address][token_id][payment_token_address][sale_price]
     end
   | False => 
     (* Side: Buy *)
-    opt_buy_order <- buy_orders[zrc6_contract][token_id][zrc2_contract][sale_price];
+    opt_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
     match opt_buy_order with
     | None =>
       error = BuyOrderNotFoundError;
       Throw error
     | Some (Order maker expiration_bnum) =>  
       RequireSelf maker _sender;
+
+      is_native_zil = builtin eq payment_token_address zero_address;
+      match is_native_zil with
+        | False =>
+        | True =>
+          msg = {
+            _tag: "TransferNativeZILs";
+            _recipient: _sender;
+            _amount: sale_price
+          };
+          msgs = one_msg msg;
+          send msgs
+      end;
+      
       (* Remove order *)
-      delete buy_orders[zrc6_contract][token_id][zrc2_contract][sale_price]
+      delete buy_orders[token_address][token_id][payment_token_address][sale_price]
     end
   end;
   e = {
     _eventname : "CancelOrder";
     maker: _sender;
     side: side;
-    zrc6_contract: zrc6_contract;
+    token_address: token_address;
     token_id: token_id;
-    zrc2_contract: zrc2_contract;
+    payment_token_address: payment_token_address;
     sale_price: sale_price
   };
   event e
 end
 
 transition FulfillOrder(
-  zrc6_contract: ByStr20 with contract 
+  token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
     field royalty_fee_bps: Uint128, 
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20 
   end,
   token_id: Uint256,
-  zrc2_contract: ByStr20,
+  payment_token_address: ByStr20,
   sale_price: Uint128,
   side: Uint32,
   (* `dest` is only meaningful for buyers at the moment *)
@@ -488,7 +595,7 @@ transition FulfillOrder(
   | True => 
     (* Side: Sell *)
     buyer = _sender;
-    opt_sell_order <- sell_orders[zrc6_contract][token_id][zrc2_contract][sale_price];
+    opt_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
 
     match opt_sell_order with
     | None => 
@@ -497,15 +604,15 @@ transition FulfillOrder(
     | Some (Order seller expiration_bnum) =>  
       RequireNotExpired expiration_bnum;
 
-      HandleFulfillOrder zrc6_contract token_id zrc2_contract sale_price buyer seller side dest;
+      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
       
       (* Remove all sell orders *)
-      delete sell_orders[zrc6_contract][token_id]
+      delete sell_orders[token_address][token_id]
     end
   | False => 
     (* Side: Buy *)
     seller = _sender;
-    opt_buy_order <- buy_orders[zrc6_contract][token_id][zrc2_contract][sale_price];
+    opt_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
 
     match opt_buy_order with
     | None => 
@@ -514,14 +621,25 @@ transition FulfillOrder(
     | Some (Order buyer expiration_bnum) =>  
       RequireNotExpired expiration_bnum;
       
-      HandleFulfillOrder zrc6_contract token_id zrc2_contract sale_price buyer seller side buyer;
+      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
 
       (* Remove all sell orders *)
-      delete sell_orders[zrc6_contract][token_id];
+      delete sell_orders[token_address][token_id];
       (* Remove the buy order *)
-      delete buy_orders[zrc6_contract][token_id][zrc2_contract][sale_price]
+      delete buy_orders[token_address][token_id][payment_token_address][sale_price]
     end
   end
+end
+
+transition SetServiceFeeBPS(fee_bps: Uint128)
+  RequireContractOwner;
+  RequireValidFeeBPS fee_bps;
+  service_fee_bps := fee_bps;
+  e = {
+    _eventname : "SetServiceFeeBPS";
+    service_fee_bps: fee_bps
+  };
+  event e
 end
 
 (* empty callbacks *)

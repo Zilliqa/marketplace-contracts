@@ -192,10 +192,22 @@ export const verifyTransitions = (transitions, want) => {
   }
   for (const [index, transition] of transitions.entries()) {
     const { msg } = transition;
+
+    if (want[index].amount && msg._amount !== want[index].amount.toString()) {
+      logDelta(want[index].amount.toString(), msg._amount);
+      return false;
+    }
+
+    if (want[index].recipient && msg._recipient !== want[index].recipient) {
+      logDelta(want[index].recipient, msg._recipient);
+      return false;
+    }
+
     if (msg._tag !== want[index].tag) {
       logDelta(want[index].tag, msg._tag);
       return false;
     }
+
     if (
       JSON.stringify(msg.params) !== JSON.stringify(want[index].getParams())
     ) {
@@ -208,3 +220,22 @@ export const verifyTransitions = (transitions, want) => {
   }
   return true;
 };
+
+export const getBNum = async (zilliqa) => {
+  const response = await zilliqa.provider.send("GetBlocknum", "");
+  return response.result;
+};
+
+export const increaseBNum = async (zilliqa, n) => {
+  const response = await zilliqa.provider.send("IncreaseBlocknum", n);
+  if (!response.result) {
+    throw new Error(
+      `Failed to advanced block! Error: ${JSON.stringify(response.error)}`
+    );
+  }
+};
+
+export const getUsrDefADTValue = (contractAddress, name, values) =>
+  `{"argtypes":[],"arguments":${JSON.stringify(
+    values
+  )},"constructor":"${contractAddress.toLowerCase()}.${name}"}`;

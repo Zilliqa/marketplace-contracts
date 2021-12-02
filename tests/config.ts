@@ -78,3 +78,5 @@ export const ENG_AUC_ERROR = {
   NotAllowedToEndError: -14,
   NotAllowedPaymentToken: -15,
 };
+
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
