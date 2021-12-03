@@ -753,8 +753,9 @@ transition End(
         
         (* Asset for buy_dest *)
         assets[buy_dest][token_address][token_id] := true;
+        
         (* payment tokens for the seller *)
-        payment_tokens[seller][payment_token_address] := seller_profit;
+        AddToPaymentTokenBalance seller payment_token_address seller_profit;
 
         (* Cleanup orders *)
         delete sell_orders[token_address][token_id];
