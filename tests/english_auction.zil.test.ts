@@ -437,6 +437,7 @@ describe("Auction", () => {
                 getTestAddr(BUYER_B).toLowerCase(),
                 "11001",
                 getTestAddr(BUYER_B).toLowerCase(),
+                "2",
               ]
             )}}}`
           ) {
@@ -672,6 +673,7 @@ describe("Auction", () => {
             getTestAddr(BUYER_A).toLowerCase(),
             "10000",
             getTestAddr(BUYER_A).toLowerCase(),
+            "1",
           ]
         )}}}`
       );

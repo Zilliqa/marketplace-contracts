@@ -9,6 +9,7 @@ library EnglishAuctionOrderbook
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_uint128 = Uint128 0
+let one_uint128 = Uint128 1
 let false = False
 let true = True
 
@@ -54,9 +55,9 @@ let option_address = @option_value ByStr20
 type SellOrder = 
 | SellOrder of ByStr20 BNum ByStr20 Uint128
 
-(* maker, amount, dest *)
+(* maker, amount, dest, bid count *)
 type BuyOrder = 
-| BuyOrder of ByStr20 Uint128 ByStr20
+| BuyOrder of ByStr20 Uint128 ByStr20 Uint128
 
 (* Error exceptions *)
 type Error =
@@ -355,10 +356,10 @@ procedure BidWithNativeZILs(
       Throw error
     | False =>
       (* Create a buy order *)
-      new_order = BuyOrder _sender amount dest;
+      new_order = BuyOrder _sender amount dest one_uint128;
       buy_orders[token_address][token_id] := new_order
     end
-  | Some (BuyOrder old_buyer cur_amount cur_dest) =>
+  | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
     (* We have the existing bid. We track the max only. *)
     (* Minimum Bid = Current Bid + Bid Increment *)
 
@@ -366,7 +367,7 @@ procedure BidWithNativeZILs(
     ten_percent = Uint128 1000;
     bid_increment = portion cur_amount ten_percent;
     min_bid = builtin add cur_amount bid_increment;
-    
+
     is_less_than_min_bid = builtin lt amount min_bid;
     match is_less_than_min_bid with
     | True => 
@@ -378,7 +379,8 @@ procedure BidWithNativeZILs(
       AddToPaymentTokenBalance old_buyer zero_address cur_amount;
 
       (* Update the buy order with new buyer *)
-      new_order = BuyOrder _sender amount dest;
+      new_bid_count = builtin add bid_count one_uint128;
+      new_order = BuyOrder _sender amount dest new_bid_count;
       buy_orders[token_address][token_id] := new_order
     end
   end
@@ -431,10 +433,10 @@ procedure BidWithZRC2(
           Throw error
         | False =>
           (* Create a buy order *)
-          new_order = BuyOrder _sender amount dest;
+          new_order = BuyOrder _sender amount dest one_uint128;
           buy_orders[token_address][token_id] := new_order
         end
-      | Some (BuyOrder old_buyer cur_amount cur_dest) =>
+      | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
         (* We have the existing bid. We track the max only. *)
         (* Minimum Bid = Current Bid + Bid Increment *)
 
@@ -453,7 +455,8 @@ procedure BidWithZRC2(
           AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
 
           (* Update the buy order with new buyer *)
-          new_order = BuyOrder _sender amount dest;
+          new_bid_count = builtin add bid_count one_uint128;
+          new_order = BuyOrder _sender amount dest new_bid_count;
           buy_orders[token_address][token_id] := new_order
         end
       end
@@ -656,7 +659,7 @@ transition Cancel(
     match maybe_buy_order with 
     | None =>
       (* noop *)
-    | Some (BuyOrder buyer cur_amount buy_dest) =>  
+    | Some (BuyOrder buyer cur_amount buy_dest _) =>  
       (* markekplace pays back the old bider the current amount *)
       AddToPaymentTokenBalance buyer payment_token_address cur_amount;
       delete buy_orders[token_address][token_id]
@@ -704,7 +707,7 @@ transition End(
       (* Buy order doesn't exist *)
       error = BuyOrderNotFoundError;
       Throw error
-    | Some (BuyOrder buyer sale_price buy_dest) =>
+    | Some (BuyOrder buyer sale_price buy_dest _) =>
 
       (* Check _sender is the seller or the buyer *)
       is_seller = builtin eq _sender seller;
@@ -731,7 +734,6 @@ transition End(
 
         royalty_recipient <- & token_address.royalty_recipient;
         seller_fee_recipient <- service_fee_recipient;
-        
 
         (* It's native ZIL case if the payment_token_address is zero address *)
         is_zero_address = builtin eq payment_token_address zero_address;
