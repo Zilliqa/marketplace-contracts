@@ -3,8 +3,31 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-export const getErrorMsg = (code) =>
-  `Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 ${code}))])`;
+export const extractTypes = (type) => {
+  let count = 0;
+  let startIndex = -1;
+  const result = [] as string[];
+
+  for (let i = 0; i < type.length; i++) {
+    const c = type[i] as string;
+
+    if (c === "(") {
+      count += 1;
+      if (count === 1 && startIndex === -1) {
+        startIndex = i + 1;
+      }
+    } else if (c === ")") {
+      count -= 1;
+      if (count === 0) {
+        result.push(type.slice(startIndex, i));
+
+        // reset
+        startIndex = -1;
+      }
+    }
+  }
+  return result;
+};
 
 export const getJSONValue = (value, type?) => {
   value = typeof value === "number" ? value.toString() : value;
@@ -22,8 +45,7 @@ export const getJSONValue = (value, type?) => {
     type.startsWith("List") &&
     Array.isArray(value)
   ) {
-    const types = type.replace(/[()]/g, "").split(" ").slice(1);
-    return value.map((x) => getJSONValue(x, types.join(" ")));
+    return value.map((x) => getJSONValue(x, extractTypes(type).pop()));
   }
 
   if (
@@ -31,7 +53,7 @@ export const getJSONValue = (value, type?) => {
     type.startsWith("Pair") &&
     Array.isArray(value)
   ) {
-    const types = type.replace(/[()]/g, "").split(" ").slice(1);
+    const types = extractTypes(type);
     return {
       argtypes: types,
       arguments: value.map((x, i) => getJSONValue(x, types[i])),
@@ -221,18 +243,16 @@ export const verifyTransitions = (transitions, want) => {
   return true;
 };
 
+export const getErrorMsg = (code) =>
+  `Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 ${code}))])`;
+
 export const getBNum = async (zilliqa) => {
   const response = await zilliqa.provider.send("GetBlocknum", "");
   return response.result;
 };
 
 export const increaseBNum = async (zilliqa, n) => {
-  const response = await zilliqa.provider.send("IncreaseBlocknum", n);
-  if (!response.result) {
-    throw new Error(
-      `Failed to advanced block! Error: ${JSON.stringify(response.error)}`
-    );
-  }
+  await zilliqa.provider.send("IncreaseBlocknum", n);
 };
 
 export const getUsrDefADTValue = (contractAddress, name, values) =>

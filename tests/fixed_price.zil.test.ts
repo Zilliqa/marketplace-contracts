@@ -221,15 +221,15 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(SELLER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "0", "side"),
+              getJSONParam("Uint32", 0, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam("ByStr20", ZERO_ADDRESS, "payment_token_address"),
-              getJSONParam("Uint128", "20000", "sale_price"),
+              getJSONParam("Uint128", 20000, "sale_price"),
               getJSONParam(
                 "BNum",
                 (globalBNum + 5).toString(),
@@ -279,15 +279,15 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(BUYER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "1", "side"),
+              getJSONParam("Uint32", 1, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam("ByStr20", ZERO_ADDRESS, "payment_token_address"),
-              getJSONParam("Uint128", "20000", "sale_price"),
+              getJSONParam("Uint128", 20000, "sale_price"),
               getJSONParam(
                 "BNum",
                 (globalBNum + 5).toString(),
@@ -351,15 +351,15 @@ describe("Fixed Price Listings and Offers", () => {
             name: "FulfillOrder",
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(BUYER), "taker"),
-              getJSONParam("Uint32", "0", "side"),
+              getJSONParam("Uint32", 0, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam("ByStr20", ZERO_ADDRESS, "payment_token_address"),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "seller"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "buyer"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "asset_recipient"),
@@ -379,7 +379,7 @@ describe("Fixed Price Listings and Offers", () => {
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(SELLER), "from"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "to"),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
             ],
           },
         ],
@@ -387,19 +387,19 @@ describe("Fixed Price Listings and Offers", () => {
           {
             amount: 1000,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZILs",
+            tag: "TransferNativeZIL",
             getParams: () => [],
           },
           {
             amount: 250,
             recipient: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
-            tag: "TransferNativeZILs",
+            tag: "TransferNativeZIL",
             getParams: () => [],
           },
           {
             amount: 8750,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZILs",
+            tag: "TransferNativeZIL",
             getParams: () => [],
           },
           // NFT transfer
@@ -407,7 +407,7 @@ describe("Fixed Price Listings and Offers", () => {
             tag: "TransferFrom",
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(BUYER), "to"),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
             ],
           },
           {
@@ -455,15 +455,15 @@ describe("Fixed Price Listings and Offers", () => {
             name: "FulfillOrder",
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(SELLER), "taker"),
-              getJSONParam("Uint32", "1", "side"),
+              getJSONParam("Uint32", 1, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam("ByStr20", ZERO_ADDRESS, "payment_token_address"),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "seller"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "buyer"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "asset_recipient"),
@@ -484,7 +484,7 @@ describe("Fixed Price Listings and Offers", () => {
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(SELLER), "from"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "to"),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
             ],
           },
         ],
@@ -492,19 +492,19 @@ describe("Fixed Price Listings and Offers", () => {
           {
             amount: 1000,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZILs",
+            tag: "TransferNativeZIL",
             getParams: () => [],
           },
           {
             amount: 250,
             recipient: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
-            tag: "TransferNativeZILs",
+            tag: "TransferNativeZIL",
             getParams: () => [],
           },
           {
             amount: 8750,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZILs",
+            tag: "TransferNativeZIL",
             getParams: () => [],
           },
           // NFT transfer
@@ -512,7 +512,7 @@ describe("Fixed Price Listings and Offers", () => {
             tag: "TransferFrom",
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(BUYER), "to"),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
             ],
           },
           {
@@ -563,15 +563,15 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(BUYER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "1", "side"),
+              getJSONParam("Uint32", 1, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam("ByStr20", ZERO_ADDRESS, "payment_token_address"),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
             ],
           },
         ],
@@ -606,15 +606,15 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(SELLER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "0", "side"),
+              getJSONParam("Uint32", 0, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam("ByStr20", ZERO_ADDRESS, "payment_token_address"),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
             ],
           },
         ],

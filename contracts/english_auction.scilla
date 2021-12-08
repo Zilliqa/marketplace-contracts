@@ -284,9 +284,9 @@ procedure AddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, 
   payment_tokens[to][payment_token_address] := new_bal
 end
 
-procedure TransferNativeZILs(to: ByStr20, amount: Uint128)
+procedure TransferNativeZIL(to: ByStr20, amount: Uint128)
   msg = {
-    _tag: "TransferNativeZILs";
+    _tag: "TransferNativeZIL";
     _recipient: to;
     _amount: amount
   };
@@ -741,10 +741,10 @@ transition End(
         match is_zero_address with 
         | True => 
           (* marketplace transfers royalty fee to the royalty_recipient; *)
-          TransferNativeZILs royalty_recipient royalty_amount;
+          TransferNativeZIL royalty_recipient royalty_amount;
 
           (* marketplace transfers service fee to this marketplace owner *)
-          TransferNativeZILs seller_fee_recipient service_fee
+          TransferNativeZIL seller_fee_recipient service_fee
         | False => 
           (* marketplace transfers royalty fee to the royalty_recipient; *)
           ZRC2Transfer payment_token_address royalty_recipient royalty_amount;
@@ -804,7 +804,7 @@ transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128
       match is_native_zil with
       | True =>
         (* marketplace transfers the native ZILs to _sender *)
-        TransferNativeZILs _sender amount
+        TransferNativeZIL _sender amount
       | False => 
         (* marketplace transfers the amount to _sender *)
         ZRC2Transfer payment_token_address _sender amount

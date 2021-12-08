@@ -286,19 +286,19 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(SELLER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "0", "side"),
+              getJSONParam("Uint32", 0, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam(
                 "ByStr20",
                 globalZRC2ContractAddress,
                 "payment_token_address"
               ),
-              getJSONParam("Uint128", "20000", "sale_price"),
+              getJSONParam("Uint128", 20000, "sale_price"),
               getJSONParam(
                 "BNum",
                 (globalBNum + 5).toString(),
@@ -347,19 +347,19 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(BUYER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "1", "side"),
+              getJSONParam("Uint32", 1, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam(
                 "ByStr20",
                 globalZRC2ContractAddress,
                 "payment_token_address"
               ),
-              getJSONParam("Uint128", "20000", "sale_price"),
+              getJSONParam("Uint128", 20000, "sale_price"),
               getJSONParam(
                 "BNum",
                 (globalBNum + 5).toString(),
@@ -422,13 +422,13 @@ describe("Fixed Price Listings and Offers", () => {
             name: "FulfillOrder",
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(BUYER), "taker"),
-              getJSONParam("Uint32", "0", "side"),
+              getJSONParam("Uint32", 0, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam(
                 "ByStr20",
                 globalZRC2ContractAddress,
@@ -460,7 +460,7 @@ describe("Fixed Price Listings and Offers", () => {
               ),
               getJSONParam("ByStr20", getTestAddr(BUYER), "sender"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "recipient"), // SELLER is the ZRC6 contract owner
-              getJSONParam("Uint128", "1000", "amount"),
+              getJSONParam("Uint128", 1000, "amount"),
             ],
           },
 
@@ -479,7 +479,7 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                 "recipient"
               ),
-              getJSONParam("Uint128", "250", "amount"),
+              getJSONParam("Uint128", 250, "amount"),
             ],
           },
 
@@ -494,7 +494,7 @@ describe("Fixed Price Listings and Offers", () => {
               ),
               getJSONParam("ByStr20", getTestAddr(BUYER), "sender"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "recipient"), // SELLER is the token owner
-              getJSONParam("Uint128", "8750", "amount"),
+              getJSONParam("Uint128", 8750, "amount"),
             ],
           },
 
@@ -504,7 +504,7 @@ describe("Fixed Price Listings and Offers", () => {
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(SELLER), "from"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "to"),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
             ],
           },
         ],
@@ -536,19 +536,19 @@ describe("Fixed Price Listings and Offers", () => {
             name: "FulfillOrder",
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(SELLER), "taker"),
-              getJSONParam("Uint32", "1", "side"),
+              getJSONParam("Uint32", 1, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam(
                 "ByStr20",
                 globalZRC2ContractAddress,
                 "payment_token_address"
               ),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "seller"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "buyer"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "asset_recipient"),
@@ -574,7 +574,7 @@ describe("Fixed Price Listings and Offers", () => {
               ),
               getJSONParam("ByStr20", getTestAddr(BUYER), "sender"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "recipient"), // SELLER is the ZRC6 contract owner
-              getJSONParam("Uint128", "1000", "amount"),
+              getJSONParam("Uint128", 1000, "amount"),
             ],
           },
 
@@ -593,7 +593,7 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                 "recipient"
               ),
-              getJSONParam("Uint128", "250", "amount"),
+              getJSONParam("Uint128", 250, "amount"),
             ],
           },
 
@@ -608,7 +608,7 @@ describe("Fixed Price Listings and Offers", () => {
               ),
               getJSONParam("ByStr20", getTestAddr(BUYER), "sender"),
               getJSONParam("ByStr20", getTestAddr(SELLER), "recipient"), // SELLER is the token owner
-              getJSONParam("Uint128", "8750", "amount"),
+              getJSONParam("Uint128", 8750, "amount"),
             ],
           },
 
@@ -618,7 +618,7 @@ describe("Fixed Price Listings and Offers", () => {
             getParams: () => [
               getJSONParam("ByStr20", getTestAddr(SELLER), "from"),
               getJSONParam("ByStr20", getTestAddr(BUYER), "to"),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
             ],
           },
         ],
@@ -653,19 +653,19 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(BUYER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "1", "side"),
+              getJSONParam("Uint32", 1, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam(
                 "ByStr20",
                 globalZRC2ContractAddress,
                 "payment_token_address"
               ),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
             ],
           },
         ],
@@ -700,19 +700,19 @@ describe("Fixed Price Listings and Offers", () => {
                 getTestAddr(SELLER).toLowerCase(),
                 "maker"
               ),
-              getJSONParam("Uint32", "0", "side"),
+              getJSONParam("Uint32", 0, "side"),
               getJSONParam(
                 "ByStr20",
                 globalZRC6ContractAddress,
                 "token_address"
               ),
-              getJSONParam("Uint256", "1", "token_id"),
+              getJSONParam("Uint256", 1, "token_id"),
               getJSONParam(
                 "ByStr20",
                 globalZRC2ContractAddress,
                 "payment_token_address"
               ),
-              getJSONParam("Uint128", "10000", "sale_price"),
+              getJSONParam("Uint128", 10000, "sale_price"),
             ],
           },
         ],
