@@ -80,6 +80,7 @@ type Error =
   | PausedError
   | NotContractOwnerError
   | InvalidFeeBPSError
+  | NotEqualAmountError
   
 let make_error =
   fun (result : Error) =>
@@ -103,7 +104,8 @@ let make_error =
       | NotPausedError                      => Int32 -16
       | PausedError                         => Int32 -17
       | NotContractOwnerError               => Int32 -18
-      | InvalidFeeBPSError                  => Int32 -14
+      | InvalidFeeBPSError                  => Int32 -19
+      | NotEqualAmountError                 => Int32 -20
       end
     in
     { _exception : "Error"; code : result_code }
@@ -211,17 +213,23 @@ end
 
 procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
   is_zero_address = builtin eq payment_token_address zero_address;
-  is_zero_amount = builtin eq _amount zero_uint128;
-  has_amount = negb is_zero_amount;
-  
-  is_native_zil = andb has_amount is_zero_address;
   is_allowed_zrc2_address <- exists allowed_payment_tokens[payment_token_address];
 
-  is_allowed = orb is_native_zil is_allowed_zrc2_address;
+  is_allowed = orb is_zero_address is_allowed_zrc2_address;
   match is_allowed with
   | True =>
   | False =>
     error = NotAllowedPaymentToken;
+    Throw error
+  end
+end
+
+procedure RequireEqualAmount(amount: Uint128)
+  is_eq = builtin eq amount _amount;
+  match is_eq with
+  | True =>
+  | False =>
+    error = NotEqualAmountError;
     Throw error
   end
 end
@@ -583,12 +591,10 @@ transition Bid(
     RequireNotExpired expiration_bnum;
 
     (* It's native ZIL case if the payment_token_address is zero address and amount is 0 *)
-    is_zero_address = builtin eq payment_token_address zero_address;
-    is_amount_zero = builtin eq amount zero_uint128;
-    is_native_zil = andb is_amount_zero is_zero_address;
-    
+    is_native_zil = builtin eq payment_token_address zero_address;
     match is_native_zil with 
     | True => 
+      RequireEqualAmount amount;
       accept;
       BidWithNativeZILs token_address token_id start_amount dest;
       e = {

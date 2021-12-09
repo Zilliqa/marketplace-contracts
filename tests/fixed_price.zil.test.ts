@@ -186,7 +186,7 @@ describe("Fixed Price Listings and Offers", () => {
       globalZRC6ContractAddress,
       "1",
       ZERO_ADDRESS,
-      "0",
+      "10000",
       "1",
       (globalBNum + 5).toString()
     );
@@ -251,7 +251,7 @@ describe("Fixed Price Listings and Offers", () => {
         token_address: globalZRC6ContractAddress,
         token_id: 1,
         payment_token_address: ZERO_ADDRESS,
-        sale_price: 0,
+        sale_price: 20000,
         side: 1,
         expiration_bnum: globalBNum + 5,
       }),
@@ -308,8 +308,26 @@ describe("Fixed Price Listings and Offers", () => {
       want: undefined,
     },
     {
+      name: "throws NotEqualAmountError",
+      transition: "FulfillOrder",
+      txAmount: 1000,
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: globalZRC6ContractAddress,
+        token_id: 1,
+        payment_token_address: ZERO_ADDRESS,
+        sale_price: 10000,
+        side: 0,
+        dest: getTestAddr(BUYER),
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotEqualAmountError,
+      want: undefined,
+    },
+    {
       name: "Buyer fullfills sell order",
       transition: "FulfillOrder",
+      txAmount: 10000,
       getSender: () => getTestAddr(BUYER),
       getParams: () => ({
         token_address: globalZRC6ContractAddress,

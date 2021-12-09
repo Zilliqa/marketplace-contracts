@@ -79,6 +79,7 @@ type Error =
   | PausedError
   | NotContractOwnerError
   | InvalidFeeBPSError
+  | NotEqualAmountError
   
 let make_error =
   fun (result : Error) =>
@@ -98,6 +99,7 @@ let make_error =
       | PausedError                 => Int32 -12
       | NotContractOwnerError       => Int32 -13
       | InvalidFeeBPSError          => Int32 -14
+      | NotEqualAmountError         => Int32 -15
       end
     in
     { _exception : "Error"; code : result_code }
@@ -194,17 +196,23 @@ end
 
 procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
   is_zero_address = builtin eq payment_token_address zero_address;
-  is_zero_amount = builtin eq _amount zero_uint128;
-  has_amount = negb is_zero_amount;
-  
-  is_native_zil = andb has_amount is_zero_address;
   is_allowed_zrc2_address <- exists allowed_payment_tokens[payment_token_address];
 
-  is_allowed = orb is_native_zil is_allowed_zrc2_address;
+  is_allowed = orb is_zero_address is_allowed_zrc2_address;
   match is_allowed with
   | True =>
   | False =>
     error = NotAllowedPaymentToken;
+    Throw error
+  end
+end
+
+procedure RequireEqualAmount(amount: Uint128)
+  is_eq = builtin eq amount _amount;
+  match is_eq with
+  | True =>
+  | False =>
+    error = NotEqualAmountError;
     Throw error
   end
 end
@@ -463,13 +471,13 @@ transition CreateOrder(
     new_order = Order _sender expiration_bnum;
 
     (* It's native ZIL case if the payment_token_address is zero address and sale_price is 0 *)
-    is_zero_address = builtin eq payment_token_address zero_address;
-    is_sale_price_zero = builtin eq sale_price zero_uint128;
-    is_native_zil = andb is_sale_price_zero is_zero_address;
+    is_native_zil = builtin eq payment_token_address zero_address;
     
     match is_native_zil with 
       | False =>
-      | True => accept
+      | True => 
+        RequireEqualAmount sale_price;
+        accept
     end;
 
     amount = 
@@ -603,7 +611,15 @@ transition FulfillOrder(
       Throw error
     | Some (Order seller expiration_bnum) =>  
       RequireNotExpired expiration_bnum;
-
+      
+      is_native_zil = builtin eq payment_token_address zero_address;
+      match is_native_zil with
+      | False => 
+      | True => 
+        RequireEqualAmount sale_price;
+        accept
+      end;
+      
       HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
       
       (* Remove all sell orders *)

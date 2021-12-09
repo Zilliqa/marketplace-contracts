@@ -204,7 +204,7 @@ describe("Auction", () => {
     tx = await globalZRC6MarketplaceContractInfo.callGetter(
       zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
       { ...TX_PARAMS, amount: new BN("10000") }
-    )("Bid", globalZRC6ContractAddress, "1", "0", getTestAddr(BUYER_A));
+    )("Bid", globalZRC6ContractAddress, "1", "10000", getTestAddr(BUYER_A));
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -317,7 +317,7 @@ describe("Auction", () => {
       getParams: () => ({
         token_address: globalZRC6ContractAddress,
         token_id: 999,
-        amount: 0,
+        amount: 1000,
         dest: getTestAddr(BUYER_B),
       }),
       beforeTransition: asyncNoop,
@@ -332,13 +332,28 @@ describe("Auction", () => {
       getParams: () => ({
         token_address: globalZRC6ContractAddress,
         token_id: 1,
-        amount: 0,
+        amount: 10000,
         dest: getTestAddr(BUYER_B),
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
       },
       error: ENG_AUC_ERROR.ExpiredError,
+      want: undefined,
+    },
+    {
+      name: "throws NotEqualAmountError",
+      transition: "Bid",
+      txAmount: 11000,
+      getSender: () => getTestAddr(BUYER_B),
+      getParams: () => ({
+        token_address: globalZRC6ContractAddress,
+        token_id: 1,
+        amount: 12000,
+        dest: getTestAddr(BUYER_B),
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.NotEqualAmountError,
       want: undefined,
     },
     {
@@ -349,7 +364,7 @@ describe("Auction", () => {
       getParams: () => ({
         token_address: globalZRC6ContractAddress,
         token_id: 1,
-        amount: 0,
+        amount: 10000 - 1,
         dest: getTestAddr(BUYER_B),
       }),
       beforeTransition: asyncNoop,
@@ -359,12 +374,12 @@ describe("Auction", () => {
     {
       name: "BuyerB bids for token #1",
       transition: "Bid",
-      txAmount: 11001,
+      txAmount: 11000,
       getSender: () => getTestAddr(BUYER_B),
       getParams: () => ({
         token_address: globalZRC6ContractAddress,
         token_id: 1,
-        amount: 0,
+        amount: 11000,
         dest: getTestAddr(BUYER_B),
       }),
       beforeTransition: asyncNoop,
@@ -377,7 +392,7 @@ describe("Auction", () => {
               ["ByStr20", getTestAddr(BUYER_B).toLowerCase(), "maker"],
               ["ByStr20", globalZRC6ContractAddress, "token_address"],
               ["Uint256", 1, "token_id"],
-              ["Uint128", 11001, "amount"],
+              ["Uint128", 11000, "amount"],
               ["ByStr20", getTestAddr(BUYER_B), "dest"],
             ],
           },
@@ -395,7 +410,7 @@ describe("Auction", () => {
                 globalZRC6MarketplaceContractAddress.toLowerCase(),
                 "recipient",
               ],
-              ["Uint128", 11001, "amount"],
+              ["Uint128", 11000, "amount"],
             ],
           },
         ],
@@ -411,7 +426,7 @@ describe("Auction", () => {
               "BuyOrder",
               [
                 getTestAddr(BUYER_B).toLowerCase(),
-                "11001",
+                "11000",
                 getTestAddr(BUYER_B).toLowerCase(),
                 "2",
               ]
@@ -693,7 +708,7 @@ describe("Withdraw", () => {
     tx = await globalZRC6MarketplaceContractInfo.callGetter(
       zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
       { ...TX_PARAMS, amount: new BN("10000") }
-    )("Bid", globalZRC6ContractAddress, 1, 0, getTestAddr(BUYER_A));
+    )("Bid", globalZRC6ContractAddress, 1, 10000, getTestAddr(BUYER_A));
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -920,7 +935,7 @@ describe("Balance", () => {
     tx = await globalZRC6MarketplaceContractInfo.callGetter(
       zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
       { ...TX_PARAMS, amount: new BN("10000") }
-    )("Bid", globalZRC6ContractAddress, 1, 0, getTestAddr(BUYER_A));
+    )("Bid", globalZRC6ContractAddress, 1, 10000, getTestAddr(BUYER_A));
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -930,7 +945,7 @@ describe("Balance", () => {
     tx = await globalZRC6MarketplaceContractInfo.callGetter(
       zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
       { ...TX_PARAMS, amount: new BN("10000") }
-    )("Bid", globalZRC6ContractAddress, 2, 0, getTestAddr(BUYER_B));
+    )("Bid", globalZRC6ContractAddress, 2, 10000, getTestAddr(BUYER_B));
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -958,7 +973,7 @@ describe("Balance", () => {
       getParams: () => ({
         token_address: globalZRC6ContractAddress,
         token_id: 2,
-        amount: 0,
+        amount: 11000,
         dest: getTestAddr(BUYER_A),
       }),
       beforeTransition: asyncNoop,

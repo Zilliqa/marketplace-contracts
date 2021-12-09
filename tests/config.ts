@@ -59,6 +59,11 @@ export const FIXED_PRICE_ERROR = {
   NotMakerError: -8,
   NotSelfError: -9,
   NotAllowedPaymentToken: -10,
+  NotPausedError: -11,
+  PausedError: -12,
+  NotContractOwnerError: -13,
+  InvalidFeeBPSError: -14,
+  NotEqualAmountError: -15,
 };
 
 export const ENG_AUC_ERROR = {
@@ -77,6 +82,11 @@ export const ENG_AUC_ERROR = {
   AssetNotFoundError: -13,
   NotAllowedToEndError: -14,
   NotAllowedPaymentToken: -15,
+  NotPausedError: -16,
+  PausedError: -17,
+  NotContractOwnerError: -18,
+  InvalidFeeBPSError: -19,
+  NotEqualAmountError: -20,
 };
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
