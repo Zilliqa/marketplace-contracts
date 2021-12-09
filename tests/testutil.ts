@@ -1,8 +1,6 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 
-const execAsync = promisify(exec);
-
 export const extractTypes = (type) => {
   let count = 0;
   let startIndex = -1;
@@ -30,7 +28,17 @@ export const extractTypes = (type) => {
 };
 
 export const getJSONValue = (value, type?) => {
-  value = typeof value === "number" ? value.toString() : value;
+  if (typeof type === "string" && type.startsWith("Uint")) {
+    return value.toString();
+  }
+
+  if (typeof type === "string" && type.startsWith("Int")) {
+    return value.toString();
+  }
+
+  if (type === "String") {
+    return value;
+  }
 
   if (
     typeof type === "string" &&
@@ -38,6 +46,18 @@ export const getJSONValue = (value, type?) => {
     typeof value === "string"
   ) {
     return value.toLowerCase();
+  }
+
+  if (type === "BNum") {
+    return value.toString();
+  }
+
+  if (typeof value === "boolean") {
+    return {
+      argtypes: [],
+      arguments: [],
+      constructor: value ? "True" : "False",
+    };
   }
 
   if (
@@ -61,23 +81,50 @@ export const getJSONValue = (value, type?) => {
     };
   }
 
-  if (typeof value === "boolean") {
-    return {
-      argtypes: [],
-      arguments: [],
-      constructor: value ? "True" : "False",
-    };
-  }
-
   return value;
 };
 
-export const getJSONParam = (type, value, vname) => {
-  return {
-    type,
-    value: getJSONValue(value, type),
-    vname,
-  };
+export const genJSONValue = (type) => {
+  if (typeof type === "string" && type.startsWith("Uint")) {
+    return "1";
+  }
+
+  if (typeof type === "string" && type.startsWith("Int")) {
+    return "-1";
+  }
+
+  if (type === "String") {
+    return "Lorem ipsum";
+  }
+
+  if (typeof type === "string" && type.startsWith("ByStr")) {
+    const n = Number(type.split(" ").shift()?.replace("ByStr", ""));
+    const zeros = Array.from({ length: n * 2 }, () => 0).join("");
+    return "0x" + zeros;
+  }
+
+  if (type === "Bool") {
+    return {
+      argtypes: [],
+      arguments: [],
+      constructor: "True",
+    };
+  }
+
+  if (typeof type === "string" && type.startsWith("List")) {
+    const types = extractTypes(type);
+    return types.map((t) => genJSONValue(t));
+  }
+
+  if (typeof type === "string" && type.startsWith("Pair")) {
+    const types = extractTypes(type);
+    return {
+      argtypes: types,
+      arguments: types.map((t) => genJSONValue(t)),
+      constructor: "Pair",
+    };
+  }
+  return undefined;
 };
 
 const initParamsGetter =
@@ -127,55 +174,51 @@ const transitionParamsGetter =
     return res;
   };
 
-export const useContractInfo = async (
-  container,
+export const useContractInfo = (contractInfo) => {
+  return {
+    getInitParams: initParamsGetter(contractInfo),
+    callGetter:
+      (contract, txParams) =>
+      (transitionName, ...args) => {
+        return contract.call(
+          transitionName,
+          transitionParamsGetter(contractInfo)(transitionName, ...args),
+          txParams
+        );
+      },
+  };
+};
+
+export const getContractInfo = async (
   src,
-  gasLimit
-): Promise<any> => {
-  try {
-    const contractFilename = src.split("/").pop();
-    const scillaPath = "/scilla/0/";
-    const paths = {
-      checker: `${scillaPath}bin/scilla-checker`,
-      stdlib: `${scillaPath}src/stdlib`,
-      dest: `${scillaPath}${contractFilename}`,
-    };
+  { container, gasLimit = 100000 }
+) => {
+  const execAsync = promisify(exec);
+  const contractFilename = src.split("/").pop();
+  const scillaPath = "/scilla/0/";
+  const paths = {
+    checker: `${scillaPath}bin/scilla-checker`,
+    stdlib: `${scillaPath}src/stdlib`,
+    dest: `${scillaPath}${contractFilename}`,
+  };
 
-    await execAsync(`docker cp ${src} ${container}:${paths.dest}`);
+  await execAsync(`docker cp ${src} ${container}:${paths.dest}`);
 
-    const cmd = [
-      "docker exec",
-      container,
-      paths.checker,
-      "-libdir",
-      paths.stdlib,
-      "-gaslimit",
-      gasLimit,
-      paths.dest,
-      "-contractinfo",
-    ].join(" ");
+  const cmd = [
+    "docker exec",
+    container,
+    paths.checker,
+    "-libdir",
+    paths.stdlib,
+    "-gaslimit",
+    gasLimit,
+    paths.dest,
+    "-contractinfo",
+  ].join(" ");
 
-    const res = await execAsync(cmd);
-    const msg = JSON.parse(res.stdout);
-    const contractInfo = msg.contract_info;
-
-    return {
-      contractInfo,
-      getInitParams: initParamsGetter(contractInfo),
-      getTransitionParams: transitionParamsGetter(contractInfo),
-      callGetter:
-        (contract, txParams) =>
-        (transitionName, ...args) => {
-          return contract.call(
-            transitionName,
-            transitionParamsGetter(contractInfo)(transitionName, ...args),
-            txParams
-          );
-        },
-    };
-  } catch (error) {
-    console.error(error);
-  }
+  const res = await execAsync(cmd);
+  const msg = JSON.parse(res.stdout);
+  return msg.contract_info;
 };
 
 const logDelta = (want, got) =>
@@ -190,18 +233,21 @@ export const verifyEvents = (events, want) => {
   if (events === undefined) {
     return want === undefined;
   }
+
   for (const [index, event] of events.entries()) {
     if (event._eventname !== want[index].name) {
       logDelta(want[index].name, event._eventname);
       return false;
     }
-    if (
-      JSON.stringify(event.params) !== JSON.stringify(want[index].getParams())
-    ) {
-      logDelta(
-        JSON.stringify(want[index].getParams()),
-        JSON.stringify(event.params)
-      );
+
+    const wantParams = want[index].getParams().map(([type, value, vname]) => ({
+      type,
+      value: getJSONValue(value, type),
+      vname,
+    }));
+
+    if (JSON.stringify(event.params) !== JSON.stringify(wantParams)) {
+      logDelta(wantParams, JSON.stringify(event.params));
       return false;
     }
   }
@@ -230,13 +276,14 @@ export const verifyTransitions = (transitions, want) => {
       return false;
     }
 
-    if (
-      JSON.stringify(msg.params) !== JSON.stringify(want[index].getParams())
-    ) {
-      logDelta(
-        JSON.stringify(want[index].getParams()),
-        JSON.stringify(msg.params)
-      );
+    const wantParams = want[index].getParams().map(([type, value, vname]) => ({
+      type,
+      value: getJSONValue(value, type),
+      vname,
+    }));
+
+    if (JSON.stringify(msg.params) !== JSON.stringify(wantParams)) {
+      logDelta(wantParams, JSON.stringify(msg.params));
       return false;
     }
   }
@@ -248,12 +295,11 @@ export const getErrorMsg = (code) =>
 
 export const getBNum = async (zilliqa) => {
   const response = await zilliqa.provider.send("GetBlocknum", "");
-  return response.result;
+  return Number(response.result);
 };
 
-export const increaseBNum = async (zilliqa, n) => {
-  await zilliqa.provider.send("IncreaseBlocknum", n);
-};
+export const increaseBNum = async (zilliqa, n) =>
+  zilliqa.provider.send("IncreaseBlocknum", n);
 
 export const getUsrDefADTValue = (contractAddress, name, values) =>
   `{"argtypes":[],"arguments":${JSON.stringify(

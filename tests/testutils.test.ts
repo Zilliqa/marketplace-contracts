@@ -1,4 +1,4 @@
-import { extractTypes, getJSONValue } from "./testutil";
+import { extractTypes, genJSONValue, getJSONValue } from "./testutil";
 
 describe("extractTypes", () => {
   const testCases = [
@@ -7,12 +7,20 @@ describe("extractTypes", () => {
       want: ["ByStr20", "Uint256"],
     },
     {
+      type: "Pair (Pair (ByStr20) (Uint256)) (Pair (ByStr20) (String))",
+      want: ["Pair (ByStr20) (Uint256)", "Pair (ByStr20) (String)"],
+    },
+    {
       type: "Pair (List (ByStr20)) (Uint256)",
       want: ["List (ByStr20)", "Uint256"],
     },
     {
       type: "List (Pair (ByStr20) (Uint256))",
       want: ["Pair (ByStr20) (Uint256)"],
+    },
+    {
+      type: "List (List (Pair (ByStr20) (Uint256)))",
+      want: ["List (Pair (ByStr20) (Uint256))"],
     },
   ];
 
@@ -118,6 +126,73 @@ describe("getJSONValue", () => {
     const { value, type, want } = testCase;
     it(type, () => {
       const res = getJSONValue(value, type);
+      expect(JSON.stringify(res)).toBe(JSON.stringify(want));
+    });
+  }
+});
+
+describe("genJSONValue", () => {
+  const testCases = [
+    {
+      type: "String",
+      want: "Lorem ipsum",
+    },
+    {
+      type: "Uint256",
+      want: "1",
+    },
+    {
+      type: "Int256",
+      want: "-1",
+    },
+    {
+      type: "ByStr20",
+      want: "0x0000000000000000000000000000000000000000",
+    },
+    {
+      type: "Bool",
+      want: { argtypes: [], arguments: [], constructor: "True" },
+    },
+    {
+      type: "Pair (ByStr20) (Uint256)",
+      want: {
+        argtypes: ["ByStr20", "Uint256"],
+        arguments: ["0x0000000000000000000000000000000000000000", "1"],
+        constructor: "Pair",
+      },
+    },
+    {
+      type: "Pair (List (ByStr20)) (Uint256)",
+      want: {
+        argtypes: ["List (ByStr20)", "Uint256"],
+        arguments: [["0x0000000000000000000000000000000000000000"], "1"],
+        constructor: "Pair",
+      },
+    },
+    {
+      type: "List (String)",
+      want: ["Lorem ipsum"],
+    },
+    {
+      type: "List (ByStr20)",
+      want: ["0x0000000000000000000000000000000000000000"],
+    },
+    {
+      type: "List (Pair (ByStr20) (Uint256))",
+      want: [
+        {
+          argtypes: ["ByStr20", "Uint256"],
+          arguments: ["0x0000000000000000000000000000000000000000", "1"],
+          constructor: "Pair",
+        },
+      ],
+    },
+  ];
+
+  for (const testCase of testCases) {
+    const { type, want } = testCase;
+    it(type, () => {
+      const res = genJSONValue(type);
       expect(JSON.stringify(res)).toBe(JSON.stringify(want));
     });
   }

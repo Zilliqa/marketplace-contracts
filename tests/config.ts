@@ -31,7 +31,7 @@ export const CONTRACTS = {
   },
 };
 
-export const GAS_LIMIT = Long.fromNumber(100000);
+const GAS_LIMIT = Long.fromNumber(100000);
 export const GAS_PRICE = units.toQa("2000", units.Units.Li);
 
 export const TX_PARAMS = {
