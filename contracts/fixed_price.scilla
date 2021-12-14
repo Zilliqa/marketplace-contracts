@@ -75,32 +75,36 @@ type Error =
   | ExpiredError
   | NotMakerError
   | NotSelfError
+  | SelfError
   | NotAllowedPaymentToken
   | NotPausedError
   | PausedError
   | NotContractOwnerError
   | InvalidFeeBPSError
   | NotEqualAmountError
+  | NotContractOwnershipRecipientError
   
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | SellOrderNotFoundError      => Int32 -1
-      | SellOrderFoundError         => Int32 -2
-      | BuyOrderNotFoundError       => Int32 -3
-      | BuyOrderFoundError          => Int32 -4
-      | NotSpenderError             => Int32 -5
-      | NotTokenOwnerError          => Int32 -6
-      | ExpiredError                => Int32 -7
-      | NotMakerError               => Int32 -8
-      | NotSelfError                => Int32 -9
-      | NotAllowedPaymentToken      => Int32 -10
-      | NotPausedError              => Int32 -11
-      | PausedError                 => Int32 -12
-      | NotContractOwnerError       => Int32 -13
-      | InvalidFeeBPSError          => Int32 -14
-      | NotEqualAmountError         => Int32 -15
+      | SellOrderNotFoundError             => Int32 -1
+      | SellOrderFoundError                => Int32 -2
+      | BuyOrderNotFoundError              => Int32 -3
+      | BuyOrderFoundError                 => Int32 -4
+      | NotSpenderError                    => Int32 -5
+      | NotTokenOwnerError                 => Int32 -6
+      | ExpiredError                       => Int32 -7
+      | NotMakerError                      => Int32 -8
+      | NotSelfError                       => Int32 -9
+      | SelfError                          => Int32 -10
+      | NotAllowedPaymentToken             => Int32 -11
+      | NotPausedError                     => Int32 -12
+      | PausedError                        => Int32 -13
+      | NotContractOwnerError              => Int32 -14
+      | InvalidFeeBPSError                 => Int32 -15
+      | NotEqualAmountError                => Int32 -16
+      | NotContractOwnershipRecipientError => Int32 -17
       end
     in
     { _exception : "Error"; code : result_code }
@@ -128,6 +132,10 @@ contract FixedPriceOrderbook
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
 field contract_owner: ByStr20 = initial_contract_owner
+
+(* Contract ownership recipient *)
+(* Defaults to `zero_address` *)
+field contract_ownership_recipient: ByStr20 = zero_address
 
 (* Emergency stop mechanism *)
 (* Defaults to False *)
@@ -224,6 +232,16 @@ procedure RequireSelf(address_a: ByStr20, address_b: ByStr20)
   | True =>
   | False =>
     error = NotSelfError;
+    Throw error
+  end
+end
+
+procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
+  is_self = builtin eq address_a address_b;
+  match is_self with
+  | False =>
+  | True =>
+    error = SelfError;
     Throw error
   end
 end
@@ -657,6 +675,50 @@ transition SetServiceFeeBPS(fee_bps: Uint128)
     service_fee_bps: fee_bps
   };
   event e
+end
+
+
+(* Sets `to` as the contract ownership recipient. *)
+(* To reset `contract_ownership_recipient`, use `zero_address`. *)
+(* i.e., `0x0000000000000000000000000000000000000000` *)
+(* @param: to - Address of contract ownership recipient *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
+(* - `_sender` must not be `to`. Otherwise, it must throw `SelfError` *)
+transition SetContractOwnershipRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireNotSelf to _sender;
+  
+  contract_ownership_recipient := to;
+
+  e = {
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+  };
+  event e
+end
+
+(* Sets `contract_ownership_recipient` as the contract owner. *)
+(* @Requirements: *)
+(* - `_sender` must be the contract ownership recipient. Otherwise, it must throw `NotContractOwnershipRecipientError` *)
+transition AcceptContractOwnership()
+  recipient <- contract_ownership_recipient;
+
+  is_recipient = builtin eq _sender recipient;
+  match is_recipient with
+  | False =>
+    error = NotContractOwnershipRecipientError;
+    Throw error
+  | True =>
+    contract_owner := _sender;
+    contract_ownership_recipient := zero_address;
+
+    e = {
+      _eventname: "AcceptContractOwnership";
+      contract_owner: _sender
+    };
+    event e
+  end
 end
 
 (* empty callbacks *)

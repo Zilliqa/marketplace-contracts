@@ -58,12 +58,14 @@ export const FIXED_PRICE_ERROR = {
   ExpiredError: -7,
   NotMakerError: -8,
   NotSelfError: -9,
-  NotAllowedPaymentToken: -10,
-  NotPausedError: -11,
-  PausedError: -12,
-  NotContractOwnerError: -13,
-  InvalidFeeBPSError: -14,
-  NotEqualAmountError: -15,
+  SelfError: -10,
+  NotAllowedPaymentToken: -11,
+  NotPausedError: -12,
+  PausedError: -13,
+  NotContractOwnerError: -14,
+  InvalidFeeBPSError: -15,
+  NotEqualAmountError: -16,
+  NotContractOwnershipRecipientError: -17,
 };
 
 export const ENG_AUC_ERROR = {
