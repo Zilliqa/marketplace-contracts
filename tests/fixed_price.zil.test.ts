@@ -409,19 +409,19 @@ describe("Fixed Price Listings and Offers", () => {
           {
             amount: 1000,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZIL",
+            tag: "AddFunds",
             getParams: () => ({}),
           },
           {
             amount: 250,
             recipient: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
-            tag: "TransferNativeZIL",
+            tag: "AddFunds",
             getParams: () => ({}),
           },
           {
             amount: 8750,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZIL",
+            tag: "AddFunds",
             getParams: () => ({}),
           },
           // NFT transfer
@@ -512,19 +512,19 @@ describe("Fixed Price Listings and Offers", () => {
           {
             amount: 1000,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZIL",
+            tag: "AddFunds",
             getParams: () => ({}),
           },
           {
             amount: 250,
             recipient: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
-            tag: "TransferNativeZIL",
+            tag: "AddFunds",
             getParams: () => ({}),
           },
           {
             amount: 8750,
             recipient: getTestAddr(SELLER),
-            tag: "TransferNativeZIL",
+            tag: "AddFunds",
             getParams: () => ({}),
           },
           // NFT transfer

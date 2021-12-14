@@ -365,19 +365,19 @@ procedure HandleFulfillOrder(
   match is_native_zil with
   | True =>
     msg_to_royalty_recipient = {
-      _tag: "TransferNativeZIL";
+      _tag: "AddFunds";
       _recipient: royalty_recipient;
       _amount: royalty_amount
     };
 
     msg_to_svc_fee_recipient = {
-      _tag: "TransferNativeZIL";
+      _tag: "AddFunds";
       _recipient: svc_fee_recipient;
       _amount: svc_fee
     };
     
     msg_to_seller = {
-      _tag: "TransferNativeZIL";
+      _tag: "AddFunds";
       _recipient: seller;
       _amount: seller_profit
     };
@@ -593,7 +593,7 @@ transition CancelOrder(
         | False =>
         | True =>
           msg = {
-            _tag: "TransferNativeZIL";
+            _tag: "AddFunds";
             _recipient: _sender;
             _amount: sale_price
           };
