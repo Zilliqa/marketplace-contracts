@@ -66,6 +66,8 @@ export const FIXED_PRICE_ERROR = {
   InvalidFeeBPSError: -15,
   NotEqualAmountError: -16,
   NotContractOwnershipRecipientError: -17,
+  ZeroAddressDestinationError: -18,
+  ThisAddressDestinationError: -19,
 };
 
 export const ENG_AUC_ERROR = {
