@@ -304,19 +304,19 @@ procedure TransferNativeZIL(to: ByStr20, amount: Uint128)
 end
         
 procedure ZRC2Transfer(payment_token_address: ByStr20, to: ByStr20, amount: Uint128)
-  msg_to_wzil = {
+  msg_to_zrc2 = {
     _tag: "Transfer";
     _recipient: payment_token_address;
     _amount: Uint128 0;
     to: to;
     amount: amount
   };
-  msgs = one_msg msg_to_wzil;
+  msgs = one_msg msg_to_zrc2;
   send msgs
 end
 
 procedure ZRC2TransferFrom(payment_token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
-  msg_to_wzil = {
+  msg_to_zrc2 = {
     _tag: "TransferFrom";
     _recipient: payment_token_address;
     _amount: Uint128 0;
@@ -324,7 +324,7 @@ procedure ZRC2TransferFrom(payment_token_address: ByStr20, from: ByStr20, to: By
     to: to;
     amount: amount
   };
-  msgs = one_msg msg_to_wzil;
+  msgs = one_msg msg_to_zrc2;
   send msgs
 end
 
