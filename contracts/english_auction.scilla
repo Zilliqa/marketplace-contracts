@@ -82,7 +82,9 @@ type Error =
   | NotContractOwnerError
   | InvalidFeeBPSError
   | NotEqualAmountError
-  
+  | ZeroAddressDestinationError
+  | ThisAddressDestinationError
+
 let make_error =
   fun (result : Error) =>
     let result_code = 
@@ -107,6 +109,8 @@ let make_error =
       | NotContractOwnerError               => Int32 -18
       | InvalidFeeBPSError                  => Int32 -19
       | NotEqualAmountError                 => Int32 -20
+      | ZeroAddressDestinationError         => Int32 -21
+      | ThisAddressDestinationError         => Int32 -22
       end
     in
     { _exception : "Error"; code : result_code }
@@ -163,6 +167,26 @@ field service_fee_recipient: ByStr20 = initial_contract_owner
 procedure Throw(error : Error)
   e = make_error error;
   throw e
+end
+
+
+procedure RequireValidDestination(to: ByStr20)
+  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
+  is_zero_address = builtin eq to zero_address;
+  match is_zero_address with
+  | False =>
+  | True =>
+    error = ZeroAddressDestinationError;
+    Throw error
+  end;
+
+  is_this_address = builtin eq to _this_address;
+  match is_this_address with
+  | False =>
+  | True =>
+    error = ThisAddressDestinationError;
+    Throw error
+  end
 end
 
 procedure RequireValidFeeBPS(fee_bps: Uint128)
@@ -863,6 +887,19 @@ transition SetServiceFeeBPS(fee_bps: Uint128)
   e = {
     _eventname : "SetServiceFeeBPS";
     service_fee_bps: fee_bps
+  };
+  event e
+end
+
+transition SetServiceFeeRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireValidDestination to;
+
+  service_fee_recipient := to;
+
+  e = { 
+    _eventname: "SetServiceFeeRecipient";
+    to: to
   };
   event e
 end

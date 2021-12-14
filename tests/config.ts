@@ -91,4 +91,6 @@ export const ENG_AUC_ERROR = {
   NotContractOwnerError: -18,
   InvalidFeeBPSError: -19,
   NotEqualAmountError: -20,
+  ZeroAddressDestinationError: -21,
+  ThisAddressDestinationError: -22,
 };
