@@ -88,5 +88,3 @@ export const ENG_AUC_ERROR = {
   InvalidFeeBPSError: -19,
   NotEqualAmountError: -20,
 };
-
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";

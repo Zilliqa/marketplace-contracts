@@ -1,21 +1,12 @@
+import { getJSONParams, getJSONValue } from "@zilliqa-js/scilla-json-utils";
 import { Zilliqa } from "@zilliqa-js/zilliqa";
 import { expect } from "@jest/globals";
 import fs from "fs";
 import { getAddressFromPrivateKey, schnorr } from "@zilliqa-js/crypto";
 
-import {
-  getBNum,
-  getUsrDefADTValue,
-  increaseBNum,
-  getErrorMsg,
-  useContractInfo,
-  verifyEvents,
-  getJSONValue,
-  getContractInfo,
-} from "./testutil";
+import { getBNum, increaseBNum, getErrorMsg, verifyEvents } from "./testutils";
 
 import {
-  CONTAINER,
   API,
   TX_PARAMS,
   CONTRACTS,
@@ -31,17 +22,10 @@ const zilliqa = new Zilliqa(API);
 zilliqa.wallet.addByPrivateKey(GENESIS_PRIVATE_KEY);
 
 let globalBNum;
-
-let globalZRC6ContractInfo;
-let globalZRC6ContractAddress;
-
-let globalZRC2ContractInfo;
-let globalZRC2ContractAddress;
-
-let globalZRC6MarketplaceContractInfo;
-let globalZRC6MarketplaceContractAddress;
-
-let globalNotAllowedZRC2ContractAddress;
+let globalTokenAddress;
+let globalPaymentTokenAddress;
+let globalMarketplaceAddress;
+let globalNotAllowedPaymentTokenAddress;
 
 let globalTestAccounts: Array<{
   privateKey: string;
@@ -88,32 +72,19 @@ beforeAll(async () => {
     STRANGER: getTestAddr(STRANGER),
   });
 
-  const asyncFns = await [
-    CONTRACTS.zrc6.path,
-    CONTRACTS.wzil.path,
-    CONTRACTS.english_auction.path,
-  ].map(async (path) =>
-    useContractInfo(await getContractInfo(path, { container: CONTAINER }))
-  );
-
-  [
-    globalZRC6ContractInfo,
-    globalZRC2ContractInfo,
-    globalZRC6MarketplaceContractInfo,
-  ] = await Promise.all(asyncFns);
-
   zilliqa.wallet.setDefault(getTestAddr(STRANGER));
-  let init = globalZRC2ContractInfo.getInitParams(
-    getTestAddr(STRANGER),
-    CONTRACTS.wzil.name,
-    CONTRACTS.wzil.symbol,
-    CONTRACTS.wzil.decimal,
-    CONTRACTS.wzil.initial_supply
-  );
+  const init = getJSONParams({
+    _scilla_version: ["Uint32", 0],
+    contract_owner: ["ByStr20", getTestAddr(STRANGER)],
+    name: ["String", CONTRACTS.wzil.name],
+    symbol: ["String", CONTRACTS.wzil.symbol],
+    decimals: ["Uint32", CONTRACTS.wzil.decimal],
+    init_supply: ["Uint128", CONTRACTS.wzil.initial_supply],
+  });
   const [, contract] = await zilliqa.contracts
     .new(fs.readFileSync(CONTRACTS.wzil.path).toString(), init)
     .deploy(TX_PARAMS, 33, 1000, true);
-  globalNotAllowedZRC2ContractAddress = contract.address;
+  globalNotAllowedPaymentTokenAddress = contract.address;
 });
 
 beforeEach(async () => {
@@ -121,60 +92,71 @@ beforeEach(async () => {
 
   // SELLER is the zrc6 contract owner
   zilliqa.wallet.setDefault(getTestAddr(SELLER));
-  let init = globalZRC6ContractInfo.getInitParams(
-    getTestAddr(SELLER),
-    CONTRACTS.zrc6.baseURI,
-    CONTRACTS.zrc6.name,
-    CONTRACTS.zrc6.symbol
-  );
+  let init = getJSONParams({
+    _scilla_version: ["Uint32", 0],
+    initial_contract_owner: ["ByStr20", getTestAddr(SELLER)],
+    initial_base_uri: ["String", CONTRACTS.zrc6.baseURI],
+    name: ["String", CONTRACTS.zrc6.name],
+    symbol: ["String", CONTRACTS.zrc6.symbol],
+  });
   let [, contract] = await zilliqa.contracts
     .new(fs.readFileSync(CONTRACTS.zrc6.path).toString(), init)
     .deploy(TX_PARAMS, 33, 1000, true);
-  globalZRC6ContractAddress = contract.address;
+  globalTokenAddress = contract.address;
 
-  if (globalZRC6ContractAddress === undefined) {
+  if (globalTokenAddress === undefined) {
     throw new Error();
   }
 
   // SELLER mints 3 tokens for self
-  let tx = await globalZRC6ContractInfo.callGetter(
-    zilliqa.contracts.at(globalZRC6ContractAddress),
-    TX_PARAMS
-  )(
+  let tx: any = await zilliqa.contracts.at(globalTokenAddress).call(
     "BatchMint",
-    Array.from({ length: CONTRACTS.zrc6.initial_total_supply }, () =>
-      getTestAddr(SELLER)
-    )
+    getJSONParams({
+      to_token_uri_pair_list: [
+        "List (Pair (ByStr20) (String))",
+        [
+          [getTestAddr(SELLER), ""],
+          [getTestAddr(SELLER), ""],
+          [getTestAddr(SELLER), ""],
+        ],
+      ],
+    }),
+    TX_PARAMS
   );
+
   if (!tx.receipt.success) {
     throw new Error();
   }
 
   // BUYER_A is the WZIL contract owner
   zilliqa.wallet.setDefault(getTestAddr(BUYER_A));
-  init = globalZRC2ContractInfo.getInitParams(
-    getTestAddr(BUYER_A),
-    CONTRACTS.wzil.name,
-    CONTRACTS.wzil.symbol,
-    CONTRACTS.wzil.decimal,
-    // Mint wZIL for the BUYER_A with initial supply
-    CONTRACTS.wzil.initial_supply
-  );
+  init = getJSONParams({
+    _scilla_version: ["Uint32", 0],
+    contract_owner: ["ByStr20", getTestAddr(BUYER_A)],
+    name: ["String", CONTRACTS.wzil.name],
+    symbol: ["String", CONTRACTS.wzil.symbol],
+    decimals: ["Uint32", CONTRACTS.wzil.decimal],
+    init_supply: ["Uint128", CONTRACTS.wzil.initial_supply],
+  });
   [, contract] = await zilliqa.contracts
     .new(fs.readFileSync(CONTRACTS.wzil.path).toString(), init)
     .deploy(TX_PARAMS, 33, 1000, true);
-  globalZRC2ContractAddress = contract.address;
+  globalPaymentTokenAddress = contract.address;
 
-  if (globalZRC2ContractAddress === undefined) {
+  if (globalPaymentTokenAddress === undefined) {
     throw new Error();
   }
 
   // BUYER_A transfers 100k WZIL to BUYER_B
   zilliqa.wallet.setDefault(getTestAddr(BUYER_A));
-  tx = await globalZRC2ContractInfo.callGetter(
-    zilliqa.contracts.at(globalZRC2ContractAddress),
+  tx = await zilliqa.contracts.at(globalPaymentTokenAddress).call(
+    "Transfer",
+    getJSONParams({
+      to: ["ByStr20", getTestAddr(BUYER_B)],
+      amount: ["Uint128", 100 * 1000],
+    }),
     TX_PARAMS
-  )("Transfer", getTestAddr(BUYER_B), 100 * 1000);
+  );
 
   if (!tx.receipt.success) {
     throw new Error();
@@ -182,25 +164,34 @@ beforeEach(async () => {
 
   // MARKETPLACE_CONTRACT_OWNER is the zrc6 marketplace contract owner
   zilliqa.wallet.setDefault(getTestAddr(MARKETPLACE_CONTRACT_OWNER));
-  init = globalZRC6MarketplaceContractInfo.getInitParams(
-    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
-    globalZRC2ContractAddress // WZIL
-  );
+
+  init = getJSONParams({
+    _scilla_version: ["Uint32", 0],
+    initial_contract_owner: [
+      "ByStr20",
+      getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+    ],
+    wzil_address: ["ByStr20", globalPaymentTokenAddress],
+  });
   [, contract] = await zilliqa.contracts
     .new(fs.readFileSync(CONTRACTS.english_auction.path).toString(), init)
     .deploy(TX_PARAMS, 33, 1000, true);
-  globalZRC6MarketplaceContractAddress = contract.address;
+  globalMarketplaceAddress = contract.address;
 
-  if (globalZRC6MarketplaceContractAddress === undefined) {
+  if (globalMarketplaceAddress === undefined) {
     throw new Error();
   }
 
   // BUYER_A sets marketplace as spender for ZRC2
   zilliqa.wallet.setDefault(getTestAddr(BUYER_A));
-  tx = await globalZRC2ContractInfo.callGetter(
-    zilliqa.contracts.at(globalZRC2ContractAddress),
+  tx = await zilliqa.contracts.at(globalPaymentTokenAddress).call(
+    "IncreaseAllowance",
+    getJSONParams({
+      spender: ["ByStr20", globalMarketplaceAddress],
+      amount: ["Uint128", 100 * 1000],
+    }),
     TX_PARAMS
-  )("IncreaseAllowance", globalZRC6MarketplaceContractAddress, 100 * 1000);
+  );
 
   if (!tx.receipt.success) {
     throw new Error();
@@ -208,10 +199,15 @@ beforeEach(async () => {
 
   // BUYER_B sets marketplace as spender for ZRC2
   zilliqa.wallet.setDefault(getTestAddr(BUYER_B));
-  tx = await globalZRC2ContractInfo.callGetter(
-    zilliqa.contracts.at(globalZRC2ContractAddress),
+
+  tx = await zilliqa.contracts.at(globalPaymentTokenAddress).call(
+    "IncreaseAllowance",
+    getJSONParams({
+      spender: ["ByStr20", globalMarketplaceAddress],
+      amount: ["Uint128", 100 * 1000],
+    }),
     TX_PARAMS
-  )("IncreaseAllowance", globalZRC6MarketplaceContractAddress, 100 * 1000);
+  );
 
   if (!tx.receipt.success) {
     throw new Error();
@@ -220,10 +216,15 @@ beforeEach(async () => {
   // SELLER sets marketplace as spender for ZRC6
   zilliqa.wallet.setDefault(getTestAddr(SELLER));
   for (let i = 1; i <= CONTRACTS.zrc6.initial_total_supply; i++) {
-    const tx = await globalZRC6ContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6ContractAddress),
+    const tx: any = await zilliqa.contracts.at(globalTokenAddress).call(
+      "SetSpender",
+      getJSONParams({
+        spender: ["ByStr20", globalMarketplaceAddress],
+        token_id: ["Uint256", i],
+      }),
       TX_PARAMS
-    )("SetSpender", globalZRC6MarketplaceContractAddress, i.toString());
+    );
+
     if (!tx.receipt.success) {
       throw new Error();
     }
@@ -234,16 +235,16 @@ describe("Auction", () => {
   beforeEach(async () => {
     // Add marketplace contract as spender for the tokens as SELLER
     zilliqa.wallet.setDefault(getTestAddr(SELLER));
-    let tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-      TX_PARAMS
-    )(
+    let tx: any = await zilliqa.contracts.at(globalMarketplaceAddress).call(
       "Start",
-      globalZRC6ContractAddress,
-      "1",
-      globalZRC2ContractAddress,
-      "1000",
-      globalBNum + 5
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      TX_PARAMS
     );
 
     if (!tx.receipt.success) {
@@ -251,10 +252,16 @@ describe("Auction", () => {
     }
 
     zilliqa.wallet.setDefault(getTestAddr(BUYER_A));
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "Bid",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 10000],
+        dest: ["ByStr20", getTestAddr(BUYER_A)],
+      }),
       TX_PARAMS
-    )("Bid", globalZRC6ContractAddress, "1", "10000", getTestAddr(BUYER_A));
+    );
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -267,11 +274,11 @@ describe("Auction", () => {
       transition: "Start",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
-        payment_token_address: globalNotAllowedZRC2ContractAddress,
-        start_amount: 1000,
-        expiration_bnum: globalBNum + 5,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalNotAllowedPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.NotAllowedPaymentToken,
@@ -282,11 +289,11 @@ describe("Auction", () => {
       transition: "Start",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
-        payment_token_address: globalZRC2ContractAddress,
-        start_amount: 1000,
-        expiration_bnum: globalBNum + 5,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.SellOrderFoundError,
@@ -297,11 +304,11 @@ describe("Auction", () => {
       transition: "Start",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 2,
-        payment_token_address: globalZRC2ContractAddress,
-        start_amount: 1000,
-        expiration_bnum: globalBNum + 5,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -309,50 +316,49 @@ describe("Auction", () => {
         events: [
           {
             name: "Start",
-            getParams: () => [
-              ["ByStr20", getTestAddr(SELLER), "maker"],
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", "2", "token_id"],
-              ["ByStr20", globalZRC2ContractAddress, "payment_token_address"],
-              ["Uint128", "1000", "start_amount"],
-              ["BNum", globalBNum + 5, "expiration_bnum"],
-            ],
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(SELLER)],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", "2"],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              start_amount: ["Uint128", "1000"],
+              expiration_bnum: ["BNum", globalBNum + 5],
+            }),
           },
           {
             name: "TransferFrom",
-            getParams: () => [
-              ["ByStr20", getTestAddr(SELLER).toLowerCase(), "from"],
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "to",
-              ],
-              ["Uint256", "2", "token_id"],
-            ],
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", globalMarketplaceAddress],
+              token_id: ["Uint256", "2"],
+            }),
           },
         ],
         verifyState: (state) => {
           return (
             JSON.stringify(state.sell_orders) ===
-            `{"${globalZRC6ContractAddress.toLowerCase()}":{"1":${getUsrDefADTValue(
-              globalZRC6MarketplaceContractAddress,
-              "SellOrder",
-              [
-                getTestAddr(SELLER).toLowerCase(),
-                (globalBNum + 5).toString(),
-                globalZRC2ContractAddress.toLowerCase(),
-                "1000",
-              ]
-            )},"2":${getUsrDefADTValue(
-              globalZRC6MarketplaceContractAddress,
-              "SellOrder",
-              [
-                getTestAddr(SELLER).toLowerCase(),
-                (globalBNum + 5).toString(),
-                globalZRC2ContractAddress.toLowerCase(),
-                "1000",
-              ]
-            )}}}`
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: getJSONValue(
+                  [
+                    getTestAddr(SELLER),
+                    globalBNum + 5,
+                    globalPaymentTokenAddress,
+                    1000,
+                  ],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                ),
+                [2]: getJSONValue(
+                  [
+                    getTestAddr(SELLER),
+                    globalBNum + 5,
+                    globalPaymentTokenAddress,
+                    1000,
+                  ],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                ),
+              },
+            })
           );
         },
       },
@@ -362,10 +368,10 @@ describe("Auction", () => {
       transition: "Bid",
       getSender: () => getTestAddr(BUYER_B),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 999,
-        amount: 1000,
-        dest: getTestAddr(BUYER_B),
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 999],
+        amount: ["Uint128", 1000],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.SellOrderNotFoundError,
@@ -376,10 +382,10 @@ describe("Auction", () => {
       transition: "Bid",
       getSender: () => getTestAddr(BUYER_B),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
-        amount: Number(100 * 1000) + 1,
-        dest: getTestAddr(BUYER_B),
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", Number(100 * 1000) + 1],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.InsufficientAllowanceError,
@@ -390,10 +396,10 @@ describe("Auction", () => {
       transition: "Bid",
       getSender: () => getTestAddr(BUYER_B),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
-        amount: 10000,
-        dest: getTestAddr(BUYER_B),
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 10000],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
@@ -406,10 +412,10 @@ describe("Auction", () => {
       transition: "Bid",
       getSender: () => getTestAddr(BUYER_B),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
-        amount: 10000 - 1,
-        dest: getTestAddr(BUYER_B),
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 10000 - 1],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.LessThanMinBidError,
@@ -420,10 +426,10 @@ describe("Auction", () => {
       transition: "Bid",
       getSender: () => getTestAddr(BUYER_B),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
-        amount: 11001,
-        dest: getTestAddr(BUYER_B),
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 11000],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -431,50 +437,40 @@ describe("Auction", () => {
         events: [
           {
             name: "Bid",
-            getParams: () => [
-              ["ByStr20", getTestAddr(BUYER_B).toLowerCase(), "maker"],
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", "1", "token_id"],
-              ["Uint128", "11001", "amount"],
-              ["ByStr20", getTestAddr(BUYER_B), "dest"],
-            ],
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(BUYER_B)],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", "1"],
+              amount: ["Uint128", "11000"],
+              dest: ["ByStr20", getTestAddr(BUYER_B)],
+            }),
           },
           {
             name: "TransferFromSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "initiator",
-              ],
-              ["ByStr20", getTestAddr(BUYER_B).toLowerCase(), "sender"],
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "recipient",
-              ],
-              ["Uint128", "11001", "amount"],
-            ],
+            getParams: () => ({
+              initiator: ["ByStr20", globalMarketplaceAddress],
+              sender: ["ByStr20", getTestAddr(BUYER_B)],
+              recipient: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
+              amount: ["Uint128", "11000"],
+            }),
           },
         ],
         verifyState: (state) => {
           // Buyer A  can withdraw bid
           state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
-            globalZRC2ContractAddress.toLowerCase()
+            globalPaymentTokenAddress.toLowerCase()
           ] !== "10000";
 
           if (
             JSON.stringify(state.buy_orders) !==
-            `{"${globalZRC6ContractAddress.toLowerCase()}":{"1":${getUsrDefADTValue(
-              globalZRC6MarketplaceContractAddress,
-              "BuyOrder",
-              [
-                getTestAddr(BUYER_B).toLowerCase(),
-                "11001",
-                getTestAddr(BUYER_B).toLowerCase(),
-                "2",
-              ]
-            )}}}`
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: getJSONValue(
+                  [getTestAddr(BUYER_B), 11000, getTestAddr(BUYER_B), 2],
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                ),
+              },
+            })
           ) {
             return false;
           }
@@ -489,8 +485,8 @@ describe("Auction", () => {
       transition: "Cancel",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.NotSelfError,
@@ -501,8 +497,8 @@ describe("Auction", () => {
       transition: "Cancel",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 999,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 999],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.SellOrderNotFoundError,
@@ -513,8 +509,8 @@ describe("Auction", () => {
       transition: "Cancel",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
@@ -527,8 +523,8 @@ describe("Auction", () => {
       transition: "Cancel",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -536,19 +532,19 @@ describe("Auction", () => {
         events: [
           {
             name: "Cancel",
-            getParams: () => [
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", "1", "token_id"],
-            ],
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+            }),
           },
         ],
         verifyState: (state) => {
           if (
             JSON.stringify(
-              state.sell_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.sell_orders[globalTokenAddress.toLowerCase()]
             ) !== "{}" ||
             JSON.stringify(
-              state.buy_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.buy_orders[globalTokenAddress.toLowerCase()]
             ) !== "{}"
           ) {
             return false;
@@ -556,7 +552,7 @@ describe("Auction", () => {
           if (
             JSON.stringify(
               state.assets[getTestAddr(SELLER).toLowerCase()][
-                globalZRC6ContractAddress.toLowerCase()
+                globalTokenAddress.toLowerCase()
               ]["1"]
             ) !== JSON.stringify(getJSONValue(true))
           ) {
@@ -564,7 +560,7 @@ describe("Auction", () => {
           }
           if (
             state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
-              globalZRC2ContractAddress.toLowerCase()
+              globalPaymentTokenAddress.toLowerCase()
             ] !== "10000"
           ) {
             return false;
@@ -580,8 +576,8 @@ describe("Auction", () => {
       transition: "End",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 999,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 999],
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
@@ -594,8 +590,8 @@ describe("Auction", () => {
       transition: "End",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
@@ -608,8 +604,8 @@ describe("Auction", () => {
       transition: "End",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.NotExpiredError,
@@ -620,8 +616,8 @@ describe("Auction", () => {
       transition: "End",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
@@ -631,56 +627,48 @@ describe("Auction", () => {
         events: [
           {
             name: "End",
-            getParams: () => [
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", "1", "token_id"],
-              ["ByStr20", globalZRC2ContractAddress, "payment_token_address"],
-              ["Uint128", "10000", "sale_price"],
-              ["ByStr20", getTestAddr(SELLER), "seller"],
-              ["ByStr20", getTestAddr(BUYER_A), "buyer"],
-              ["ByStr20", getTestAddr(BUYER_A), "asset_recipient"],
-              ["ByStr20", getTestAddr(SELLER), "payment_tokens_recipient"],
-              ["ByStr20", getTestAddr(SELLER), "royalty_recipient"],
-              ["Uint128", 1000, "royalty_amount"],
-              ["Uint128", 250, "service_fee"],
-            ],
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              sale_price: ["Uint128", 10000],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", getTestAddr(BUYER_A)],
+              asset_recipient: ["ByStr20", getTestAddr(BUYER_A)],
+              payment_tokens_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_amount: ["Uint128", 1000],
+              service_fee: ["Uint128", 250],
+            }),
           },
 
           // royalty fee
           {
             name: "TransferSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "sender",
-              ],
-              ["ByStr20", getTestAddr(SELLER), "recipient"], // SELLER is the ZRC6 contract owner
-              ["Uint128", "1000", "amount"],
-            ],
+            getParams: () => ({
+              sender: ["ByStr20", globalMarketplaceAddress],
+              recipient: ["ByStr20", getTestAddr(SELLER)], // SELLER is the ZRC6 contract owner
+              amount: ["Uint128", 1000],
+            }),
           },
 
           // service fee
           {
             name: "TransferSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "sender",
-              ],
-              ["ByStr20", getTestAddr(MARKETPLACE_CONTRACT_OWNER), "recipient"],
-              ["Uint128", "250", "amount"],
-            ],
+            getParams: () => ({
+              sender: ["ByStr20", globalMarketplaceAddress],
+              recipient: ["ByStr20", getTestAddr(MARKETPLACE_CONTRACT_OWNER)],
+              amount: ["Uint128", 250],
+            }),
           },
         ],
         verifyState: (state) => {
           if (
             JSON.stringify(
-              state.sell_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.sell_orders[globalTokenAddress.toLowerCase()]
             ) !== "{}" ||
             JSON.stringify(
-              state.buy_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.buy_orders[globalTokenAddress.toLowerCase()]
             ) !== "{}"
           ) {
             return false;
@@ -689,7 +677,7 @@ describe("Auction", () => {
           if (
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
-                globalZRC6ContractAddress.toLowerCase()
+                globalTokenAddress.toLowerCase()
               ]["1"]
             ) !== JSON.stringify(getJSONValue(true))
           ) {
@@ -698,7 +686,7 @@ describe("Auction", () => {
 
           if (
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-              globalZRC2ContractAddress.toLowerCase()
+              globalPaymentTokenAddress.toLowerCase()
             ] !== "8750"
           ) {
             return false;
@@ -713,29 +701,30 @@ describe("Auction", () => {
   for (const testCase of testCases) {
     it(`${testCase.transition}: ${testCase.name}`, async () => {
       let state = await zilliqa.contracts
-        .at(globalZRC6MarketplaceContractAddress)
+        .at(globalMarketplaceAddress)
         .getState();
 
       expect(JSON.stringify(state.buy_orders)).toBe(
-        `{"${globalZRC6ContractAddress.toLowerCase()}":{"1":${getUsrDefADTValue(
-          globalZRC6MarketplaceContractAddress,
-          "BuyOrder",
-          [
-            getTestAddr(BUYER_A).toLowerCase(),
-            "10000",
-            getTestAddr(BUYER_A).toLowerCase(),
-            "1",
-          ]
-        )}}}`
+        JSON.stringify({
+          [globalTokenAddress.toLowerCase()]: {
+            [1]: getJSONValue(
+              [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
+              `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+            ),
+          },
+        })
       );
 
       await testCase.beforeTransition();
 
       zilliqa.wallet.setDefault(testCase.getSender());
-      const tx = await globalZRC6MarketplaceContractInfo.callGetter(
-        zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-        TX_PARAMS
-      )(testCase.transition, ...Object.values(testCase.getParams()));
+      const tx: any = await zilliqa.contracts
+        .at(globalMarketplaceAddress)
+        .call(
+          testCase.transition,
+          getJSONParams(testCase.getParams()),
+          TX_PARAMS
+        );
 
       if (testCase.want === undefined) {
         // Nagative Cases
@@ -751,7 +740,7 @@ describe("Auction", () => {
         );
 
         const state = await zilliqa.contracts
-          .at(globalZRC6MarketplaceContractAddress)
+          .at(globalMarketplaceAddress)
           .getState();
 
         expect(testCase.want.verifyState(state)).toBe(true);
@@ -764,16 +753,16 @@ describe("Withdraw", () => {
   beforeEach(async () => {
     // Add marketplace contract as spender for the tokens as SELLER
     zilliqa.wallet.setDefault(getTestAddr(SELLER));
-    let tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-      TX_PARAMS
-    )(
+    let tx: any = await zilliqa.contracts.at(globalMarketplaceAddress).call(
       "Start",
-      globalZRC6ContractAddress,
-      1,
-      globalZRC2ContractAddress,
-      1000,
-      globalBNum + 5
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      TX_PARAMS
     );
 
     if (!tx.receipt.success) {
@@ -781,10 +770,16 @@ describe("Withdraw", () => {
     }
 
     zilliqa.wallet.setDefault(getTestAddr(BUYER_A));
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "Bid",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 10000],
+        dest: ["ByStr20", getTestAddr(BUYER_A)],
+      }),
       TX_PARAMS
-    )("Bid", globalZRC6ContractAddress, "1", "10000", getTestAddr(BUYER_A));
+    );
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -793,10 +788,14 @@ describe("Withdraw", () => {
     await increaseBNum(zilliqa, 5);
 
     zilliqa.wallet.setDefault(getTestAddr(SELLER));
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "End",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+      }),
       TX_PARAMS
-    )("End", globalZRC6ContractAddress, "1");
+    );
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -809,8 +808,8 @@ describe("Withdraw", () => {
       transition: "WithdrawPaymentTokens",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
-        payment_token_address: globalZRC2ContractAddress,
-        amount: 1000,
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        amount: ["Uint128", 1000],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.AccountNotFoundError,
@@ -821,8 +820,8 @@ describe("Withdraw", () => {
       transition: "WithdrawPaymentTokens",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        payment_token_address: globalZRC2ContractAddress,
-        amount: 10000,
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        amount: ["Uint128", 10000],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.InsufficientPaymentTokenError,
@@ -833,8 +832,8 @@ describe("Withdraw", () => {
       transition: "WithdrawPaymentTokens",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        payment_token_address: globalZRC2ContractAddress,
-        amount: 1000,
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        amount: ["Uint128", 1000],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -842,29 +841,25 @@ describe("Withdraw", () => {
         events: [
           {
             name: "WithdrawPaymentTokens",
-            getParams: () => [
-              ["ByStr20", getTestAddr(SELLER), "recipient"],
-              ["ByStr20", globalZRC2ContractAddress, "payment_token_address"],
-              ["Uint128", "1000", "amount"],
-            ],
+            getParams: () => ({
+              recipient: ["ByStr20", getTestAddr(SELLER)],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              amount: ["Uint128", 1000],
+            }),
           },
           {
             name: "TransferSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "sender",
-              ],
-              ["ByStr20", getTestAddr(SELLER), "recipient"],
-              ["Uint128", "1000", "amount"],
-            ],
+            getParams: () => ({
+              sender: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
+              recipient: ["ByStr20", getTestAddr(SELLER)],
+              amount: ["Uint128", 1000],
+            }),
           },
         ],
         verifyState: (state) => {
           if (
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-              globalZRC2ContractAddress.toLowerCase()
+              globalPaymentTokenAddress.toLowerCase()
             ] !== "7750"
           ) {
             return false;
@@ -879,8 +874,8 @@ describe("Withdraw", () => {
       transition: "WithdrawAsset",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.AssetNotFoundError,
@@ -891,8 +886,8 @@ describe("Withdraw", () => {
       transition: "WithdrawAsset",
       getSender: () => getTestAddr(BUYER_A),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 1,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -900,30 +895,26 @@ describe("Withdraw", () => {
         events: [
           {
             name: "WithdrawAsset",
-            getParams: () => [
-              ["ByStr20", getTestAddr(BUYER_A), "recipient"],
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", "1", "token_id"],
-            ],
+            getParams: () => ({
+              recipient: ["ByStr20", getTestAddr(BUYER_A)],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+            }),
           },
           {
             name: "TransferFrom",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "from",
-              ],
-              ["ByStr20", getTestAddr(BUYER_A), "to"],
-              ["Uint256", "1", "token_id"],
-            ],
+            getParams: () => ({
+              from: ["ByStr20", globalMarketplaceAddress],
+              to: ["ByStr20", getTestAddr(BUYER_A)],
+              token_id: ["Uint256", 1],
+            }),
           },
         ],
         verifyState: (state) => {
           if (
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
-                globalZRC6ContractAddress.toLowerCase()
+                globalTokenAddress.toLowerCase()
               ]
             ) !== "{}"
           ) {
@@ -939,30 +930,33 @@ describe("Withdraw", () => {
   for (const testCase of testCases) {
     it(`${testCase.transition}: ${testCase.name}`, async () => {
       let state = await zilliqa.contracts
-        .at(globalZRC6MarketplaceContractAddress)
+        .at(globalMarketplaceAddress)
         .getState();
 
       expect(
         JSON.stringify(
           state.assets[getTestAddr(BUYER_A).toLowerCase()][
-            globalZRC6ContractAddress.toLowerCase()
+            globalTokenAddress.toLowerCase()
           ]["1"]
         )
       ).toBe(JSON.stringify(getJSONValue(true)));
 
       expect(
         state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-          globalZRC2ContractAddress.toLowerCase()
+          globalPaymentTokenAddress.toLowerCase()
         ]
       ).toBe("8750");
 
       await testCase.beforeTransition();
 
       zilliqa.wallet.setDefault(testCase.getSender());
-      const tx = await globalZRC6MarketplaceContractInfo.callGetter(
-        zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-        TX_PARAMS
-      )(testCase.transition, ...Object.values(testCase.getParams()));
+      const tx: any = await zilliqa.contracts
+        .at(globalMarketplaceAddress)
+        .call(
+          testCase.transition,
+          getJSONParams(testCase.getParams()),
+          TX_PARAMS
+        );
 
       if (testCase.want === undefined) {
         // Nagative Cases
@@ -978,7 +972,7 @@ describe("Withdraw", () => {
         );
 
         const state = await zilliqa.contracts
-          .at(globalZRC6MarketplaceContractAddress)
+          .at(globalMarketplaceAddress)
           .getState();
 
         expect(testCase.want.verifyState(state)).toBe(true);
@@ -991,32 +985,32 @@ describe("Balance", () => {
   beforeEach(async () => {
     // Add marketplace contract as spender for the tokens as SELLER
     zilliqa.wallet.setDefault(getTestAddr(SELLER));
-    let tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-      TX_PARAMS
-    )(
+    let tx: any = await zilliqa.contracts.at(globalMarketplaceAddress).call(
       "Start",
-      globalZRC6ContractAddress,
-      1,
-      globalZRC2ContractAddress,
-      1000,
-      globalBNum + 5
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      TX_PARAMS
     );
 
     if (!tx.receipt.success) {
       throw new Error();
     }
 
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-      TX_PARAMS
-    )(
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
       "Start",
-      globalZRC6ContractAddress,
-      2,
-      globalZRC2ContractAddress,
-      1000,
-      globalBNum + 10
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 10],
+      }),
+      TX_PARAMS
     );
 
     if (!tx.receipt.success) {
@@ -1024,20 +1018,32 @@ describe("Balance", () => {
     }
 
     zilliqa.wallet.setDefault(getTestAddr(BUYER_A));
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "Bid",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 10000],
+        dest: ["ByStr20", getTestAddr(BUYER_A)],
+      }),
       TX_PARAMS
-    )("Bid", globalZRC6ContractAddress, "1", "10000", getTestAddr(BUYER_A));
+    );
 
     if (!tx.receipt.success) {
       throw new Error();
     }
 
     zilliqa.wallet.setDefault(getTestAddr(BUYER_B));
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "Bid",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+        amount: ["Uint128", 10000],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
+      }),
       TX_PARAMS
-    )("Bid", globalZRC6ContractAddress, 2, "10000", getTestAddr(BUYER_B));
+    );
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -1046,10 +1052,14 @@ describe("Balance", () => {
     await increaseBNum(zilliqa, 5);
 
     zilliqa.wallet.setDefault(getTestAddr(SELLER));
-    tx = await globalZRC6MarketplaceContractInfo.callGetter(
-      zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "End",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+      }),
       TX_PARAMS
-    )("End", globalZRC6ContractAddress, "1");
+    );
 
     if (!tx.receipt.success) {
       throw new Error();
@@ -1062,10 +1072,10 @@ describe("Balance", () => {
       transition: "Bid",
       getSender: () => getTestAddr(BUYER_A),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 2,
-        amount: 11000,
-        dest: getTestAddr(BUYER_A),
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+        amount: ["Uint128", 11000],
+        dest: ["ByStr20", getTestAddr(BUYER_A)],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -1073,36 +1083,28 @@ describe("Balance", () => {
         events: [
           {
             name: "Bid",
-            getParams: () => [
-              ["ByStr20", getTestAddr(BUYER_A).toLowerCase(), "maker"],
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", 2, "token_id"],
-              ["Uint128", 11000, "amount"],
-              ["ByStr20", getTestAddr(BUYER_A), "dest"],
-            ],
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(BUYER_A)],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 2],
+              amount: ["Uint128", 11000],
+              dest: ["ByStr20", getTestAddr(BUYER_A)],
+            }),
           },
           {
             name: "TransferFromSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "initiator",
-              ],
-              ["ByStr20", getTestAddr(BUYER_A).toLowerCase(), "sender"],
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "recipient",
-              ],
-              ["Uint128", 11000, "amount"],
-            ],
+            getParams: () => ({
+              initiator: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
+              sender: ["ByStr20", getTestAddr(BUYER_A).toLowerCase()],
+              recipient: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
+              amount: ["Uint128", 11000],
+            }),
           },
         ],
         verifyState: (state) => {
           if (
             state.payment_tokens[getTestAddr(BUYER_B).toLowerCase()][
-              globalZRC2ContractAddress.toLowerCase()
+              globalPaymentTokenAddress.toLowerCase()
             ] !== "10000"
           ) {
             return false;
@@ -1110,18 +1112,14 @@ describe("Balance", () => {
 
           if (
             JSON.stringify(
-              state.buy_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.buy_orders[globalTokenAddress.toLowerCase()]
             ) !==
-            `{"2":${getUsrDefADTValue(
-              globalZRC6MarketplaceContractAddress,
-              "BuyOrder",
-              [
-                getTestAddr(BUYER_A).toLowerCase(),
-                "11000",
-                getTestAddr(BUYER_A).toLowerCase(),
-                "2",
-              ]
-            )}}`
+            JSON.stringify({
+              [2]: getJSONValue(
+                [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2],
+                `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+              ),
+            })
           ) {
             return false;
           }
@@ -1136,8 +1134,8 @@ describe("Balance", () => {
       transition: "End",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
-        token_address: globalZRC6ContractAddress,
-        token_id: 2,
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
       }),
       beforeTransition: async () => {
         await increaseBNum(zilliqa, 5);
@@ -1147,56 +1145,48 @@ describe("Balance", () => {
         events: [
           {
             name: "End",
-            getParams: () => [
-              ["ByStr20", globalZRC6ContractAddress, "token_address"],
-              ["Uint256", 2, "token_id"],
-              ["ByStr20", globalZRC2ContractAddress, "payment_token_address"],
-              ["Uint128", 10000, "sale_price"],
-              ["ByStr20", getTestAddr(SELLER), "seller"],
-              ["ByStr20", getTestAddr(BUYER_B), "buyer"],
-              ["ByStr20", getTestAddr(BUYER_B), "asset_recipient"],
-              ["ByStr20", getTestAddr(SELLER), "payment_tokens_recipient"],
-              ["ByStr20", getTestAddr(SELLER), "royalty_recipient"],
-              ["Uint128", 1000, "royalty_amount"],
-              ["Uint128", 250, "service_fee"],
-            ],
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 2],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              sale_price: ["Uint128", 10000],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", getTestAddr(BUYER_B)],
+              asset_recipient: ["ByStr20", getTestAddr(BUYER_B)],
+              payment_tokens_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_amount: ["Uint128", 1000],
+              service_fee: ["Uint128", 250],
+            }),
           },
 
           // royalty fee
           {
             name: "TransferSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "sender",
-              ],
-              ["ByStr20", getTestAddr(SELLER), "recipient"], // SELLER is the ZRC6 contract owner
-              ["Uint128", 1000, "amount"],
-            ],
+            getParams: () => ({
+              sender: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
+              recipient: ["ByStr20", getTestAddr(SELLER)], // SELLER is the ZRC6 contract owner
+              amount: ["Uint128", 1000],
+            }),
           },
 
           // service fee
           {
             name: "TransferSuccess",
-            getParams: () => [
-              [
-                "ByStr20",
-                globalZRC6MarketplaceContractAddress.toLowerCase(),
-                "sender",
-              ],
-              ["ByStr20", getTestAddr(MARKETPLACE_CONTRACT_OWNER), "recipient"],
-              ["Uint128", 250, "amount"],
-            ],
+            getParams: () => ({
+              sender: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
+              recipient: ["ByStr20", getTestAddr(MARKETPLACE_CONTRACT_OWNER)],
+              amount: ["Uint128", 250],
+            }),
           },
         ],
         verifyState: (state) => {
           if (
             JSON.stringify(
-              state.sell_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.sell_orders[globalTokenAddress.toLowerCase()]
             ) !== "{}" ||
             JSON.stringify(
-              state.buy_orders[globalZRC6ContractAddress.toLowerCase()]
+              state.buy_orders[globalTokenAddress.toLowerCase()]
             ) !== "{}"
           ) {
             return false;
@@ -1205,7 +1195,7 @@ describe("Balance", () => {
           if (
             JSON.stringify(
               state.assets[getTestAddr(BUYER_B).toLowerCase()][
-                globalZRC6ContractAddress.toLowerCase()
+                globalTokenAddress.toLowerCase()
               ]["2"]
             ) !== JSON.stringify(getJSONValue(true))
           ) {
@@ -1213,7 +1203,7 @@ describe("Balance", () => {
           }
           if (
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-              globalZRC2ContractAddress.toLowerCase()
+              globalPaymentTokenAddress.toLowerCase()
             ] !== (8750 * 2).toString()
           ) {
             return false;
@@ -1228,30 +1218,33 @@ describe("Balance", () => {
   for (const testCase of testCases) {
     it(`${testCase.transition}: ${testCase.name}`, async () => {
       let state = await zilliqa.contracts
-        .at(globalZRC6MarketplaceContractAddress)
+        .at(globalMarketplaceAddress)
         .getState();
 
       expect(
         JSON.stringify(
           state.assets[getTestAddr(BUYER_A).toLowerCase()][
-            globalZRC6ContractAddress.toLowerCase()
+            globalTokenAddress.toLowerCase()
           ]["1"]
         )
       ).toBe(JSON.stringify(getJSONValue(true)));
 
       expect(
         state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-          globalZRC2ContractAddress.toLowerCase()
+          globalPaymentTokenAddress.toLowerCase()
         ]
       ).toBe("8750");
 
       await testCase.beforeTransition();
 
       zilliqa.wallet.setDefault(testCase.getSender());
-      const tx = await globalZRC6MarketplaceContractInfo.callGetter(
-        zilliqa.contracts.at(globalZRC6MarketplaceContractAddress),
-        TX_PARAMS
-      )(testCase.transition, ...Object.values(testCase.getParams()));
+      const tx: any = await zilliqa.contracts
+        .at(globalMarketplaceAddress)
+        .call(
+          testCase.transition,
+          getJSONParams(testCase.getParams()),
+          TX_PARAMS
+        );
 
       if (testCase.want === undefined) {
         // Nagative Cases
@@ -1267,7 +1260,7 @@ describe("Balance", () => {
         );
 
         const state = await zilliqa.contracts
-          .at(globalZRC6MarketplaceContractAddress)
+          .at(globalMarketplaceAddress)
           .getState();
 
         expect(testCase.want.verifyState(state)).toBe(true);

@@ -776,6 +776,11 @@
   dependencies:
     protobufjs "^6.8.8"
 
+"@zilliqa-js/scilla-json-utils@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@zilliqa-js/scilla-json-utils/-/scilla-json-utils-0.1.0.tgz#9a43e7c8642d7cc1d336ed565d4461bae48ee3a8"
+  integrity sha512-OH1eqFn7+a1+hHU3Z0KxHOKgc/RrdRF2d5JQUUsle0wzZ95uds9i1j8+uisLrurJrAzIaV7dVAk9KidrKYQjhA==
+
 "@zilliqa-js/subscriptions@^3.3.3":
   version "3.3.3"
   resolved "https://registry.yarnpkg.com/@zilliqa-js/subscriptions/-/subscriptions-3.3.3.tgz#10f52e02022c73d560a1b794a1a9eaa68151db7a"
