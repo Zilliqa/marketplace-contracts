@@ -267,7 +267,7 @@ procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
   end
 end
 
-procedure RequireEqualAmount(amount: Uint128)
+procedure RequireEqualZILAmount(amount: Uint128)
   is_eq = builtin eq amount _amount;
   match is_eq with
   | True =>
@@ -637,7 +637,7 @@ transition Bid(
     is_native_zil = builtin eq payment_token_address zero_address;
     match is_native_zil with 
     | True => 
-      RequireEqualAmount amount;
+      RequireEqualZILAmount amount;
       accept;
       BidWithNativeZILs token_address token_id start_amount dest;
       e = {
