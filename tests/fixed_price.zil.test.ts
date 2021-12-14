@@ -21,6 +21,7 @@ import {
   FAUCET_PARAMS,
   asyncNoop,
   FIXED_PRICE_ERROR,
+  GAS_PRICE,
 } from "./config";
 
 import { BN } from "@zilliqa-js/util";
@@ -43,11 +44,11 @@ let globalTestAccounts: Array<{
 const SELLER = 0;
 const BUYER = 1;
 const MARKETPLACE_CONTRACT_OWNER = 2;
-const STRANGER = 3;
+
 const getTestAddr = (index) => globalTestAccounts[index]?.address as string;
 
 beforeAll(async () => {
-  const accounts = Array.from({ length: 5 }, schnorr.generatePrivateKey).map(
+  const accounts = Array.from({ length: 3 }, schnorr.generatePrivateKey).map(
     (privateKey) => ({
       privateKey,
       address: getAddressFromPrivateKey(privateKey),
@@ -76,7 +77,6 @@ beforeAll(async () => {
     SELLER: getTestAddr(SELLER),
     BUYER: getTestAddr(BUYER),
     MARKETPLACE_CONTRACT_OWNER: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
-    STRANGER: getTestAddr(STRANGER),
   });
 });
 
@@ -218,6 +218,9 @@ describe("Fixed Price Listings and Offers", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
         }),
         events: [
           {
@@ -274,6 +277,9 @@ describe("Fixed Price Listings and Offers", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 20000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: -20000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
         }),
         events: [
           {
@@ -366,6 +372,9 @@ describe("Fixed Price Listings and Offers", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 9750,
+          [getTestAddr(BUYER)]: -10000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
         }),
         events: [
           {
@@ -465,6 +474,9 @@ describe("Fixed Price Listings and Offers", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: -10000,
+          [getTestAddr(SELLER)]: 1000 + 8750,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
         }),
         events: [
           {
@@ -568,6 +580,9 @@ describe("Fixed Price Listings and Offers", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: -10000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 10000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
         }),
         events: [
           {
@@ -610,6 +625,9 @@ describe("Fixed Price Listings and Offers", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
         }),
         events: [
           {
@@ -666,6 +684,7 @@ describe("Fixed Price Listings and Offers", () => {
         );
       } else {
         // Positive Cases
+
         expect(tx.receipt.success).toBe(true);
         expect(verifyEvents(tx.receipt.event_logs, testCase.want.events)).toBe(
           true
@@ -684,7 +703,15 @@ describe("Fixed Price Listings and Offers", () => {
         const deltasReceived = await balanceTracker.deltas();
         const deltasExpected = await testCase.want?.getBalanceDeltas();
         deltasReceived.forEach(([account, delta]) => {
-          expect(delta).toBe(deltasExpected[account]?.toString());
+          if (account.toLowerCase() === testCase.getSender().toLowerCase()) {
+            const txFee = new BN(tx.receipt.cumulative_gas).mul(GAS_PRICE);
+            const deltaWithFee = new BN(delta).add(txFee);
+            expect(deltaWithFee.toString()).toBe(
+              deltasExpected[account]?.toString()
+            );
+          } else {
+            expect(delta).toBe(deltasExpected[account]?.toString());
+          }
         });
       }
     });

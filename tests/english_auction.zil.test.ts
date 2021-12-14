@@ -20,6 +20,7 @@ import {
   FAUCET_PARAMS,
   ENG_AUC_ERROR,
   asyncNoop,
+  GAS_PRICE,
 } from "./config";
 import { BN } from "@zilliqa-js/util";
 
@@ -258,6 +259,11 @@ describe("Auction", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -378,6 +384,11 @@ describe("Auction", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 11000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: -11000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -475,6 +486,11 @@ describe("Auction", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -572,7 +588,12 @@ describe("Auction", () => {
       error: undefined,
       want: {
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -10000,
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 1000,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -772,6 +793,11 @@ describe("Withdraw", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: -1000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 1000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -829,6 +855,11 @@ describe("Withdraw", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -1016,6 +1047,11 @@ describe("Balance", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 11000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: -11000,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -1081,6 +1117,11 @@ describe("Balance", () => {
       want: {
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: -1250,
+          [getTestAddr(SELLER)]: 1000,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -1192,9 +1233,17 @@ describe("Balance", () => {
 
         const deltasReceived = await balanceTracker.deltas();
         const deltasExpected = await testCase.want?.getBalanceDeltas();
-        expect(JSON.stringify(deltasReceived)).toBe(
-          JSON.stringify(deltasExpected)
-        );
+        deltasReceived.forEach(([account, delta]) => {
+          if (account.toLowerCase() === testCase.getSender().toLowerCase()) {
+            const txFee = new BN(tx.receipt.cumulative_gas).mul(GAS_PRICE);
+            const deltaWithFee = new BN(delta).add(txFee);
+            expect(deltaWithFee.toString()).toBe(
+              deltasExpected[account]?.toString()
+            );
+          } else {
+            expect(delta).toBe(deltasExpected[account]?.toString());
+          }
+        });
       }
     });
   }
