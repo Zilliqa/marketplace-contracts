@@ -239,7 +239,7 @@ procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
   end
 end
 
-procedure RequireEqualAmount(amount: Uint128)
+procedure RequireEqualZILAmount(amount: Uint128)
   is_eq = builtin eq amount _amount;
   match is_eq with
   | True =>
@@ -518,7 +518,7 @@ transition CreateOrder(
     match is_native_zil with 
       | False =>
       | True => 
-        RequireEqualAmount sale_price;
+        RequireEqualZILAmount sale_price;
         accept
     end;
 
@@ -658,7 +658,7 @@ transition FulfillOrder(
       match is_native_zil with
       | False => 
       | True => 
-        RequireEqualAmount sale_price;
+        RequireEqualZILAmount sale_price;
         accept
       end;
       
