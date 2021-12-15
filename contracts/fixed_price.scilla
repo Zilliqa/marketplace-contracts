@@ -488,8 +488,10 @@ end
 
 transition CreateOrder(
   token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
     field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
+    field token_owners: Map Uint256 ByStr20
   end,
   token_id: Uint256,
   payment_token_address: ByStr20,
