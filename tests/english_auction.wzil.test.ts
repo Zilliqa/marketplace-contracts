@@ -171,7 +171,6 @@ beforeEach(async () => {
       "ByStr20",
       getTestAddr(MARKETPLACE_CONTRACT_OWNER),
     ],
-    wzil_address: ["ByStr20", globalPaymentTokenAddress],
   });
   [, contract] = await zilliqa.contracts
     .new(fs.readFileSync(CONTRACTS.english_auction.path).toString(), init)
@@ -179,6 +178,19 @@ beforeEach(async () => {
   globalMarketplaceAddress = contract.address;
 
   if (globalMarketplaceAddress === undefined) {
+    throw new Error();
+  }
+
+  // allow WZIL
+  tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+    "AllowPaymentTokenAddress",
+    getJSONParams({
+      address: ["ByStr20", globalPaymentTokenAddress],
+    }),
+    TX_PARAMS
+  );
+
+  if (!tx.receipt.success) {
     throw new Error();
   }
 

@@ -125,8 +125,7 @@ let make_error =
 
 contract EnglishAuctionOrderbook
 (
-  initial_contract_owner: ByStr20,
-  wzil_address: ByStr20
+  initial_contract_owner: ByStr20
 )
 
 (* Contract Owner *)
@@ -159,9 +158,7 @@ field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)) = Emp ByStr20 (Map By
 field payment_tokens: Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
 
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
-field allowed_payment_tokens: Map ByStr20 Bool =
-let emp_map = Emp ByStr20 Bool in
-builtin put emp_map wzil_address true
+field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
 
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
@@ -918,6 +915,34 @@ transition SetServiceFeeRecipient(to: ByStr20)
   e = { 
     _eventname: "SetServiceFeeRecipient";
     to: to
+  };
+  event e
+end
+
+transition AllowPaymentTokenAddress(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  RequireContractOwner;
+  allowed_payment_tokens[address] := true;
+  e = {
+    _eventname : "AllowPaymentTokenAddress";
+    payment_token_addresss: address
+  };
+  event e
+end
+
+transition DisallowPaymentTokenAddress(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  RequireContractOwner;
+  delete allowed_payment_tokens[address];
+  e = {
+    _eventname : "DisallowPaymentTokenAddress";
+    payment_token_addresss: address
   };
   event e
 end

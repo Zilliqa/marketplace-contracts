@@ -133,7 +133,6 @@ beforeEach(async () => {
       "ByStr20",
       getTestAddr(MARKETPLACE_CONTRACT_OWNER),
     ],
-    wzil_address: ["ByStr20", ZERO_ADDRESS],
   });
   [, contract] = await zilliqa.contracts
     .new(fs.readFileSync(CONTRACTS.fixed_price.path).toString(), init)

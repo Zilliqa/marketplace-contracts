@@ -121,8 +121,7 @@ let make_error =
 
 contract FixedPriceOrderbook
 (
-  initial_contract_owner: ByStr20,
-  wzil_address: ByStr20
+  initial_contract_owner: ByStr20
 )
 
 (* We assume all orders are fixed price type  *)
@@ -154,9 +153,7 @@ field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) =
 field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
 
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
-field allowed_payment_tokens: Map ByStr20 Bool =
-let emp_map = Emp ByStr20 Bool in
-builtin put emp_map wzil_address true
+field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
 
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
@@ -732,6 +729,34 @@ transition FulfillOrder(
       delete buy_orders[token_address][token_id][payment_token_address][sale_price]
     end
   end
+end
+
+transition AllowPaymentTokenAddress(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  RequireContractOwner;
+  allowed_payment_tokens[address] := true;
+  e = {
+    _eventname : "AllowPaymentTokenAddress";
+    payment_token_addresss: address
+  };
+  event e
+end
+
+transition DisallowPaymentTokenAddress(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  RequireContractOwner;
+  delete allowed_payment_tokens[address];
+  e = {
+    _eventname : "DisallowPaymentTokenAddress";
+    payment_token_addresss: address
+  };
+  event e
 end
 
 transition SetServiceFeeBPS(fee_bps: Uint128)
