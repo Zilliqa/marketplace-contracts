@@ -74,7 +74,7 @@ type Error =
   | NotTokenOwnerError
   | ExpiredError
   | NotMakerError
-  | NotSelfError
+  | NotAllowedToCancelOrder
   | SelfError
   | NotAllowedPaymentToken
   | NotPausedError
@@ -85,7 +85,6 @@ type Error =
   | NotContractOwnershipRecipientError
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
-  | NotAllowedToCancelOrder
   
 let make_error =
   fun (result : Error) =>
@@ -99,7 +98,7 @@ let make_error =
       | NotTokenOwnerError                 => Int32 -6
       | ExpiredError                       => Int32 -7
       | NotMakerError                      => Int32 -8
-      | NotSelfError                       => Int32 -9
+      | NotAllowedToCancelOrder            => Int32 -9
       | SelfError                          => Int32 -10
       | NotAllowedPaymentToken             => Int32 -11
       | NotPausedError                     => Int32 -12
@@ -110,7 +109,6 @@ let make_error =
       | NotContractOwnershipRecipientError => Int32 -17
       | ZeroAddressDestinationError        => Int32 -18
       | ThisAddressDestinationError        => Int32 -19
-      | NotAllowedToCancelOrder            => Int32 -20
       end
     in
     { _exception : "Error"; code : result_code }
@@ -271,16 +269,6 @@ procedure RequireAccessToCancel(maker_address: ByStr20)
   | True =>
   | False =>
     error = NotAllowedToCancelOrder;
-    Throw error
-  end
-end
-
-procedure RequireSelf(address: ByStr20)
-  is_self = builtin eq address _sender;
-  match is_self with
-  | True =>
-  | False =>
-    error = NotSelfError;
     Throw error
   end
 end

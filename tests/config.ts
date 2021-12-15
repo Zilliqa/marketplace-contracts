@@ -57,7 +57,7 @@ export const FIXED_PRICE_ERROR = {
   NotTokenOwnerError: -6,
   ExpiredError: -7,
   NotMakerError: -8,
-  NotSelfError: -9,
+  NotAllowedToCancelOrder: -9,
   SelfError: -10,
   NotAllowedPaymentToken: -11,
   NotPausedError: -12,
@@ -68,7 +68,6 @@ export const FIXED_PRICE_ERROR = {
   NotContractOwnershipRecipientError: -17,
   ZeroAddressDestinationError: -18,
   ThisAddressDestinationError: -19,
-  NotAllowedToCancelOrder: -20,
 };
 
 export const ENG_AUC_ERROR = {
@@ -77,7 +76,7 @@ export const ENG_AUC_ERROR = {
   BuyOrderNotFoundError: -3,
   NotSpenderError: -4,
   NotTokenOwnerError: -5,
-  NotSelfError: -6,
+  NotAllowedToCancelOrder: -6,
   SelfError: -7,
   LessThanMinBidError: -8,
   InsufficientAllowanceError: -9,
@@ -96,5 +95,4 @@ export const ENG_AUC_ERROR = {
   ZeroAddressDestinationError: -22,
   ThisAddressDestinationError: -23,
   NotContractOwnershipRecipientError: -24,
-  NotAllowedToCancelOrder: -25,
 };

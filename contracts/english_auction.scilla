@@ -67,7 +67,7 @@ type Error =
   | BuyOrderNotFoundError
   | NotSpenderError
   | NotTokenOwnerError
-  | NotSelfError
+  | NotAllowedToCancelOrder
   | SelfError
   | LessThanMinBidError
   | InsufficientAllowanceError
@@ -86,7 +86,6 @@ type Error =
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
   | NotContractOwnershipRecipientError
-  | NotAllowedToCancelOrder
 
 let make_error =
   fun (result : Error) =>
@@ -97,7 +96,7 @@ let make_error =
       | BuyOrderNotFoundError               => Int32 -3
       | NotSpenderError                     => Int32 -4
       | NotTokenOwnerError                  => Int32 -5
-      | NotSelfError                        => Int32 -6
+      | NotAllowedToCancelOrder             => Int32 -6
       | SelfError                           => Int32 -7
       | LessThanMinBidError                 => Int32 -8
       | InsufficientAllowanceError          => Int32 -9
@@ -116,7 +115,6 @@ let make_error =
       | ZeroAddressDestinationError         => Int32 -22
       | ThisAddressDestinationError         => Int32 -23
       | NotContractOwnershipRecipientError  => Int32 -24
-      | NotAllowedToCancelOrder             => Int32 -25
       end
     in
     { _exception : "Error"; code : result_code }
@@ -216,16 +214,6 @@ procedure RequireContractOwner()
   | True => 
   | False =>
     error = NotContractOwnerError;
-    Throw error
-  end
-end
-
-procedure RequireSelf(x: ByStr20)
-  is_self = builtin eq x _sender;
-  match is_self with
-  | True =>
-  | False =>
-    error = NotSelfError;
     Throw error
   end
 end
