@@ -448,6 +448,85 @@ procedure HandleFulfillOrder(
   event e
 end
 
+procedure Cancel(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  sale_price: Uint128,
+  side: Uint32
+  )
+  is_sell_order = builtin eq side sell_side;
+  match is_sell_order with 
+  | True =>     
+    (* Side: Sell *)
+    opt_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
+    match opt_sell_order with
+    | None =>
+      error = SellOrderNotFoundError;
+      Throw error
+    | Some (Order maker expiration_bnum) =>  
+      (* sender must be the maker or the contract owner *)
+      RequireAccessToCancel maker;
+      (* Remove order *)
+      delete sell_orders[token_address][token_id][payment_token_address][sale_price];
+      
+      e = {
+        _eventname : "CancelOrder";
+        maker: maker;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price
+      };
+      event e
+    end
+  | False => 
+    (* Side: Buy *)
+    opt_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
+    match opt_buy_order with
+    | None =>
+      error = BuyOrderNotFoundError;
+      Throw error
+    | Some (Order maker expiration_bnum) =>  
+      (* sender must be the maker or the contract owner *)
+      RequireAccessToCancel maker;
+
+      is_native_zil = builtin eq payment_token_address zero_address;
+      match is_native_zil with
+        | False =>
+        | True =>
+          msg = {
+            _tag: "AddFunds";
+            _recipient: maker;
+            _amount: sale_price
+          };
+          msgs = one_msg msg;
+          send msgs
+      end;
+      
+      (* Remove order *)
+      delete buy_orders[token_address][token_id][payment_token_address][sale_price];
+
+      e = {
+        _eventname : "CancelOrder";
+        maker: maker;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price
+      };
+      event e
+    end
+  end
+end
+
 (* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
 (* @Requirements: *)
 (* - The contract must not be paused. Otherwise, it must throw `PausedError` *)
@@ -580,83 +659,6 @@ transition CreateOrder(
       expiration_bnum: expiration_bnum
     };
     event e
-  end
-end
-
-procedure Cancel(
-  token_address: ByStr20 with contract 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  sale_price: Uint128,
-  side: Uint32
-  )
-  is_sell_order = builtin eq side sell_side;
-  match is_sell_order with 
-  | True =>     
-    (* Side: Sell *)
-    opt_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
-    match opt_sell_order with
-    | None =>
-      error = SellOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-      (* Remove order *)
-      delete sell_orders[token_address][token_id][payment_token_address][sale_price];
-      
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
-  | False => 
-    (* Side: Buy *)
-    opt_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
-    match opt_buy_order with
-    | None =>
-      error = BuyOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-        | False =>
-        | True =>
-          msg = {
-            _tag: "AddFunds";
-            _recipient: maker;
-            _amount: sale_price
-          };
-          msgs = one_msg msg;
-          send msgs
-      end;
-      
-      (* Remove order *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price];
-
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
   end
 end
 
@@ -801,6 +803,8 @@ end
 
 transition CancelOrder(
   token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20 
   end,
