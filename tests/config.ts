@@ -96,4 +96,5 @@ export const ENG_AUC_ERROR = {
   ZeroAddressDestinationError: -22,
   ThisAddressDestinationError: -23,
   NotContractOwnershipRecipientError: -24,
+  NotAllowedToCancelOrder: -25,
 };

@@ -86,6 +86,7 @@ type Error =
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
   | NotContractOwnershipRecipientError
+  | NotAllowedToCancelOrder
 
 let make_error =
   fun (result : Error) =>
@@ -115,6 +116,7 @@ let make_error =
       | ZeroAddressDestinationError         => Int32 -22
       | ThisAddressDestinationError         => Int32 -23
       | NotContractOwnershipRecipientError  => Int32 -24
+      | NotAllowedToCancelOrder             => Int32 -25
       end
     in
     { _exception : "Error"; code : result_code }
@@ -238,6 +240,20 @@ procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
   end
 end
 
+procedure RequireAccessToCancel(seller_address: ByStr20)
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  is_seller = builtin eq seller_address _sender;
+
+  is_allowed_to_cancel_order = orb is_seller is_contract_owner;
+  match is_allowed_to_cancel_order with
+  | True =>
+  | False =>
+    error = NotAllowedToCancelOrder;
+    Throw error
+  end
+end
+
 procedure RequireNotPaused()
   (* Reference: *)
   (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
@@ -247,6 +263,19 @@ procedure RequireNotPaused()
   | True =>
     (* Contract is paused *)
     error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
     Throw error
   end
 end
@@ -512,6 +541,46 @@ procedure BidWithZRC2(
   end
 end
 
+
+procedure CancelAuction(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256
+  )
+  (* Check the sell order does exist *)
+  maybe_sell_order <- sell_orders[token_address][token_id];
+  match maybe_sell_order with 
+  | None =>
+    (* Sell order doesn't exist *)
+    error = SellOrderNotFoundError;
+    Throw error
+  | Some (SellOrder seller expiration_bnum payment_token_address start_amount)  => 
+    (* Check the sell order is not expired *)
+    RequireNotExpired expiration_bnum;
+    (* Only seller must be able to cancel the sell order *)
+    RequireAccessToCancel seller;
+
+    (* Asset for the seller  *)
+    assets[seller][token_address][token_id] := true;
+    delete sell_orders[token_address][token_id];
+    
+    (* Check if the buy order exist *)
+    maybe_buy_order <- buy_orders[token_address][token_id];
+    match maybe_buy_order with 
+    | None =>
+      (* noop *)
+    | Some (BuyOrder buyer cur_amount buy_dest _) =>  
+      (* markekplace pays back the old bider the current amount *)
+      AddToPaymentTokenBalance buyer payment_token_address cur_amount;
+      delete buy_orders[token_address][token_id]
+    end
+  end
+end
+
 (* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
 (* @Requirements: *)
 (* - The contract must not be paused. Otherwise, it must throw `PausedError` *)
@@ -681,42 +750,23 @@ transition Cancel(
   end,
   token_id: Uint256
   )
-  RequireNotPaused;
-
-  (* Check the sell order does exist *)
-  maybe_sell_order <- sell_orders[token_address][token_id];
-  match maybe_sell_order with 
-  | None =>
-    (* Sell order doesn't exist *)
-    error = SellOrderNotFoundError;
-    Throw error
-  | Some (SellOrder seller expiration_bnum payment_token_address start_amount)  => 
-    (* Check the sell order is not expired *)
-    RequireNotExpired expiration_bnum;
-    (* Only seller must be able to cancel the sell order *)
-    RequireSelf seller;
-
-    (* Asset for the seller  *)
-    assets[seller][token_address][token_id] := true;
-    delete sell_orders[token_address][token_id];
-    
-    (* Check if the buy order exist *)
-    maybe_buy_order <- buy_orders[token_address][token_id];
-    match maybe_buy_order with 
-    | None =>
-      (* noop *)
-    | Some (BuyOrder buyer cur_amount buy_dest _) =>  
-      (* markekplace pays back the old bider the current amount *)
-      AddToPaymentTokenBalance buyer payment_token_address cur_amount;
-      delete buy_orders[token_address][token_id]
-    end;
-    e = {
-      _eventname : "Cancel";
-      token_address: token_address;
-      token_id: token_id
-    };
-    event e
-  end
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  
+  (* only if this contract is paused, the contract owner can cancel orders *)
+  match is_contract_owner with
+  | True => 
+    RequirePaused
+  | False =>
+    RequireNotPaused
+  end;
+  CancelAuction token_address token_id;
+  e = {
+    _eventname : "Cancel";
+    token_address: token_address;
+    token_id: token_id
+  };
+  event e
 end
 
 transition End(

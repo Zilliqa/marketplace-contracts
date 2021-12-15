@@ -435,7 +435,7 @@ describe("Auction", () => {
     },
 
     {
-      name: "throws NotSelf",
+      name: "throws NotAllowedToCancelOrder",
       transition: "Cancel",
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
@@ -443,7 +443,7 @@ describe("Auction", () => {
         token_id: ["Uint256", 1],
       }),
       beforeTransition: asyncNoop,
-      error: ENG_AUC_ERROR.NotSelfError,
+      error: ENG_AUC_ERROR.NotAllowedToCancelOrder,
       want: undefined,
     },
     {
