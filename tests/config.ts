@@ -68,6 +68,7 @@ export const FIXED_PRICE_ERROR = {
   NotContractOwnershipRecipientError: -17,
   ZeroAddressDestinationError: -18,
   ThisAddressDestinationError: -19,
+  NotAllowedToCancelOrder: -20,
 };
 
 export const ENG_AUC_ERROR = {

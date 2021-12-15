@@ -563,6 +563,20 @@ describe("Fixed Price Listings and Offers", () => {
       },
     },
     {
+      name: "throws NotAllowedToCancelOrder by stranger",
+      transition: "CancelOrder",
+      getSender: () => getTestAddr(STRANGER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotAllowedToCancelOrder,
+    },
+    {
       name: "Buyer cancels buy order",
       transition: "CancelOrder",
       getSender: () => getTestAddr(BUYER),

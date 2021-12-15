@@ -44,11 +44,12 @@ let globalTestAccounts: Array<{
 const SELLER = 0;
 const BUYER = 1;
 const MARKETPLACE_CONTRACT_OWNER = 2;
+const STRANGER = 3;
 
 const getTestAddr = (index) => globalTestAccounts[index]?.address as string;
 
 beforeAll(async () => {
-  const accounts = Array.from({ length: 3 }, schnorr.generatePrivateKey).map(
+  const accounts = Array.from({ length: 4 }, schnorr.generatePrivateKey).map(
     (privateKey) => ({
       privateKey,
       address: getAddressFromPrivateKey(privateKey),
@@ -77,6 +78,7 @@ beforeAll(async () => {
     SELLER: getTestAddr(SELLER),
     BUYER: getTestAddr(BUYER),
     MARKETPLACE_CONTRACT_OWNER: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+    STRANGER: getTestAddr(STRANGER),
   });
 });
 
@@ -221,6 +223,7 @@ describe("Fixed Price Listings and Offers", () => {
           [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -280,6 +283,7 @@ describe("Fixed Price Listings and Offers", () => {
           [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER)]: -20000,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -375,6 +379,7 @@ describe("Fixed Price Listings and Offers", () => {
           [getTestAddr(SELLER)]: 9750,
           [getTestAddr(BUYER)]: -10000,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -477,6 +482,7 @@ describe("Fixed Price Listings and Offers", () => {
           [getTestAddr(SELLER)]: 1000 + 8750,
           [getTestAddr(BUYER)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -565,6 +571,20 @@ describe("Fixed Price Listings and Offers", () => {
       },
     },
     {
+      name: "throws NotAllowedToCancelOrder by stranger",
+      transition: "CancelOrder",
+      getSender: () => getTestAddr(STRANGER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotAllowedToCancelOrder,
+    },
+    {
       name: "Buyer cancels buy order",
       transition: "CancelOrder",
       getSender: () => getTestAddr(BUYER),
@@ -583,6 +603,7 @@ describe("Fixed Price Listings and Offers", () => {
           [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER)]: 10000,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {
@@ -628,6 +649,7 @@ describe("Fixed Price Listings and Offers", () => {
           [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
         }),
         events: [
           {

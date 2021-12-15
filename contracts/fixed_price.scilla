@@ -85,6 +85,7 @@ type Error =
   | NotContractOwnershipRecipientError
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
+  | NotAllowedToCancelOrder
   
 let make_error =
   fun (result : Error) =>
@@ -109,6 +110,7 @@ let make_error =
       | NotContractOwnershipRecipientError => Int32 -17
       | ZeroAddressDestinationError        => Int32 -18
       | ThisAddressDestinationError        => Int32 -19
+      | NotAllowedToCancelOrder            => Int32 -20
       end
     in
     { _exception : "Error"; code : result_code }
@@ -194,6 +196,19 @@ procedure RequireNotPaused()
   end
 end
 
+procedure RequirePaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
 procedure RequireValidDestination(to: ByStr20)
   (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
   is_zero_address = builtin eq to zero_address;
@@ -249,8 +264,22 @@ procedure RequireEqualZILAmount(amount: Uint128)
   end
 end
 
-procedure RequireSelf(address_a: ByStr20, address_b: ByStr20)
-  is_self = builtin eq address_a address_b;
+procedure RequireAccessToCancel(maker_address: ByStr20)
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  is_maker = builtin eq maker_address _sender;
+
+  is_allowed_to_cancel_order = orb is_maker is_contract_owner;
+  match is_allowed_to_cancel_order with
+  | True =>
+  | False =>
+    error = NotAllowedToCancelOrder;
+    Throw error
+  end
+end
+
+procedure RequireSelf(address: ByStr20)
+  is_self = builtin eq address _sender;
   match is_self with
   | True =>
   | False =>
@@ -259,8 +288,8 @@ procedure RequireSelf(address_a: ByStr20, address_b: ByStr20)
   end
 end
 
-procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
-  is_self = builtin eq address_a address_b;
+procedure RequireNotSelf(address: ByStr20)
+  is_self = builtin eq address _sender;
   match is_self with
   | False =>
   | True =>
@@ -552,7 +581,7 @@ transition CreateOrder(
   end
 end
 
-transition CancelOrder(
+procedure Cancel(
   token_address: ByStr20 with contract 
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20 
@@ -562,8 +591,6 @@ transition CancelOrder(
   sale_price: Uint128,
   side: Uint32
   )
-  RequireNotPaused;
-
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True =>     
@@ -574,9 +601,21 @@ transition CancelOrder(
       error = SellOrderNotFoundError;
       Throw error
     | Some (Order maker expiration_bnum) =>  
-      RequireSelf maker _sender;
+      (* sender must be the maker or the contract owner *)
+      RequireAccessToCancel maker;
       (* Remove order *)
-      delete sell_orders[token_address][token_id][payment_token_address][sale_price]
+      delete sell_orders[token_address][token_id][payment_token_address][sale_price];
+      
+      e = {
+        _eventname : "CancelOrder";
+        maker: maker;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price
+      };
+      event e
     end
   | False => 
     (* Side: Buy *)
@@ -586,7 +625,8 @@ transition CancelOrder(
       error = BuyOrderNotFoundError;
       Throw error
     | Some (Order maker expiration_bnum) =>  
-      RequireSelf maker _sender;
+      (* sender must be the maker or the contract owner *)
+      RequireAccessToCancel maker;
 
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
@@ -594,7 +634,7 @@ transition CancelOrder(
         | True =>
           msg = {
             _tag: "AddFunds";
-            _recipient: _sender;
+            _recipient: maker;
             _amount: sale_price
           };
           msgs = one_msg msg;
@@ -602,19 +642,20 @@ transition CancelOrder(
       end;
       
       (* Remove order *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price]
+      delete buy_orders[token_address][token_id][payment_token_address][sale_price];
+
+      e = {
+        _eventname : "CancelOrder";
+        maker: maker;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price
+      };
+      event e
     end
-  end;
-  e = {
-    _eventname : "CancelOrder";
-    maker: _sender;
-    side: side;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price
-  };
-  event e
+  end
 end
 
 transition FulfillOrder(
@@ -722,7 +763,7 @@ end
 (* - `_sender` must not be `to`. Otherwise, it must throw `SelfError` *)
 transition SetContractOwnershipRecipient(to: ByStr20)
   RequireContractOwner;
-  RequireNotSelf to _sender;
+  RequireNotSelf to;
   
   contract_ownership_recipient := to;
 
@@ -754,6 +795,30 @@ transition AcceptContractOwnership()
     };
     event e
   end
+end
+
+transition CancelOrder(
+  token_address: ByStr20 with contract 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  sale_price: Uint128,
+  side: Uint32
+)
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  
+  (* only if this contract is paused, the contract owner can cancel orders *)
+  match is_contract_owner with
+  | True => 
+    RequirePaused
+  | False =>
+    RequireNotPaused
+  end;
+
+  Cancel token_address token_id payment_token_address sale_price side
 end
 
 (* empty callbacks *)
