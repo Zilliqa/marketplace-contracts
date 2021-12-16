@@ -570,9 +570,6 @@ procedure CancelAuction(
 end
 
 (* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
-(* @Requirements: *)
-(* - The contract must not be paused. Otherwise, it must throw `PausedError` *)
-(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
 transition Pause()
   RequireNotPaused;
   RequireContractOwner;
@@ -586,9 +583,6 @@ transition Pause()
 end
 
 (* Unpauses the contract. *)
-(* @Requirements: *)
-(* - The contract must be paused. Otherwise, it must throw `NotPausedError` *)
-(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
 transition Unpause()
   paused <- is_paused;
   match paused with
@@ -672,7 +666,7 @@ transition Bid(
     - A bid must not be less than the minimum bid (Minimum Bid = Current Bid + Bid Increment).
     - We assume that the bid increment is 10% of the current bid.
     - Bidders must be able to set an address to receive the asset when creating a buy order.
-    - If the current bid is updated, the previous bidder can withdraw the payment tokens back. 
+    - If the current bid is updated, the previous bidder can withdraw the payment tokens back.
   *)
   RequireNotPaused;
   
@@ -687,7 +681,7 @@ transition Bid(
     (* Check the sell order is not expired *)
     RequireNotExpired expiration_bnum;
 
-    (* It's native ZIL case if the payment_token_address is zero address and amount is 0 *)
+    (* It's native ZIL case if the payment_token_address is zero address *)
     is_native_zil = builtin eq payment_token_address zero_address;
     match is_native_zil with 
     | True => 
@@ -767,7 +761,7 @@ transition End(
   token_id: Uint256
   )
   (* 
-    - Seller, buyer, or admin can end the auction only after the sell order has been expired.
+    - Seller or buyer can end the auction only after the sell order has been expired.
     - When an auction is ended, the buyer can withdraw the asset
     - When an auction is ended, the seller can withdraw get the payment tokens.
   *)
@@ -909,7 +903,6 @@ end
 
 transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
   (* - Anyone who has assets can draw their asset. *)
-  
   RequireNotPaused;
   
   has_token <- exists assets[_sender][token_address][token_id];
@@ -988,10 +981,6 @@ end
 (* Sets `to` as the contract ownership recipient. *)
 (* To reset `contract_ownership_recipient`, use `zero_address`. *)
 (* i.e., `0x0000000000000000000000000000000000000000` *)
-(* @param: to - Address of contract ownership recipient *)
-(* @Requirements: *)
-(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwnerError` *)
-(* - `_sender` must not be `to`. Otherwise, it must throw `SelfError` *)
 transition SetContractOwnershipRecipient(to: ByStr20)
   RequireContractOwner;
   RequireNotSelf to _sender;
@@ -1006,8 +995,6 @@ transition SetContractOwnershipRecipient(to: ByStr20)
 end
 
 (* Sets `contract_ownership_recipient` as the contract owner. *)
-(* @Requirements: *)
-(* - `_sender` must be the contract ownership recipient. Otherwise, it must throw `NotContractOwnershipRecipientError` *)
 transition AcceptContractOwnership()
   recipient <- contract_ownership_recipient;
 
