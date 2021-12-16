@@ -1,11 +1,19 @@
 import { getJSONParams, getJSONValue } from "@zilliqa-js/scilla-json-utils";
 
-import { Zilliqa } from "@zilliqa-js/zilliqa";
+import { BN, Zilliqa } from "@zilliqa-js/zilliqa";
 import { expect } from "@jest/globals";
 import fs from "fs";
 import { getAddressFromPrivateKey, schnorr } from "@zilliqa-js/crypto";
 
-import { getBNum, increaseBNum, getErrorMsg, verifyEvents } from "./testutils";
+import {
+  getBNum,
+  increaseBNum,
+  getErrorMsg,
+  verifyEvents,
+  ZERO_ADDRESS,
+  verifyTransitions,
+  BalanceTracker,
+} from "./testutils";
 
 import {
   API,
@@ -14,6 +22,7 @@ import {
   FAUCET_PARAMS,
   FIXED_PRICE_ERROR,
   asyncNoop,
+  GAS_PRICE,
 } from "./config";
 
 const JEST_WORKER_ID = Number(process.env["JEST_WORKER_ID"]);
@@ -215,7 +224,586 @@ beforeEach(async () => {
   }
 });
 
-describe("Fixed Price Listings and Offers", () => {
+describe("Native ZIL", () => {
+  beforeEach(async () => {
+    // Add marketplace contract as spender for the tokens as SELLER
+    zilliqa.wallet.setDefault(getTestAddr(SELLER));
+    let tx: any = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "CreateOrder",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 0],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      TX_PARAMS
+    );
+
+    if (!tx.receipt.success) {
+      throw new Error();
+    }
+
+    zilliqa.wallet.setDefault(getTestAddr(BUYER));
+
+    tx = await zilliqa.contracts.at(globalMarketplaceAddress).call(
+      "CreateOrder",
+      getJSONParams({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      { ...TX_PARAMS, amount: new BN("10000") }
+    );
+
+    if (!tx.receipt.success) {
+      throw new Error();
+    }
+  });
+
+  const testCases = [
+    {
+      name: "Seller creates sell order for token #1",
+      transition: "CreateOrder",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 20000],
+        side: ["Uint32", 0],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "CreateOrder",
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(SELLER).toLowerCase()],
+              side: ["Uint32", 0],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 20000],
+              expiration_bnum: ["BNum", (globalBNum + 5).toString()],
+            }),
+          },
+        ],
+        verifyState: (state) => {
+          return (
+            JSON.stringify(state.sell_orders) ===
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: {
+                  [ZERO_ADDRESS]: {
+                    [10000]: getJSONValue(
+                      [getTestAddr(SELLER), globalBNum + 5],
+                      `${globalMarketplaceAddress}.Order.Order.of.ByStr20.BNum`
+                    ),
+                    [20000]: getJSONValue(
+                      [getTestAddr(SELLER), globalBNum + 5],
+                      `${globalMarketplaceAddress}.Order.Order.of.ByStr20.BNum`
+                    ),
+                  },
+                },
+              },
+            })
+          );
+        },
+      },
+    },
+    {
+      name: "Buyer creates buy order for token #1",
+      transition: "CreateOrder",
+      txAmount: 20000,
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 20000],
+        side: ["Uint32", 1],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 20000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: -20000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "CreateOrder",
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(BUYER).toLowerCase()],
+              side: ["Uint32", 1],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 20000],
+              expiration_bnum: ["BNum", (globalBNum + 5).toString()],
+            }),
+          },
+        ],
+        verifyState: (state) => {
+          return (
+            JSON.stringify(state.buy_orders) ===
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                ["1"]: {
+                  [ZERO_ADDRESS]: {
+                    [10000]: getJSONValue(
+                      [getTestAddr(BUYER), globalBNum + 5],
+                      `${globalMarketplaceAddress}.Order.Order.of.ByStr20.BNum`
+                    ),
+                    [20000]: getJSONValue(
+                      [getTestAddr(BUYER), globalBNum + 5],
+                      `${globalMarketplaceAddress}.Order.Order.of.ByStr20.BNum`
+                    ),
+                  },
+                },
+              },
+            })
+          );
+        },
+      },
+    },
+
+    {
+      name: "throws ExpiredError",
+      transition: "FulfillOrder",
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 0],
+        dest: ["ByStr20", getTestAddr(BUYER)],
+      }),
+      beforeTransition: async () => {
+        await increaseBNum(zilliqa, 5);
+      },
+      error: FIXED_PRICE_ERROR.ExpiredError,
+      want: undefined,
+    },
+    {
+      name: "throws NotEqualAmountError",
+      transition: "FulfillOrder",
+      txAmount: 1000,
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 0],
+        dest: ["ByStr20", getTestAddr(BUYER)],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotEqualAmountError,
+      want: undefined,
+    },
+    {
+      name: "Buyer fullfills sell order",
+      transition: "FulfillOrder",
+      txAmount: 10000,
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 0],
+        dest: ["ByStr20", getTestAddr(BUYER)],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 9750,
+          [getTestAddr(BUYER)]: -10000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "FulfillOrder",
+            getParams: () => ({
+              taker: ["ByStr20", getTestAddr(BUYER)],
+              side: ["Uint32", 0],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 10000],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", getTestAddr(BUYER)],
+              asset_recipient: ["ByStr20", getTestAddr(BUYER)],
+              payment_tokens_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_amount: ["Uint128", 1000],
+              service_fee: ["Uint128", 250],
+            }),
+          },
+          // NFT transfer
+          {
+            name: "TransferFrom",
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+        ],
+        transitions: [
+          {
+            amount: 1000,
+            recipient: getTestAddr(SELLER),
+            tag: "AddFunds",
+            getParams: () => ({}),
+          },
+          {
+            amount: 250,
+            recipient: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+            tag: "AddFunds",
+            getParams: () => ({}),
+          },
+          {
+            amount: 8750,
+            recipient: getTestAddr(SELLER),
+            tag: "AddFunds",
+            getParams: () => ({}),
+          },
+          // NFT transfer
+          {
+            tag: "TransferFrom",
+            getParams: () => ({
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+          {
+            tag: "ZRC6_RecipientAcceptTransferFrom",
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+          {
+            tag: "ZRC6_TransferFromCallback",
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+        ],
+        verifyState: (state) => {
+          return (
+            JSON.stringify(state.sell_orders) ===
+            JSON.stringify({ [globalTokenAddress.toLowerCase()]: {} })
+          );
+        },
+      },
+    },
+    {
+      name: "Seller fullfills buy order",
+      transition: "FulfillOrder",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+        dest: ["ByStr20", getTestAddr(BUYER)],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: -10000,
+          [getTestAddr(SELLER)]: 1000 + 8750,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "FulfillOrder",
+            getParams: () => ({
+              taker: ["ByStr20", getTestAddr(SELLER)],
+              side: ["Uint32", 1],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 10000],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", getTestAddr(BUYER)],
+              asset_recipient: ["ByStr20", getTestAddr(BUYER)],
+              payment_tokens_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_amount: ["Uint128", 1000],
+              service_fee: ["Uint128", 250],
+            }),
+          },
+
+          // NFT transfer
+          {
+            name: "TransferFrom",
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+        ],
+        transitions: [
+          {
+            amount: 1000,
+            recipient: getTestAddr(SELLER),
+            tag: "AddFunds",
+            getParams: () => ({}),
+          },
+          {
+            amount: 250,
+            recipient: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+            tag: "AddFunds",
+            getParams: () => ({}),
+          },
+          {
+            amount: 8750,
+            recipient: getTestAddr(SELLER),
+            tag: "AddFunds",
+            getParams: () => ({}),
+          },
+          // NFT transfer
+          {
+            tag: "TransferFrom",
+            getParams: () => ({
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+          {
+            tag: "ZRC6_RecipientAcceptTransferFrom",
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+          {
+            tag: "ZRC6_TransferFromCallback",
+            getParams: () => ({
+              from: ["ByStr20", getTestAddr(SELLER)],
+              to: ["ByStr20", getTestAddr(BUYER)],
+              token_id: ["Uint256", 1],
+            }),
+          },
+        ],
+        verifyState: (state) => {
+          return (
+            JSON.stringify(state.buy_orders) ===
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: { [ZERO_ADDRESS]: {} },
+              },
+            })
+          );
+        },
+      },
+    },
+    {
+      name: "throws NotAllowedToCancelOrder by stranger",
+      transition: "CancelOrder",
+      getSender: () => getTestAddr(STRANGER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotAllowedToCancelOrder,
+    },
+    {
+      name: "Buyer cancels buy order",
+      transition: "CancelOrder",
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: -10000,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 10000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "CancelOrder",
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(BUYER)],
+              side: ["Uint32", 1],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 10000],
+            }),
+          },
+        ],
+        verifyState: (state) => {
+          return (
+            JSON.stringify(state.buy_orders) ===
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: { [ZERO_ADDRESS]: {} },
+              },
+            })
+          );
+        },
+      },
+    },
+    {
+      name: "Seller cancels sell order",
+      transition: "CancelOrder",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 0],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "CancelOrder",
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(SELLER)],
+              side: ["Uint32", 0],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 10000],
+            }),
+          },
+        ],
+        verifyState: (state) => {
+          return (
+            JSON.stringify(state.sell_orders) ===
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: { [ZERO_ADDRESS]: {} },
+              },
+            })
+          );
+        },
+      },
+    },
+  ];
+
+  for (const testCase of testCases) {
+    it(`${testCase.transition}: ${testCase.name}`, async () => {
+      await testCase.beforeTransition();
+
+      let balanceTracker;
+      if (testCase.want) {
+        const accounts = Object.keys(await testCase.want.getBalanceDeltas());
+        balanceTracker = new BalanceTracker(zilliqa, accounts);
+        await balanceTracker.get();
+      }
+
+      zilliqa.wallet.setDefault(testCase.getSender());
+
+      const tx: any = await zilliqa.contracts
+        .at(globalMarketplaceAddress)
+        .call(testCase.transition, getJSONParams(testCase.getParams()), {
+          ...TX_PARAMS,
+          amount: new BN(testCase.txAmount || 0),
+        });
+
+      if (testCase.want === undefined) {
+        // Nagative Cases
+        expect(tx.receipt.success).toBe(false);
+        expect(tx.receipt.exceptions[0].message).toBe(
+          getErrorMsg(testCase.error)
+        );
+      } else {
+        // Positive Cases
+
+        expect(tx.receipt.success).toBe(true);
+        expect(verifyEvents(tx.receipt.event_logs, testCase.want.events)).toBe(
+          true
+        );
+        testCase.want.transitions &&
+          expect(
+            verifyTransitions(tx.receipt.transitions, testCase.want.transitions)
+          ).toBe(true);
+
+        const state = await zilliqa.contracts
+          .at(globalMarketplaceAddress)
+          .getState();
+
+        expect(testCase.want.verifyState(state)).toBe(true);
+
+        const deltasReceived = await balanceTracker.deltas();
+        const deltasExpected = await testCase.want?.getBalanceDeltas();
+        deltasReceived.forEach(([account, delta]) => {
+          if (account.toLowerCase() === testCase.getSender().toLowerCase()) {
+            const txFee = new BN(tx.receipt.cumulative_gas).mul(GAS_PRICE);
+            const deltaWithFee = new BN(delta).add(txFee);
+            expect(deltaWithFee.toString()).toBe(
+              deltasExpected[account]?.toString()
+            );
+          } else {
+            expect(delta).toBe(deltasExpected[account]?.toString());
+          }
+        });
+      }
+    });
+  }
+});
+
+describe("WZIL", () => {
   beforeEach(async () => {
     // Add marketplace contract as spender for the tokens as SELLER
     zilliqa.wallet.setDefault(getTestAddr(SELLER));
