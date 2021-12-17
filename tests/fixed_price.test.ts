@@ -9,10 +9,10 @@ import {
   getBNum,
   increaseBNum,
   getErrorMsg,
-  verifyEvents,
   ZERO_ADDRESS,
-  verifyTransitions,
+  expectTransitions,
   BalanceTracker,
+  expectEvents,
 } from "./testutils";
 
 import {
@@ -22,7 +22,6 @@ import {
   FAUCET_PARAMS,
   FIXED_PRICE_ERROR,
   asyncNoop,
-  GAS_PRICE,
 } from "./config";
 
 const JEST_WORKER_ID = Number(process.env["JEST_WORKER_ID"]);
@@ -771,13 +770,10 @@ describe("Native ZIL", () => {
         // Positive Cases
 
         expect(tx.receipt.success).toBe(true);
-        expect(verifyEvents(tx.receipt.event_logs, testCase.want.events)).toBe(
-          true
-        );
+        expectEvents(tx.receipt.event_logs, testCase.want.events);
+
         testCase.want.transitions &&
-          expect(
-            verifyTransitions(tx.receipt.transitions, testCase.want.transitions)
-          ).toBe(true);
+          expectTransitions(tx.receipt.transitions, testCase.want.transitions);
 
         const state = await zilliqa.contracts
           .at(globalMarketplaceAddress)
@@ -785,19 +781,26 @@ describe("Native ZIL", () => {
 
         expect(testCase.want.verifyState(state)).toBe(true);
 
-        const deltasReceived = await balanceTracker.deltas();
-        const deltasExpected = await testCase.want?.getBalanceDeltas();
-        deltasReceived.forEach(([account, delta]) => {
-          if (account.toLowerCase() === testCase.getSender().toLowerCase()) {
-            const txFee = new BN(tx.receipt.cumulative_gas).mul(GAS_PRICE);
-            const deltaWithFee = new BN(delta).add(txFee);
-            expect(deltaWithFee.toString()).toBe(
-              deltasExpected[account]?.toString()
-            );
-          } else {
-            expect(delta).toBe(deltasExpected[account]?.toString());
-          }
-        });
+        if (balanceTracker) {
+          const deltasReceived = await balanceTracker.deltas();
+          const deltasExpected = await testCase.want?.getBalanceDeltas();
+          deltasReceived.forEach(([account, delta]) => {
+            if (
+              balanceTracker.zrc2 === undefined &&
+              account.toLowerCase() === testCase.getSender().toLowerCase()
+            ) {
+              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
+              const deltaWithFee = new BN(delta).add(txFee);
+              expect(`${account}:${deltaWithFee.toString()}`).toBe(
+                `${account}:${deltasExpected[account]?.toString()}`
+              );
+            } else {
+              expect(`${account}:${delta}`).toBe(
+                `${account}:${deltasExpected[account]?.toString()}`
+              );
+            }
+          });
+        }
       }
     });
   }
@@ -877,6 +880,13 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
         events: [
           {
             name: "CreateOrder",
@@ -929,6 +939,13 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
         events: [
           {
             name: "CreateOrder",
@@ -999,6 +1016,13 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 9750,
+          [getTestAddr(BUYER)]: -10000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
+        }),
         events: [
           {
             name: "FulfillOrder",
@@ -1087,6 +1111,13 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 1000 + 8750,
+          [getTestAddr(BUYER)]: -10000,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(STRANGER)]: 0,
+        }),
         events: [
           {
             name: "FulfillOrder",
@@ -1190,6 +1221,13 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
         events: [
           {
             name: "CancelOrder",
@@ -1229,6 +1267,13 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
         events: [
           {
             name: "CancelOrder",
@@ -1260,6 +1305,15 @@ describe("WZIL", () => {
     it(`${testCase.transition}: ${testCase.name}`, async () => {
       await testCase.beforeTransition();
 
+      let balanceTracker;
+      if (testCase.want) {
+        const accounts = Object.keys(await testCase.want.getBalanceDeltas());
+        balanceTracker = new BalanceTracker(zilliqa, accounts, {
+          zrc2: globalPaymentTokenAddress,
+        });
+        await balanceTracker.get();
+      }
+
       zilliqa.wallet.setDefault(testCase.getSender());
 
       const tx: any = await zilliqa.contracts
@@ -1277,15 +1331,34 @@ describe("WZIL", () => {
       } else {
         // Positive Cases
         expect(tx.receipt.success).toBe(true);
-        expect(verifyEvents(tx.receipt.event_logs, testCase.want.events)).toBe(
-          true
-        );
+        expectEvents(tx.receipt.event_logs, testCase.want.events);
 
         const state = await zilliqa.contracts
           .at(globalMarketplaceAddress)
           .getState();
 
         expect(testCase.want.verifyState(state)).toBe(true);
+
+        if (balanceTracker) {
+          const deltasReceived = await balanceTracker.deltas();
+          const deltasExpected = await testCase.want?.getBalanceDeltas();
+          deltasReceived.forEach(([account, delta]) => {
+            if (
+              balanceTracker.zrc2 === undefined &&
+              account.toLowerCase() === testCase.getSender().toLowerCase()
+            ) {
+              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
+              const deltaWithFee = new BN(delta).add(txFee);
+              expect(`${account}:${deltaWithFee.toString()}`).toBe(
+                `${account}:${deltasExpected[account]?.toString()}`
+              );
+            } else {
+              expect(`${account}:${delta}`).toBe(
+                `${account}:${deltasExpected[account]?.toString()}`
+              );
+            }
+          });
+        }
       }
     });
   }
