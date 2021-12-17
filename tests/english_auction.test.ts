@@ -363,9 +363,8 @@ describe("ZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: getJSONValue(
@@ -488,13 +487,14 @@ describe("ZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
-            ZERO_ADDRESS.toLowerCase()
-          ] !== "10000";
+        expectState: (state) => {
+          expect(
+            state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
+              ZERO_ADDRESS.toLowerCase()
+            ]
+          ).toBe("10000");
 
-          if (
-            JSON.stringify(state.buy_orders) !==
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: getJSONValue(
@@ -503,11 +503,7 @@ describe("ZIL - Auction", () => {
                 ),
               },
             })
-          ) {
-            return false;
-          }
-
-          return true;
+          );
         },
       },
     },
@@ -578,35 +574,28 @@ describe("ZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
-            JSON.stringify(
-              state.sell_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}" ||
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}"
-          ) {
-            return false;
-          }
-          if (
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(SELLER).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]["1"]
-            ) !== JSON.stringify(getJSONValue(true))
-          ) {
-            return false;
-          }
-          if (
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(
             state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
               ZERO_ADDRESS
-            ] !== "10000"
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe("10000");
         },
       },
     },
@@ -690,37 +679,28 @@ describe("ZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
-            JSON.stringify(
-              state.sell_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}" ||
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}"
-          ) {
-            return false;
-          }
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
 
-          if (
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]["1"]
-            ) !== JSON.stringify(getJSONValue(true))
-          ) {
-            return false;
-          }
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
 
-          if (
+          expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
-            ] !== "8750"
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe("8750");
         },
       },
     },
@@ -775,7 +755,7 @@ describe("ZIL - Auction", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
@@ -913,9 +893,8 @@ describe("WZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: getJSONValue(
@@ -1042,7 +1021,7 @@ describe("WZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
+        expectState: (state) => {
           // Buyer A  can withdraw bid
           state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
             globalPaymentTokenAddress.toLowerCase()
@@ -1133,35 +1112,27 @@ describe("WZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
-            JSON.stringify(
-              state.sell_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}" ||
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}"
-          ) {
-            return false;
-          }
-          if (
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(SELLER).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]["1"]
-            ) !== JSON.stringify(getJSONValue(true))
-          ) {
-            return false;
-          }
-          if (
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(
             state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
-            ] !== "10000"
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe("10000");
         },
       },
     },
@@ -1265,37 +1236,27 @@ describe("WZIL - Auction", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
-            JSON.stringify(
-              state.sell_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}" ||
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}"
-          ) {
-            return false;
-          }
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
 
-          if (
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]["1"]
-            ) !== JSON.stringify(getJSONValue(true))
-          ) {
-            return false;
-          }
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
 
-          if (
+          expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
-            ] !== "8750"
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe("8750");
         },
       },
     },
@@ -1353,7 +1314,7 @@ describe("WZIL - Auction", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
@@ -1497,16 +1458,12 @@ describe("ZIL - Withdraw", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
+        expectState: (state) => {
+          expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
-            ] !== "7750"
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe("7750");
         },
       },
     },
@@ -1559,18 +1516,14 @@ describe("ZIL - Withdraw", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
+        expectState: (state) => {
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]
-            ) !== "{}"
-          ) {
-            return false;
-          }
-
-          return true;
+            )
+          ).toBe("{}");
         },
       },
     },
@@ -1625,7 +1578,7 @@ describe("ZIL - Withdraw", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
@@ -1767,16 +1720,12 @@ describe("WZIL - Withdraw", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
+        expectState: (state) => {
+          expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
-            ] !== "7750"
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe("7750");
         },
       },
     },
@@ -1829,18 +1778,14 @@ describe("WZIL - Withdraw", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
+        expectState: (state) => {
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]
-            ) !== "{}"
-          ) {
-            return false;
-          }
-
-          return true;
+            )
+          ).toBe("{}");
         },
       },
     },
@@ -1901,7 +1846,7 @@ describe("WZIL - Withdraw", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
@@ -2056,30 +2001,23 @@ describe("ZIL - Balance", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
+        expectState: (state) => {
+          expect(
             state.payment_tokens[getTestAddr(BUYER_B).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
-            ] !== "10000"
-          ) {
-            return false;
-          }
+            ]
+          ).toBe("10000");
 
-          if (
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !==
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe(
             JSON.stringify({
               [2]: getJSONValue(
                 [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2],
                 `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
               ),
             })
-          ) {
-            return false;
-          }
-
-          return true;
+          );
         },
       },
     },
@@ -2123,37 +2061,28 @@ describe("ZIL - Balance", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
-            JSON.stringify(
-              state.sell_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}" ||
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}"
-          ) {
-            return false;
-          }
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
 
-          if (
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(BUYER_A).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]["1"]
-            ) !== JSON.stringify(getJSONValue(true))
-          ) {
-            return false;
-          }
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
 
-          if (
+          expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
-            ] !== (8750 * 2).toString()
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe((8750 * 2).toString());
         },
       },
     },
@@ -2209,7 +2138,7 @@ describe("ZIL - Balance", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
@@ -2364,30 +2293,23 @@ describe("WZIL - Balance", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
+        expectState: (state) => {
+          expect(
             state.payment_tokens[getTestAddr(BUYER_B).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
-            ] !== "10000"
-          ) {
-            return false;
-          }
+            ]
+          ).toBe("10000");
 
-          if (
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !==
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe(
             JSON.stringify({
               [2]: getJSONValue(
                 [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2],
                 `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
               ),
             })
-          ) {
-            return false;
-          }
-
-          return true;
+          );
         },
       },
     },
@@ -2451,36 +2373,28 @@ describe("WZIL - Balance", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          if (
-            JSON.stringify(
-              state.sell_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}" ||
-            JSON.stringify(
-              state.buy_orders[globalTokenAddress.toLowerCase()]
-            ) !== "{}"
-          ) {
-            return false;
-          }
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
 
-          if (
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
             JSON.stringify(
               state.assets[getTestAddr(BUYER_B).toLowerCase()][
                 globalTokenAddress.toLowerCase()
               ]["2"]
-            ) !== JSON.stringify(getJSONValue(true))
-          ) {
-            return false;
-          }
-          if (
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
-            ] !== (8750 * 2).toString()
-          ) {
-            return false;
-          }
-
-          return true;
+            ]
+          ).toBe((8750 * 2).toString());
         },
       },
     },
@@ -2541,7 +2455,7 @@ describe("WZIL - Balance", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();

@@ -301,9 +301,8 @@ describe("Native ZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: {
@@ -361,9 +360,8 @@ describe("Native ZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.buy_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 ["1"]: {
@@ -516,9 +514,8 @@ describe("Native ZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({ [globalTokenAddress.toLowerCase()]: {} })
           );
         },
@@ -620,9 +617,8 @@ describe("Native ZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.buy_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: { [ZERO_ADDRESS]: {} },
@@ -680,9 +676,8 @@ describe("Native ZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.buy_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: { [ZERO_ADDRESS]: {} },
@@ -726,9 +721,8 @@ describe("Native ZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: { [ZERO_ADDRESS]: {} },
@@ -779,7 +773,7 @@ describe("Native ZIL", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
@@ -901,9 +895,8 @@ describe("WZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: {
@@ -960,9 +953,8 @@ describe("WZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.buy_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: {
@@ -1086,9 +1078,8 @@ describe("WZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {},
             })
@@ -1181,9 +1172,8 @@ describe("WZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.buy_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: { [globalPaymentTokenAddress.toLowerCase()]: {} },
@@ -1241,9 +1231,8 @@ describe("WZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.buy_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: { [globalPaymentTokenAddress.toLowerCase()]: {} },
@@ -1287,9 +1276,8 @@ describe("WZIL", () => {
             }),
           },
         ],
-        verifyState: (state) => {
-          return (
-            JSON.stringify(state.sell_orders) ===
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: { [globalPaymentTokenAddress.toLowerCase()]: {} },
@@ -1337,7 +1325,7 @@ describe("WZIL", () => {
           .at(globalMarketplaceAddress)
           .getState();
 
-        expect(testCase.want.verifyState(state)).toBe(true);
+        testCase.want.expectState(state);
 
         if (balanceTracker) {
           const deltasReceived = await balanceTracker.deltas();
