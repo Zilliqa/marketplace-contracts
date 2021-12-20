@@ -11,6 +11,10 @@ import {
   expectEvents,
   ZERO_ADDRESS,
   BalanceTracker,
+  zilBalanceGetter,
+  zrc2BalancesGetter,
+  expectDeltas,
+  zrc2AllowncesGetter,
 } from "./testutils";
 
 import {
@@ -728,7 +732,11 @@ describe("ZIL - Auction", () => {
       let balanceTracker;
       if (testCase.want) {
         const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-        balanceTracker = new BalanceTracker(zilliqa, accounts, {});
+        balanceTracker = new BalanceTracker(
+          zilliqa,
+          accounts,
+          zilBalanceGetter(zilliqa)
+        );
         await balanceTracker.get();
       }
 
@@ -757,26 +765,12 @@ describe("ZIL - Auction", () => {
 
         testCase.want.expectState(state);
 
-        if (balanceTracker) {
-          const deltasReceived = await balanceTracker.deltas();
-          const deltasExpected = await testCase.want?.getBalanceDeltas();
-          deltasReceived.forEach(([account, delta]) => {
-            if (
-              balanceTracker.zrc2 === undefined &&
-              account.toLowerCase() === testCase.getSender().toLowerCase()
-            ) {
-              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
-              const deltaWithFee = new BN(delta).add(txFee);
-              expect(`${account}:${deltaWithFee.toString()}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            } else {
-              expect(`${account}:${delta}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            }
-          });
-        }
+        expectDeltas(
+          await balanceTracker.deltas(),
+          await testCase.want?.getBalanceDeltas(),
+          tx,
+          testCase.getSender()
+        );
       }
     });
   }
@@ -871,6 +865,10 @@ describe("WZIL - Auction", () => {
           [getTestAddr(BUYER_B)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
+        }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
         }),
         events: [
           {
@@ -1000,6 +998,10 @@ describe("WZIL - Auction", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: -11000,
+        }),
         events: [
           {
             name: "Bid",
@@ -1103,6 +1105,10 @@ describe("WZIL - Auction", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "Cancel",
@@ -1198,6 +1204,10 @@ describe("WZIL - Auction", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "End",
@@ -1284,10 +1294,23 @@ describe("WZIL - Auction", () => {
       let balanceTracker;
       if (testCase.want) {
         const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-        balanceTracker = new BalanceTracker(zilliqa, accounts, {
-          zrc2: globalPaymentTokenAddress,
-        });
+        balanceTracker = new BalanceTracker(
+          zilliqa,
+          accounts,
+          zrc2BalancesGetter(zilliqa, globalPaymentTokenAddress)
+        );
         await balanceTracker.get();
+      }
+
+      let allowanceTracker;
+      if (testCase.want) {
+        const keys = Object.keys(await testCase.want.getAllowanceDeltas());
+        allowanceTracker = new BalanceTracker(
+          zilliqa,
+          keys,
+          zrc2AllowncesGetter(zilliqa, globalPaymentTokenAddress)
+        );
+        await allowanceTracker.get();
       }
 
       zilliqa.wallet.setDefault(testCase.getSender());
@@ -1316,26 +1339,14 @@ describe("WZIL - Auction", () => {
 
         testCase.want.expectState(state);
 
-        if (balanceTracker) {
-          const deltasReceived = await balanceTracker.deltas();
-          const deltasExpected = await testCase.want?.getBalanceDeltas();
-          deltasReceived.forEach(([account, delta]) => {
-            if (
-              balanceTracker.zrc2 === undefined &&
-              account.toLowerCase() === testCase.getSender().toLowerCase()
-            ) {
-              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
-              const deltaWithFee = new BN(delta).add(txFee);
-              expect(`${account}:${deltaWithFee.toString()}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            } else {
-              expect(`${account}:${delta}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            }
-          });
-        }
+        expectDeltas(
+          await balanceTracker.deltas(),
+          await testCase.want?.getBalanceDeltas()
+        );
+        expectDeltas(
+          await allowanceTracker.deltas(),
+          await testCase.want?.getAllowanceDeltas()
+        );
       }
     });
   }
@@ -1440,6 +1451,10 @@ describe("ZIL - Withdraw", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "WithdrawPaymentTokens",
@@ -1498,6 +1513,10 @@ describe("ZIL - Withdraw", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "WithdrawAsset",
@@ -1552,7 +1571,11 @@ describe("ZIL - Withdraw", () => {
       let balanceTracker;
       if (testCase.want) {
         const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-        balanceTracker = new BalanceTracker(zilliqa, accounts);
+        balanceTracker = new BalanceTracker(
+          zilliqa,
+          accounts,
+          zilBalanceGetter(zilliqa)
+        );
         await balanceTracker.get();
       }
 
@@ -1580,26 +1603,12 @@ describe("ZIL - Withdraw", () => {
 
         testCase.want.expectState(state);
 
-        if (balanceTracker) {
-          const deltasReceived = await balanceTracker.deltas();
-          const deltasExpected = await testCase.want?.getBalanceDeltas();
-          deltasReceived.forEach(([account, delta]) => {
-            if (
-              balanceTracker.zrc2 === undefined &&
-              account.toLowerCase() === testCase.getSender().toLowerCase()
-            ) {
-              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
-              const deltaWithFee = new BN(delta).add(txFee);
-              expect(`${account}:${deltaWithFee.toString()}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            } else {
-              expect(`${account}:${delta}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            }
-          });
-        }
+        expectDeltas(
+          await balanceTracker.deltas(),
+          await testCase.want?.getBalanceDeltas(),
+          tx,
+          testCase.getSender()
+        );
       }
     });
   }
@@ -1702,6 +1711,10 @@ describe("WZIL - Withdraw", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "WithdrawPaymentTokens",
@@ -1760,6 +1773,10 @@ describe("WZIL - Withdraw", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "WithdrawAsset",
@@ -1816,10 +1833,23 @@ describe("WZIL - Withdraw", () => {
       let balanceTracker;
       if (testCase.want) {
         const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-        balanceTracker = new BalanceTracker(zilliqa, accounts, {
-          zrc2: globalPaymentTokenAddress,
-        });
+        balanceTracker = new BalanceTracker(
+          zilliqa,
+          accounts,
+          zrc2BalancesGetter(zilliqa, globalPaymentTokenAddress)
+        );
         await balanceTracker.get();
+      }
+
+      let allowanceTracker;
+      if (testCase.want) {
+        const keys = Object.keys(await testCase.want.getAllowanceDeltas());
+        allowanceTracker = new BalanceTracker(
+          zilliqa,
+          keys,
+          zrc2AllowncesGetter(zilliqa, globalPaymentTokenAddress)
+        );
+        await allowanceTracker.get();
       }
 
       zilliqa.wallet.setDefault(testCase.getSender());
@@ -1848,26 +1878,14 @@ describe("WZIL - Withdraw", () => {
 
         testCase.want.expectState(state);
 
-        if (balanceTracker) {
-          const deltasReceived = await balanceTracker.deltas();
-          const deltasExpected = await testCase.want?.getBalanceDeltas();
-          deltasReceived.forEach(([account, delta]) => {
-            if (
-              balanceTracker.zrc2 === undefined &&
-              account.toLowerCase() === testCase.getSender().toLowerCase()
-            ) {
-              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
-              const deltaWithFee = new BN(delta).add(txFee);
-              expect(`${account}:${deltaWithFee.toString()}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            } else {
-              expect(`${account}:${delta}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            }
-          });
-        }
+        expectDeltas(
+          await balanceTracker.deltas(),
+          await testCase.want?.getBalanceDeltas()
+        );
+        expectDeltas(
+          await allowanceTracker.deltas(),
+          await testCase.want?.getAllowanceDeltas()
+        );
       }
     });
   }
@@ -2111,7 +2129,11 @@ describe("ZIL - Balance", () => {
       let balanceTracker;
       if (testCase.want) {
         const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-        balanceTracker = new BalanceTracker(zilliqa, accounts);
+        balanceTracker = new BalanceTracker(
+          zilliqa,
+          accounts,
+          zilBalanceGetter(zilliqa)
+        );
         await balanceTracker.get();
       }
 
@@ -2140,26 +2162,12 @@ describe("ZIL - Balance", () => {
 
         testCase.want.expectState(state);
 
-        if (balanceTracker) {
-          const deltasReceived = await balanceTracker.deltas();
-          const deltasExpected = await testCase.want?.getBalanceDeltas();
-          deltasReceived.forEach(([account, delta]) => {
-            if (
-              balanceTracker.zrc2 === undefined &&
-              account.toLowerCase() === testCase.getSender().toLowerCase()
-            ) {
-              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
-              const deltaWithFee = new BN(delta).add(txFee);
-              expect(`${account}:${deltaWithFee.toString()}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            } else {
-              expect(`${account}:${delta}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            }
-          });
-        }
+        expectDeltas(
+          await balanceTracker.deltas(),
+          await testCase.want?.getBalanceDeltas(),
+          tx,
+          testCase.getSender()
+        );
       }
     });
   }
@@ -2272,6 +2280,10 @@ describe("WZIL - Balance", () => {
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: -11000,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
         events: [
           {
             name: "Bid",
@@ -2334,6 +2346,10 @@ describe("WZIL - Balance", () => {
           [getTestAddr(BUYER_B)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
           [getTestAddr(STRANGER)]: 0,
+        }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
         }),
         events: [
           {
@@ -2425,10 +2441,23 @@ describe("WZIL - Balance", () => {
       let balanceTracker;
       if (testCase.want) {
         const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-        balanceTracker = new BalanceTracker(zilliqa, accounts, {
-          zrc2: globalPaymentTokenAddress,
-        });
+        balanceTracker = new BalanceTracker(
+          zilliqa,
+          accounts,
+          zrc2BalancesGetter(zilliqa, globalPaymentTokenAddress)
+        );
         await balanceTracker.get();
+      }
+
+      let allowanceTracker;
+      if (testCase.want) {
+        const keys = Object.keys(await testCase.want.getAllowanceDeltas());
+        allowanceTracker = new BalanceTracker(
+          zilliqa,
+          keys,
+          zrc2AllowncesGetter(zilliqa, globalPaymentTokenAddress)
+        );
+        await allowanceTracker.get();
       }
 
       zilliqa.wallet.setDefault(testCase.getSender());
@@ -2457,26 +2486,14 @@ describe("WZIL - Balance", () => {
 
         testCase.want.expectState(state);
 
-        if (balanceTracker) {
-          const deltasReceived = await balanceTracker.deltas();
-          const deltasExpected = await testCase.want?.getBalanceDeltas();
-          deltasReceived.forEach(([account, delta]) => {
-            if (
-              balanceTracker.zrc2 === undefined &&
-              account.toLowerCase() === testCase.getSender().toLowerCase()
-            ) {
-              const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
-              const deltaWithFee = new BN(delta).add(txFee);
-              expect(`${account}:${deltaWithFee.toString()}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            } else {
-              expect(`${account}:${delta}`).toBe(
-                `${account}:${deltasExpected[account]?.toString()}`
-              );
-            }
-          });
-        }
+        expectDeltas(
+          await balanceTracker.deltas(),
+          await testCase.want?.getBalanceDeltas()
+        );
+        expectDeltas(
+          await allowanceTracker.deltas(),
+          await testCase.want?.getAllowanceDeltas()
+        );
       }
     });
   }
