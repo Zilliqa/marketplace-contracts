@@ -13,10 +13,11 @@ import {
   expectTransitions,
   BalanceTracker,
   expectEvents,
-  zilBalanceGetter,
+  zilBalancesGetter,
   zrc2BalancesGetter,
   zrc2AllowncesGetter,
   expectDeltas,
+  expectTokenOwners,
 } from "./testutils";
 
 import {
@@ -284,6 +285,11 @@ describe("Native ZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 0,
@@ -343,6 +349,11 @@ describe("Native ZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 20000,
           [getTestAddr(SELLER)]: 0,
@@ -438,6 +449,11 @@ describe("Native ZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(BUYER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 9750,
@@ -540,6 +556,11 @@ describe("Native ZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(BUYER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: -10000,
           [getTestAddr(SELLER)]: 1000 + 8750,
@@ -660,6 +681,11 @@ describe("Native ZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: -10000,
           [getTestAddr(SELLER)]: 0,
@@ -705,6 +731,11 @@ describe("Native ZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 0,
@@ -744,14 +775,12 @@ describe("Native ZIL", () => {
 
       let balanceTracker;
       if (testCase.want) {
-        const accounts = Object.keys(await testCase.want.getBalanceDeltas());
-
         balanceTracker = new BalanceTracker(
           zilliqa,
-          accounts,
-          zilBalanceGetter(zilliqa)
+          Object.keys(await testCase.want.getBalanceDeltas()),
+          zilBalancesGetter(zilliqa)
         );
-        await balanceTracker.get();
+        await balanceTracker.init();
       }
 
       zilliqa.wallet.setDefault(testCase.getSender());
@@ -771,19 +800,19 @@ describe("Native ZIL", () => {
         );
       } else {
         // Positive Cases
-
         expect(tx.receipt.success).toBe(true);
         expectEvents(tx.receipt.event_logs, testCase.want.events);
-
         testCase.want.transitions &&
           expectTransitions(tx.receipt.transitions, testCase.want.transitions);
-
-        const state = await zilliqa.contracts
-          .at(globalMarketplaceAddress)
-          .getState();
-
-        testCase.want.expectState(state);
-
+        testCase.want.expectState(
+          await zilliqa.contracts.at(globalMarketplaceAddress).getState()
+        );
+        expectTokenOwners(
+          (await zilliqa.contracts.at(globalTokenAddress).getState())[
+            "token_owners"
+          ],
+          testCase.want.getTokenOwners()
+        );
         expectDeltas(
           await balanceTracker.deltas(),
           await testCase.want?.getBalanceDeltas(),
@@ -869,6 +898,11 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 0,
@@ -930,6 +964,11 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 0,
@@ -1009,6 +1048,11 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(BUYER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 9750,
@@ -1106,6 +1150,11 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(BUYER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 1000 + 8750,
@@ -1218,6 +1267,11 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 0,
@@ -1266,6 +1320,11 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: undefined,
       want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
         getBalanceDeltas: () => ({
           [globalMarketplaceAddress]: 0,
           [getTestAddr(SELLER)]: 0,
@@ -1308,24 +1367,22 @@ describe("WZIL", () => {
 
       let balanceTracker;
       if (testCase.want) {
-        const accounts = Object.keys(await testCase.want.getBalanceDeltas());
         balanceTracker = new BalanceTracker(
           zilliqa,
-          accounts,
+          Object.keys(await testCase.want.getBalanceDeltas()),
           zrc2BalancesGetter(zilliqa, globalPaymentTokenAddress)
         );
-        await balanceTracker.get();
+        await balanceTracker.init();
       }
 
       let allowanceTracker;
       if (testCase.want) {
-        const keys = Object.keys(await testCase.want.getAllowanceDeltas());
         allowanceTracker = new BalanceTracker(
           zilliqa,
-          keys,
+          Object.keys(await testCase.want.getAllowanceDeltas()),
           zrc2AllowncesGetter(zilliqa, globalPaymentTokenAddress)
         );
-        await allowanceTracker.get();
+        await allowanceTracker.init();
       }
 
       zilliqa.wallet.setDefault(testCase.getSender());
@@ -1346,13 +1403,15 @@ describe("WZIL", () => {
         // Positive Cases
         expect(tx.receipt.success).toBe(true);
         expectEvents(tx.receipt.event_logs, testCase.want.events);
-
-        const state = await zilliqa.contracts
-          .at(globalMarketplaceAddress)
-          .getState();
-
-        testCase.want.expectState(state);
-
+        testCase.want.expectState(
+          await zilliqa.contracts.at(globalMarketplaceAddress).getState()
+        );
+        expectTokenOwners(
+          (await zilliqa.contracts.at(globalTokenAddress).getState())[
+            "token_owners"
+          ],
+          testCase.want.getTokenOwners()
+        );
         expectDeltas(
           await balanceTracker.deltas(),
           await testCase.want?.getBalanceDeltas()

@@ -4,25 +4,25 @@ export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export class BalanceTracker {
   zilliqa: any;
-  accounts: string[];
+  keys: string[];
   prevMap: { [x: string]: string };
-  getBalanceMap: (accounts: string[]) => Promise<{}>;
+  getMap: (keys: string[]) => Promise<{}>;
 
   constructor(
     zilliqa,
-    accounts: string[],
-    getBalanceMap: (accounts: string[]) => Promise<{}>
+    keys: string[],
+    getMap: (keys: string[]) => Promise<{}>
   ) {
     this.zilliqa = zilliqa;
-    this.accounts = accounts.map((x) => x.toLowerCase());
+    this.keys = keys.map((x) => x.toLowerCase());
     this.prevMap = {};
-    this.getBalanceMap = getBalanceMap;
+    this.getMap = getMap;
   }
 
   async deltas() {
-    const curMap = await this.getBalanceMap(this.accounts);
+    const curMap = await this.getMap(this.keys);
 
-    const deltas = this.accounts.map((k) => {
+    const deltas = this.keys.map((k) => {
       const prev = new BN(this.prevMap[k] as string);
       const cur = new BN(curMap[k] || "0");
       const delta = cur.sub(prev);
@@ -31,18 +31,17 @@ export class BalanceTracker {
     return deltas;
   }
 
-  async get() {
-    const map = await this.getBalanceMap(this.accounts);
-    const balanceMap = {};
-    Object.keys(map).forEach((k) => {
-      balanceMap[k.toLowerCase()] = map[k];
-    });
+  async init() {
+    const map = await this.getMap(this.keys);
+    this.prevMap = {};
 
-    this.prevMap = balanceMap;
+    Object.keys(map).forEach((k) => {
+      this.prevMap[k.toLowerCase()] = map[k];
+    });
   }
 }
 
-export const zilBalanceGetter = (zilliqa) => async (accounts) => {
+export const zilBalancesGetter = (zilliqa) => async (accounts) => {
   const balances = await Promise.all(
     accounts.map(async (addr) => {
       const res = await zilliqa.blockchain.getBalance(addr);
@@ -54,34 +53,34 @@ export const zilBalanceGetter = (zilliqa) => async (accounts) => {
     })
   );
 
-  const balanceMap = {};
+  const result = {};
   balances.forEach((cur, i) => {
-    balanceMap[accounts[i]] = cur;
+    result[accounts[i]] = cur;
   });
 
-  return balanceMap;
+  return result;
 };
 
 export const zrc2BalancesGetter =
   (zilliqa, contractAddress) => async (accounts) => {
     const state = await zilliqa.contracts.at(contractAddress).getState();
-    const balanceMap = {};
+    const result = {};
     accounts.forEach((addr) => {
-      balanceMap[addr] = state.balances[addr.toLowerCase()] || "0";
+      result[addr] = state.balances[addr.toLowerCase()] || "0";
     });
-    return balanceMap;
+    return result;
   };
 
 export const zrc2AllowncesGetter =
   (zilliqa, contractAddress) => async (accounts) => {
     const state = await zilliqa.contracts.at(contractAddress).getState();
-    const balanceMap = {};
+    const result = {};
     accounts.forEach((cur) => {
       const [tokenOwner, spender] = cur.split(",").map((x) => x.toLowerCase());
 
-      balanceMap[cur] = state.allowances[tokenOwner][spender] || "0";
+      result[cur] = state.allowances[tokenOwner][spender] || "0";
     });
-    return balanceMap;
+    return result;
   };
 
 export const getErrorMsg = (code) =>
@@ -130,17 +129,23 @@ export const expectDeltas = (deltas, want, tx?, sender?: string) => {
     return acc;
   }, {});
 
-  deltas.forEach(([account, delta]) => {
-    if (tx && account === sender?.toLowerCase()) {
+  deltas.forEach(([key, delta]) => {
+    if (tx && key === sender?.toLowerCase()) {
       const txFee = new BN(tx.receipt.cumulative_gas).mul(tx.gasPrice);
       const deltaWithFee = new BN(delta).add(txFee);
-      expect(`${account}:${deltaWithFee.toString()}`).toBe(
-        `${account}:${deltasExpected[account]?.toString()}`
+      expect(`${key}:${deltaWithFee.toString()}`).toBe(
+        `${key}:${deltasExpected[key]?.toString()}`
       );
     } else {
-      expect(`${account}:${delta}`).toBe(
-        `${account}:${deltasExpected[account]?.toString()}`
+      expect(`${key}:${delta}`).toBe(
+        `${key}:${deltasExpected[key]?.toString()}`
       );
     }
+  });
+};
+
+export const expectTokenOwners = async (tokenOwners, want) => {
+  Object.keys(want).forEach((k) => {
+    expect(tokenOwners[k.toLowerCase()]).toBe(want[k].toLowerCase());
   });
 };
