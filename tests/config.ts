@@ -12,7 +12,6 @@ export const CONTRACTS = {
   zrc6: {
     path: "contracts/zrc6.scilla",
     baseURI: "https://creatures-api.zilliqa.com/api/creature/",
-    initial_total_supply: 3,
     name: "Test",
     symbol: "T",
   },
