@@ -286,6 +286,9 @@ describe("ZIL - Auction", () => {
       }
     }
 
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe("10000");
+
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
       .getState();
@@ -832,6 +835,9 @@ describe("WZIL - Auction", () => {
         throw new Error();
       }
     }
+
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe("0");
 
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
@@ -1446,6 +1452,9 @@ describe("ZIL - Withdraw", () => {
       }
     }
 
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe(`${10000 - (1000 + 250)}`);
+
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
       .getState();
@@ -1718,6 +1727,9 @@ describe("WZIL - Withdraw", () => {
         throw new Error();
       }
     }
+
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe("0");
 
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
@@ -2035,6 +2047,9 @@ describe("ZIL - Balance", () => {
       }
     }
 
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe(`${2 * 10000 - (1000 + 250)}`);
+
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
       .getState();
@@ -2325,6 +2340,9 @@ describe("WZIL - Balance", () => {
         throw new Error();
       }
     }
+
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe("0");
 
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)

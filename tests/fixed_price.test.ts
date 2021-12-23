@@ -268,6 +268,8 @@ describe("Native ZIL", () => {
         throw new Error();
       }
     }
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe("10000");
   });
 
   const testCases = [
@@ -868,6 +870,8 @@ describe("WZIL", () => {
         throw new Error();
       }
     }
+    const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
+    expect(res.result.balance).toBe("0");
   });
 
   const testCases = [
