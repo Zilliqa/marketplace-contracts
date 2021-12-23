@@ -738,6 +738,12 @@ describe("ZIL - Auction", () => {
               ZERO_ADDRESS.toLowerCase()
             ]
           ).toBe(`${8750 + 1000}`);
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][ZERO_ADDRESS]
+          ).toBe("250");
         },
       },
     },
@@ -1309,6 +1315,12 @@ describe("WZIL - Auction", () => {
               globalPaymentTokenAddress.toLowerCase()
             ]
           ).toBe(`${8750 + 1000}`);
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][globalPaymentTokenAddress.toLowerCase()]
+          ).toBe("250");
         },
       },
     },
@@ -1450,6 +1462,12 @@ describe("ZIL - Withdraw", () => {
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][ZERO_ADDRESS]
     ).toBe(`${8750 + 1000}`);
+
+    expect(
+      state.payment_tokens[
+        getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+      ][ZERO_ADDRESS]
+    ).toBe("250");
   });
 
   const testCases = [
@@ -1529,6 +1547,12 @@ describe("ZIL - Withdraw", () => {
               ZERO_ADDRESS.toLowerCase()
             ]
           ).toBe("8750");
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][ZERO_ADDRESS]
+          ).toBe("250");
         },
       },
     },
@@ -1728,6 +1752,12 @@ describe("WZIL - Withdraw", () => {
         globalPaymentTokenAddress.toLowerCase()
       ]
     ).toBe(`${8750 + 1000}`);
+
+    expect(
+      state.payment_tokens[
+        getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+      ][globalPaymentTokenAddress.toLowerCase()]
+    ).toBe("250");
   });
 
   const testCases = [
@@ -2045,6 +2075,12 @@ describe("ZIL - Balance", () => {
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][ZERO_ADDRESS]
     ).toBe(`${8750 + 1000}`);
+
+    expect(
+      state.payment_tokens[
+        getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+      ][ZERO_ADDRESS]
+    ).toBe("250");
   });
 
   const testCases = [
@@ -2183,6 +2219,12 @@ describe("ZIL - Balance", () => {
               ZERO_ADDRESS.toLowerCase()
             ]
           ).toBe(((8750 + 1000) * 2).toString());
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][ZERO_ADDRESS]
+          ).toBe(`${250 * 2}`);
         },
       },
     },
@@ -2341,6 +2383,12 @@ describe("WZIL - Balance", () => {
         globalPaymentTokenAddress.toLowerCase()
       ]
     ).toBe(`${8750 + 1000}`);
+
+    expect(
+      state.payment_tokens[
+        getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+      ][globalPaymentTokenAddress.toLowerCase()]
+    ).toBe("250");
   });
 
   const testCases = [
@@ -2486,6 +2534,12 @@ describe("WZIL - Balance", () => {
               globalPaymentTokenAddress.toLowerCase()
             ]
           ).toBe(((8750 + 1000) * 2).toString());
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][globalPaymentTokenAddress.toLowerCase()]
+          ).toBe(`${250 * 2}`);
         },
       },
     },
