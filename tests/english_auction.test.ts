@@ -691,11 +691,11 @@ describe("ZIL - Auction", () => {
           3: getTestAddr(SELLER),
         }),
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -1250,
-          [getTestAddr(SELLER)]: 1000,
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER_A)]: 0,
           [getTestAddr(BUYER_B)]: 0,
-          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
         events: [
@@ -737,7 +737,7 @@ describe("ZIL - Auction", () => {
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
             ]
-          ).toBe("8750");
+          ).toBe(`${8750 + 1000}`);
         },
       },
     },
@@ -1259,11 +1259,11 @@ describe("WZIL - Auction", () => {
           3: getTestAddr(SELLER),
         }),
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -1250,
-          [getTestAddr(SELLER)]: 1000,
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER_A)]: 0,
           [getTestAddr(BUYER_B)]: 0,
-          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
         getAllowanceDeltas: () => ({
@@ -1287,26 +1287,6 @@ describe("WZIL - Auction", () => {
               service_fee: ["Uint128", 250],
             }),
           },
-
-          // royalty fee
-          {
-            name: "TransferSuccess",
-            getParams: () => ({
-              sender: ["ByStr20", globalMarketplaceAddress],
-              recipient: ["ByStr20", getTestAddr(SELLER)], // SELLER is the ZRC6 contract owner
-              amount: ["Uint128", 1000],
-            }),
-          },
-
-          // service fee
-          {
-            name: "TransferSuccess",
-            getParams: () => ({
-              sender: ["ByStr20", globalMarketplaceAddress],
-              recipient: ["ByStr20", getTestAddr(MARKETPLACE_CONTRACT_OWNER)],
-              amount: ["Uint128", 250],
-            }),
-          },
         ],
         expectState: (state) => {
           expect(
@@ -1328,7 +1308,7 @@ describe("WZIL - Auction", () => {
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
             ]
-          ).toBe("8750");
+          ).toBe(`${8750 + 1000}`);
         },
       },
     },
@@ -1453,7 +1433,7 @@ describe("ZIL - Withdraw", () => {
     }
 
     const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
-    expect(res.result.balance).toBe(`${10000 - (1000 + 250)}`);
+    expect(res.result.balance).toBe("10000");
 
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
@@ -1469,7 +1449,7 @@ describe("ZIL - Withdraw", () => {
 
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][ZERO_ADDRESS]
-    ).toBe("8750");
+    ).toBe(`${8750 + 1000}`);
   });
 
   const testCases = [
@@ -1548,7 +1528,7 @@ describe("ZIL - Withdraw", () => {
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
             ]
-          ).toBe("7750");
+          ).toBe("8750");
         },
       },
     },
@@ -1747,7 +1727,7 @@ describe("WZIL - Withdraw", () => {
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
         globalPaymentTokenAddress.toLowerCase()
       ]
-    ).toBe("8750");
+    ).toBe(`${8750 + 1000}`);
   });
 
   const testCases = [
@@ -1826,7 +1806,7 @@ describe("WZIL - Withdraw", () => {
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
             ]
-          ).toBe("7750");
+          ).toBe("8750");
         },
       },
     },
@@ -2048,7 +2028,7 @@ describe("ZIL - Balance", () => {
     }
 
     const res = await zilliqa.blockchain.getBalance(globalMarketplaceAddress);
-    expect(res.result.balance).toBe(`${2 * 10000 - (1000 + 250)}`);
+    expect(res.result.balance).toBe(`${2 * 10000}`);
 
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
@@ -2064,7 +2044,7 @@ describe("ZIL - Balance", () => {
 
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][ZERO_ADDRESS]
-    ).toBe("8750");
+    ).toBe(`${8750 + 1000}`);
   });
 
   const testCases = [
@@ -2156,11 +2136,11 @@ describe("ZIL - Balance", () => {
           3: getTestAddr(SELLER),
         }),
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -1250,
-          [getTestAddr(SELLER)]: 1000,
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER_A)]: 0,
           [getTestAddr(BUYER_B)]: 0,
-          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
         events: [
@@ -2202,7 +2182,7 @@ describe("ZIL - Balance", () => {
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               ZERO_ADDRESS.toLowerCase()
             ]
-          ).toBe((8750 * 2).toString());
+          ).toBe(((8750 + 1000) * 2).toString());
         },
       },
     },
@@ -2360,7 +2340,7 @@ describe("WZIL - Balance", () => {
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
         globalPaymentTokenAddress.toLowerCase()
       ]
-    ).toBe("8750");
+    ).toBe(`${8750 + 1000}`);
   });
 
   const testCases = [
@@ -2455,11 +2435,11 @@ describe("WZIL - Balance", () => {
           3: getTestAddr(SELLER),
         }),
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -1250,
-          [getTestAddr(SELLER)]: 1000,
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
           [getTestAddr(BUYER_A)]: 0,
           [getTestAddr(BUYER_B)]: 0,
-          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 250,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
           [getTestAddr(STRANGER)]: 0,
         }),
         getAllowanceDeltas: () => ({
@@ -2481,26 +2461,6 @@ describe("WZIL - Balance", () => {
               royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
               royalty_amount: ["Uint128", 1000],
               service_fee: ["Uint128", 250],
-            }),
-          },
-
-          // royalty fee
-          {
-            name: "TransferSuccess",
-            getParams: () => ({
-              sender: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
-              recipient: ["ByStr20", getTestAddr(SELLER)], // SELLER is the ZRC6 contract owner
-              amount: ["Uint128", 1000],
-            }),
-          },
-
-          // service fee
-          {
-            name: "TransferSuccess",
-            getParams: () => ({
-              sender: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
-              recipient: ["ByStr20", getTestAddr(MARKETPLACE_CONTRACT_OWNER)],
-              amount: ["Uint128", 250],
             }),
           },
         ],
@@ -2525,7 +2485,7 @@ describe("WZIL - Balance", () => {
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
               globalPaymentTokenAddress.toLowerCase()
             ]
-          ).toBe((8750 * 2).toString());
+          ).toBe(((8750 + 1000) * 2).toString());
         },
       },
     },

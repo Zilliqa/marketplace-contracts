@@ -810,29 +810,18 @@ transition End(
         seller_profit = builtin sub profit service_fee;
 
         royalty_recipient <- & token_address.royalty_recipient;
-        seller_fee_recipient <- service_fee_recipient;
+        svc_fee_recipient <- service_fee_recipient;
 
-        (* It's native ZIL case if the payment_token_address is zero address *)
-        is_zero_address = builtin eq payment_token_address zero_address;
         
-        match is_zero_address with 
-        | True => 
-          (* marketplace transfers royalty fee to the royalty_recipient; *)
-          AddFunds royalty_recipient royalty_amount;
+        (* royalties for the royalty recipient *)
+        AddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
 
-          (* marketplace transfers service fee to this marketplace owner *)
-          AddFunds seller_fee_recipient service_fee
-        | False => 
-          (* marketplace transfers royalty fee to the royalty_recipient; *)
-          ZRC2Transfer payment_token_address royalty_recipient royalty_amount;
+        (* payment tokens for the service fee recipient *)
+        AddToPaymentTokenBalance svc_fee_recipient payment_token_address service_fee;
 
-          (* marketplace transfers service fee to this marketplace owner *)
-          ZRC2Transfer payment_token_address seller_fee_recipient service_fee
-        end;
-        
         (* Asset for buy_dest *)
         assets[buy_dest][token_address][token_id] := true;
-        
+
         (* payment tokens for the seller *)
         AddToPaymentTokenBalance seller payment_token_address seller_profit;
 

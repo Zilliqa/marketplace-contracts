@@ -65,11 +65,8 @@ Sell to the highest bidder.
 - Seller or buyer can end the auction only after the sell order has been expired.
 - When an auction is ended, the buyer can withdraw the asset.
 - When an auction is ended, the seller can withdraw get the payment tokens.
-- When auction has been ended with the sale price is `10000` (assume service fee bps: `250` (`2.5%`), royalty fee bps: `1000` (`10%`)), the marketplace does the following:
-  - transfers the `1000` as service fee to service fee recipient.
-  - transfers the `250` as royalty fee to royalty recipient.
-  - allows the seller to withdraw `8750` of the payment tokens. Only when the seller withdraws `x` amount of the payment token, the marketplace contract transfers `x` amount of the payment tokens to the seller.
-  - allows the buyer to withdraw the asset. Only when the buyer withdraws the asset, the marketplace contract transfers the asset to the buyer.
+- When an auction is ended, the royalty recipient can withdraw get the royalty amount.
+- When an auction is ended, the service fee recipient can withdraw get the service fee.
 
 ### `Cancel`
 
