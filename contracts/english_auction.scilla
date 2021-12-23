@@ -140,7 +140,6 @@ field contract_ownership_recipient: ByStr20 = zero_address
 (* Defaults to False *)
 field is_paused: Bool = false
 
-(* We assume all orders are english auction type  *)
 (* 
   A composite primary key of a sell order consists of
   - asset contract address (ZRC-6)

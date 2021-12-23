@@ -122,8 +122,6 @@ contract FixedPriceOrderbook
   initial_contract_owner: ByStr20
 )
 
-(* We assume all orders are fixed price type  *)
-
 (* 
   A composite primary key of a sell order or buy order consists of
   - asset contract address (ZRC-6)
@@ -656,8 +654,8 @@ transition FulfillOrder(
   dest: ByStr20
   )
   (* 
-    - Sellers can fulfil buy orders
-    - Buyers can fulfil sell orders
+    - Sellers can fulfill buy orders
+    - Buyers can fulfill sell orders
     - When a sell order is fulfilled, the sell order is removed and the other orders for the token are also removed.
     - When a buy order is fulfilled, the buy order is removed.
     - Buyers should be able to set an address to receive the asset when fulfilling a sell order. 
