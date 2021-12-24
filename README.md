@@ -22,7 +22,7 @@ Sell to the highest bidder.
 ```
 
 - Seller can start an auction for an asset only if the asset has no ongoing auction.
-- The marketplace contract holds the asset for auction.
+- The marketplace contract holds the asset for auction by using the spender role.
 
 ### `Bid`
 
@@ -42,8 +42,7 @@ Sell to the highest bidder.
 
 - Bidders can bid only for an existing auction.
 - A bid must not be less than start amount of the auction.
-- A bid must not be less than the minimum bid (Minimum Bid = Current Bid + Bid Increment).
-- We assume that the bid increment is 10% of the current bid.
+- The bid increment is 10% of the current bid and a bid must not be less than the minimum bid (`Minimum Bid = Current Bid + Bid Increment`).
 - Bidders must be able to set an address to receive the asset when creating a buy order via `dest` parameter.
 - The marketplace contract holds the payment tokens for bidding.
 - If the current bid is updated, the previous bidder can withdraw the payment tokens back. Only when the previous bidder withdraws `x` amount of the payment tokens, the marketplace contract transfers `x` amount of the payment tokens.
@@ -62,11 +61,12 @@ Sell to the highest bidder.
   token_id: Uint256
 ```
 
-- Seller or buyer can end the auction only after the sell order has been expired.
-- When an auction is ended, the buyer can withdraw the asset.
-- When an auction is ended, the seller can withdraw get the payment tokens.
-- When an auction is ended, the royalty recipient can withdraw get the royalty amount.
-- When an auction is ended, the service fee recipient can withdraw get the service fee.
+- Seller or buyer can end the auction once the sell order has been expired.
+- When an auction is ended
+  - the buyer can withdraw the asset.
+  - the seller can withdraw the payment tokens.
+  - the royalty recipient can withdraw the royalty amount.
+  - the service fee recipient can withdraw the service fee.
 
 ### `Cancel`
 
@@ -84,10 +84,10 @@ Sell to the highest bidder.
 
 - only if this contract is unpaused, the sellers can cancel their sell orders.
 - only if this contract is paused, the contract owner can cancel orders.
-- An auction cannot be cancelled once it is expired.
-- When auction has been cancelled, the marketplace does the following:
-  - allows the seller to withdraw the asset.
-  - allows the buyer to withdraw the current bid amount of the payment tokens.
+- An auction cannot be cancelled once it has been expired.
+- When auction has been cancelled,
+  - the seller can withdraw the asset.
+  - the buyer can withdraw the current bid amount of the payment tokens.
 
 ### `WithdrawPaymentTokens`
 
