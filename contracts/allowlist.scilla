@@ -1,0 +1,215 @@
+(* SPDX-License-Identifier: GPL-3.0 *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils
+
+library Allowlist
+
+let zero_address = 0x0000000000000000000000000000000000000000
+let false = False
+let true = True
+
+let one_msg = 
+  fun (msg : Message) => 
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+(* Error exceptions *)
+type Error =
+  | NotContractOwnerError
+  | NotPausedError
+  | PausedError
+  | SelfError
+  | NotContractOwnershipRecipientError
+
+let make_error =
+  fun (result : Error) =>
+    let result_code = 
+      match result with
+      | NotContractOwnerError              => Int32 -1
+      | NotPausedError                     => Int32 -2
+      | PausedError                        => Int32 -3
+      | SelfError                          => Int32 -4
+      | NotContractOwnershipRecipientError => Int32 -5
+      end
+    in
+    { _exception : "Error"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract Allowlist
+(
+  initial_contract_owner: ByStr20
+)
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+(* Contract ownership recipient *)
+(* Defaults to `zero_address` *)
+field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
+
+(* There must be an allowlist for the payment tokens (ZRC-2) *)
+field allowed_addresses: Map ByStr20 Bool = Emp ByStr20 Bool
+
+(* Procedures *)
+procedure Throw(error : Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
+procedure RequireNotSelf(address: ByStr20)
+  is_self = builtin eq address _sender;
+  match is_self with
+  | False =>
+  | True =>
+    error = SelfError;
+    Throw error
+  end
+end
+
+procedure AllowAddress(address: ByStr20)
+  allowed_addresses[address] := true
+end
+
+procedure DisallowAddress(address: ByStr20)
+  delete allowed_addresses[address]
+end
+
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* Unpauses the contract. *)
+transition Unpause()
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    error = NotPausedError;
+    Throw error
+  end;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
+transition Allow(address_list: List ByStr20)
+  RequireNotPaused;
+  RequireContractOwner;
+  forall address_list AllowAddress;
+  e = {
+    _eventname : "Allow";
+    address_list: address_list
+  };
+  event e
+end
+
+transition Disallow(address_list: List ByStr20)
+  RequireNotPaused;
+  RequireContractOwner;
+  forall address_list DisallowAddress;
+  e = {
+    _eventname : "Disallow";
+    address_list: address_list
+  };
+  event e
+end
+
+(* Sets `to` as the contract ownership recipient. *)
+(* To reset `contract_ownership_recipient`, use `zero_address`. *)
+(* i.e., `0x0000000000000000000000000000000000000000` *)
+transition SetContractOwnershipRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireNotSelf to;
+  
+  contract_ownership_recipient := to;
+
+  e = {
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+  };
+  event e
+end
+
+(* Sets `contract_ownership_recipient` as the contract owner. *)
+transition AcceptContractOwnership()
+  recipient <- contract_ownership_recipient;
+
+  is_recipient = builtin eq _sender recipient;
+  match is_recipient with
+  | False =>
+    error = NotContractOwnershipRecipientError;
+    Throw error
+  | True =>
+    contract_owner := _sender;
+    contract_ownership_recipient := zero_address;
+
+    e = {
+      _eventname: "AcceptContractOwnership";
+      contract_owner: _sender
+    };
+    event e
+  end
+end
