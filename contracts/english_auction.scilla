@@ -44,8 +44,8 @@ let portion =
 let option_value =
   tfun 'A =>
   fun (default: 'A) =>
-  fun (opt_val: Option 'A) =>
-    match opt_val with
+  fun (maybe_val: Option 'A) =>
+    match maybe_val with
     | Some v => v
     | None => default
     end
@@ -343,8 +343,8 @@ procedure RequireExpired(expiration_bnum: BNum)
 end
 
 procedure RequireSenderToBeTokenOwner(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
-  opt_token_owner <- & token_address.token_owners[token_id];
-  token_owner = option_address zero_address opt_token_owner;
+  maybe_token_owner <- & token_address.token_owners[token_id];
+  token_owner = option_address zero_address maybe_token_owner;
   is_token_owner = builtin eq _sender token_owner;
   match is_token_owner with
   | True =>
@@ -356,8 +356,8 @@ end
 
 procedure RequireThisToBeSpender(token_address: ByStr20 with contract field spenders: Map Uint256 ByStr20 end, token_id: Uint256)
   (* A marketplace must be a spender and temporarily lock up ZRC-2, ZRC-6 tokens by holding them. *)
-  opt_spender <- & token_address.spenders[token_id];
-  spender = option_address zero_address opt_spender;
+  maybe_spender <- & token_address.spenders[token_id];
+  spender = option_address zero_address maybe_spender;
   is_spender = builtin eq _this_address spender;
   match is_spender with
   | True =>
