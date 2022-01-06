@@ -48,10 +48,12 @@ const BUYER_A = 1;
 const BUYER_B = 2;
 const MARKETPLACE_CONTRACT_OWNER = 3;
 const STRANGER = 4;
+const FORBIDDEN = 5;
+
 const getTestAddr = (index) => globalTestAccounts[index]?.address as string;
 
 beforeAll(async () => {
-  const accounts = Array.from({ length: 5 }, schnorr.generatePrivateKey).map(
+  const accounts = Array.from({ length: 6 }, schnorr.generatePrivateKey).map(
     (privateKey) => ({
       privateKey,
       address: getAddressFromPrivateKey(privateKey),
@@ -82,6 +84,7 @@ beforeAll(async () => {
     BUYER_B: getTestAddr(BUYER_B),
     MARKETPLACE_CONTRACT_OWNER: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
     STRANGER: getTestAddr(STRANGER),
+    FORBIDDEN: getTestAddr(FORBIDDEN),
   });
 
   zilliqa.wallet.setDefault(getTestAddr(STRANGER));
@@ -142,6 +145,26 @@ beforeEach(async () => {
   if (globalPaymentTokenAddress === undefined) {
     throw new Error();
   }
+
+  // MARKETPLACE_CONTRACT_OWNER is the allowlist contract owner
+  zilliqa.wallet.setDefault(getTestAddr(MARKETPLACE_CONTRACT_OWNER));
+  [, contract] = await zilliqa.contracts
+    .new(
+      fs.readFileSync(CONTRACTS.allowlist.path).toString(),
+      getJSONParams({
+        _scilla_version: ["Uint32", 0],
+        initial_contract_owner: [
+          "ByStr20",
+          getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+        ],
+      })
+    )
+    .deploy(TX_PARAMS, 33, 1000, true);
+  const localAllowlistAddress = contract.address;
+  if (localAllowlistAddress === undefined) {
+    throw new Error();
+  }
+
   // MARKETPLACE_CONTRACT_OWNER is the zrc6 marketplace contract owner
   zilliqa.wallet.setDefault(getTestAddr(MARKETPLACE_CONTRACT_OWNER));
   [, contract] = await zilliqa.contracts
@@ -162,6 +185,34 @@ beforeEach(async () => {
   }
 
   for (const call of [
+    {
+      beforeTransition: asyncNoop,
+      sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+      contract: localAllowlistAddress,
+      transition: "Allow",
+      transitionParams: getJSONParams({
+        address_list: [
+          "List (ByStr20)",
+          [
+            getTestAddr(SELLER),
+            getTestAddr(BUYER_A),
+            getTestAddr(BUYER_B),
+            getTestAddr(STRANGER),
+          ],
+        ],
+      }),
+      txParams: TX_PARAMS,
+    },
+    {
+      beforeTransition: asyncNoop,
+      sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+      contract: globalMarketplaceAddress,
+      transition: "SetAllowlist",
+      transitionParams: getJSONParams({
+        address: ["ByStr20", localAllowlistAddress],
+      }),
+      txParams: TX_PARAMS,
+    },
     {
       beforeTransition: asyncNoop,
       sender: getTestAddr(BUYER_A),
@@ -307,6 +358,21 @@ describe("ZIL - Auction", () => {
 
   const testCases = [
     {
+      name: "throws NotAllowedUserError",
+      transition: "Start",
+      getSender: () => getTestAddr(FORBIDDEN),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.NotAllowedUserError,
+      want: undefined,
+    },
+    {
       name: "throws NotAllowedPaymentToken",
       transition: "Start",
       getSender: () => getTestAddr(SELLER),
@@ -404,6 +470,21 @@ describe("ZIL - Auction", () => {
       },
     },
 
+    {
+      name: "throws NotAllowedUserError",
+      transition: "Bid",
+      txAmount: 11000,
+      getSender: () => getTestAddr(FORBIDDEN),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 11000],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.NotAllowedUserError,
+      want: undefined,
+    },
     {
       name: "throws SellOrderNotFoundError",
       transition: "Bid",
@@ -863,6 +944,21 @@ describe("WZIL - Auction", () => {
 
   const testCases = [
     {
+      name: "throws NotAllowedUserError",
+      transition: "Start",
+      getSender: () => getTestAddr(FORBIDDEN),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        start_amount: ["Uint128", 1000],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.NotAllowedUserError,
+      want: undefined,
+    },
+    {
       name: "throws NotAllowedPaymentToken",
       transition: "Start",
       getSender: () => getTestAddr(SELLER),
@@ -971,6 +1067,21 @@ describe("WZIL - Auction", () => {
           );
         },
       },
+    },
+
+    {
+      name: "throws NotAllowedUserError",
+      transition: "Bid",
+      getSender: () => getTestAddr(FORBIDDEN),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        amount: ["Uint128", 11000],
+        dest: ["ByStr20", getTestAddr(BUYER_B)],
+      }),
+      beforeTransition: asyncNoop,
+      error: ENG_AUC_ERROR.NotAllowedUserError,
+      want: undefined,
     },
     {
       name: "throws SellOrderNotFoundError",
@@ -1390,6 +1501,7 @@ describe("WZIL - Auction", () => {
     });
   }
 });
+
 describe("ZIL - Withdraw", () => {
   beforeEach(async () => {
     for (const call of [

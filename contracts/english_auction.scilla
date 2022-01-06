@@ -62,6 +62,11 @@ type BuyOrder =
 
 (* Error exceptions *)
 type Error =
+  | NotPausedError
+  | PausedError
+  | NotContractOwnerError
+  | ZeroAddressDestinationError
+  | ThisAddressDestinationError
   | SellOrderNotFoundError
   | SellOrderFoundError
   | BuyOrderNotFoundError
@@ -78,43 +83,40 @@ type Error =
   | AssetNotFoundError
   | NotAllowedToEndError
   | NotAllowedPaymentToken
-  | NotPausedError
-  | PausedError
-  | NotContractOwnerError
   | InvalidFeeBPSError
   | NotEqualAmountError
-  | ZeroAddressDestinationError
-  | ThisAddressDestinationError
   | NotContractOwnershipRecipientError
+  | NotAllowedUserError
 
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | SellOrderNotFoundError              => Int32 -1
-      | SellOrderFoundError                 => Int32 -2
-      | BuyOrderNotFoundError               => Int32 -3
-      | NotSpenderError                     => Int32 -4
-      | NotTokenOwnerError                  => Int32 -5
-      | NotAllowedToCancelOrder             => Int32 -6
-      | SelfError                           => Int32 -7
-      | LessThanMinBidError                 => Int32 -8
-      | InsufficientAllowanceError          => Int32 -9
-      | NotExpiredError                     => Int32 -10
-      | ExpiredError                        => Int32 -11
-      | AccountNotFoundError                => Int32 -12
-      | InsufficientPaymentTokenError       => Int32 -13
-      | AssetNotFoundError                  => Int32 -14
-      | NotAllowedToEndError                => Int32 -15
-      | NotAllowedPaymentToken              => Int32 -16
-      | NotPausedError                      => Int32 -17
-      | PausedError                         => Int32 -18
-      | NotContractOwnerError               => Int32 -19
-      | InvalidFeeBPSError                  => Int32 -20
-      | NotEqualAmountError                 => Int32 -21
-      | ZeroAddressDestinationError         => Int32 -22
-      | ThisAddressDestinationError         => Int32 -23
+      | NotPausedError                      => Int32 -1
+      | PausedError                         => Int32 -2
+      | NotContractOwnerError               => Int32 -3
+      | ZeroAddressDestinationError         => Int32 -4
+      | ThisAddressDestinationError         => Int32 -5
+      | SellOrderNotFoundError              => Int32 -6
+      | SellOrderFoundError                 => Int32 -7
+      | BuyOrderNotFoundError               => Int32 -8
+      | NotSpenderError                     => Int32 -9
+      | NotTokenOwnerError                  => Int32 -10
+      | NotAllowedToCancelOrder             => Int32 -11
+      | SelfError                           => Int32 -12
+      | LessThanMinBidError                 => Int32 -13
+      | InsufficientAllowanceError          => Int32 -14
+      | NotExpiredError                     => Int32 -15
+      | ExpiredError                        => Int32 -16
+      | AccountNotFoundError                => Int32 -17
+      | InsufficientPaymentTokenError       => Int32 -18
+      | AssetNotFoundError                  => Int32 -19
+      | NotAllowedToEndError                => Int32 -20
+      | NotAllowedPaymentToken              => Int32 -21
+      | InvalidFeeBPSError                  => Int32 -22
+      | NotEqualAmountError                 => Int32 -23
       | NotContractOwnershipRecipientError  => Int32 -24
+      | NotAllowedUserError                 => Int32 -25
       end
     in
     { _exception : "Error"; code : result_code }
@@ -127,6 +129,10 @@ contract EnglishAuctionOrderbook
 (
   initial_contract_owner: ByStr20
 )
+
+(* Allowlist Contract Address *)
+(* Defaults to `initial_contract_owner` *)
+field allowlist_address: ByStr20 = zero_address
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -173,6 +179,30 @@ procedure Throw(error : Error)
   throw e
 end
 
+procedure RequireAllowedUser(address: ByStr20)
+  allowlist <- allowlist_address;
+  is_zero_address = builtin eq zero_address allowlist;
+  match is_zero_address with
+  | True =>
+    (* Noop *)
+    (* This contract doesn't use allowlist *)
+  | False =>
+    maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
+    match maybe_allowlist_contract_address with 
+    | None => 
+    | Some contract_address =>
+      maybe_allowed_address <- & contract_address.allowed_addresses[address];
+      match maybe_allowed_address with
+      | Some _ =>
+        (* Noop *)
+        (* The address is allowed *)
+      | None =>
+        error = NotAllowedUserError;
+        Throw error
+      end
+    end
+  end
+end
 
 procedure RequireValidDestination(to: ByStr20)
   (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
@@ -528,7 +558,6 @@ procedure BidWithZRC2(
   end
 end
 
-
 procedure CancelAuction(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -547,11 +576,13 @@ procedure CancelAuction(
     Throw error
   | Some (SellOrder seller expiration_bnum payment_token_address start_amount)  => 
     (* Check the sell order is not expired *)
+    (* An auction cannot be cancelled once it has been expired. *)
     RequireNotExpired expiration_bnum;
     (* Only seller must be able to cancel the sell order *)
     RequireAccessToCancel seller;
 
     (* Asset for the seller  *)
+    (* When auction has been cancelled, the seller can withdraw the asset. *)
     assets[seller][token_address][token_id] := true;
     delete sell_orders[token_address][token_id];
     
@@ -561,6 +592,8 @@ procedure CancelAuction(
     | None =>
       (* noop *)
     | Some (BuyOrder buyer cur_amount buy_dest _) =>  
+      (* When auction has been cancelled, the buyer can withdraw *)
+      (* the current bid amount of the payment tokens. *)
       (* markekplace pays back the old bider the current amount *)
       AddToPaymentTokenBalance buyer payment_token_address cur_amount;
       delete buy_orders[token_address][token_id]
@@ -600,6 +633,7 @@ transition Unpause()
   event e
 end
 
+(* Starts an auction *)
 transition Start(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -616,6 +650,7 @@ transition Start(
     - Seller can start an auction for an asset only if the asset has no ongoing auction. 
   *)
   RequireNotPaused;
+  RequireAllowedUser _sender;
   RequireNotExpired expiration_bnum;
   RequireAllowedPaymentToken payment_token_address;
 
@@ -648,6 +683,7 @@ transition Start(
   event e
 end
 
+(* Bids on an item *)
 transition Bid(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -657,28 +693,27 @@ transition Bid(
   end,
   token_id: Uint256,
   amount: Uint128,
+  (* `dest` enables buyers to set an address to receive the asset when fulfilling a sell order. *)
   dest: ByStr20
   )
-  (* 
-    - Bidders can bid for an existing auction.
-    - A bid must not be less than start amount of the auction.
-    - A bid must not be less than the minimum bid (Minimum Bid = Current Bid + Bid Increment).
-    - We assume that the bid increment is 10% of the current bid.
-    - Bidders must be able to set an address to receive the asset when creating a buy order.
-    - If the current bid is updated, the previous bidder can withdraw the payment tokens back.
-  *)
   RequireNotPaused;
+  RequireAllowedUser _sender;
   
   (* Check the sell order does exist *)
   maybe_sell_order <- sell_orders[token_address][token_id];
   match maybe_sell_order with 
   | None =>
     (* Sell order doesn't exist *)
+    (* Bidders can bid only for an existing auction. *)
     error = SellOrderNotFoundError;
     Throw error
   | Some (SellOrder seller expiration_bnum payment_token_address start_amount) =>
     (* Check the sell order is not expired *)
     RequireNotExpired expiration_bnum;
+
+    (* A bid must not be less than start amount of the auction. *)
+    (* The bid increment is 10% of the current bid and a bid must not be less than *) 
+    (* the minimum bid (`Minimum Bid = Current Bid + Bid Increment`). *)
 
     (* It's native ZIL case if the payment_token_address is zero address *)
     is_native_zil = builtin eq payment_token_address zero_address;
@@ -722,6 +757,7 @@ transition Bid(
   end
 end
 
+(* Cancels an auction *)
 transition Cancel(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -734,11 +770,12 @@ transition Cancel(
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
   
-  (* only if this contract is paused, the contract owner can cancel orders *)
   match is_contract_owner with
   | True => 
+    (* the contract owner can cancel orders only if this contract is paused. *)
     RequirePaused
   | False =>
+    (* - the makers can cancel their orders only if this contract is not paused. *)
     RequireNotPaused
   end;
   CancelAuction token_address token_id;
@@ -750,6 +787,7 @@ transition Cancel(
   event e
 end
 
+(* Finalizes an auction *)
 transition End(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -759,11 +797,6 @@ transition End(
   end,
   token_id: Uint256
   )
-  (* 
-    - Seller or buyer can end the auction only after the sell order has been expired.
-    - When an auction is ended, the buyer can withdraw the asset
-    - When an auction is ended, the seller can withdraw get the payment tokens.
-  *)
   RequireNotPaused;
 
   (* Check the sell order does exist *)
@@ -775,6 +808,7 @@ transition End(
     Throw error
   | Some (SellOrder seller expiration_bnum payment_token_address start_amount)  => 
     (* Check the sell order is expired *)
+    (* Seller or buyer can end the auction only after the sell order has been expired. *)
     RequireExpired expiration_bnum;
 
     (* Check the buy order does exist *)
@@ -797,6 +831,12 @@ transition End(
         error = NotAllowedToEndError;
         Throw error
       | True => 
+        (* When an auction is ended *)
+        (* 1. the buyer can withdraw the asset. *)
+        (* 2. the seller can withdraw the payment tokens. *)
+        (* 3. the royalty recipient can withdraw the royalty amount. *)
+        (* 4. the service fee recipient can withdraw the service fee.  *)
+
         (* Calculate royalty amount *)
         royalty_fee_bps <- & token_address.royalty_fee_bps;
         royalty_amount = portion sale_price royalty_fee_bps;
@@ -849,9 +889,11 @@ transition End(
   end
 end
 
+(* Withraws payment tokens *)
+(* - Anyone who has payment tokens can draw their tokens. *)
 transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128)
-  (* - Anyone who has payment tokens can draw their tokens. *)
   RequireNotPaused;
+  RequireAllowedUser _sender;
 
   maybe_balance <- payment_tokens[_sender][payment_token_address];
   match maybe_balance with
@@ -889,8 +931,9 @@ transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128
   end
 end
 
+(* Withraws assets *)
+(* - Anyone who has assets can draw their asset. *)
 transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
-  (* - Anyone who has assets can draw their asset. *)
   RequireNotPaused;
   
   has_token <- exists assets[_sender][token_address][token_id];
@@ -962,6 +1005,17 @@ transition DisallowPaymentTokenAddress(
   e = {
     _eventname : "DisallowPaymentTokenAddress";
     payment_token_addresss: address
+  };
+  event e
+end
+
+transition SetAllowlist(address: ByStr20)
+  RequireContractOwner;
+  allowlist_address := address;
+  
+  e = { 
+    _eventname: "SetAllowlist";
+    address: address
   };
   event e
 end

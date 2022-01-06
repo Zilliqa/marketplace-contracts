@@ -50,6 +50,8 @@ const SELLER = 0;
 const BUYER = 1;
 const MARKETPLACE_CONTRACT_OWNER = 2;
 const STRANGER = 3;
+const FORBIDDEN = 4;
+
 const getTestAddr = (index) => globalTestAccounts[index]?.address as string;
 
 beforeAll(async () => {
@@ -83,6 +85,7 @@ beforeAll(async () => {
     BUYER: getTestAddr(BUYER),
     MARKETPLACE_CONTRACT_OWNER: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
     STRANGER: getTestAddr(STRANGER),
+    FORBIDDEN: getTestAddr(FORBIDDEN),
   });
 
   zilliqa.wallet.setDefault(getTestAddr(STRANGER));
@@ -144,6 +147,25 @@ beforeEach(async () => {
     throw new Error();
   }
 
+  // MARKETPLACE_CONTRACT_OWNER is the allowlist contract owner
+  zilliqa.wallet.setDefault(getTestAddr(MARKETPLACE_CONTRACT_OWNER));
+  [, contract] = await zilliqa.contracts
+    .new(
+      fs.readFileSync(CONTRACTS.allowlist.path).toString(),
+      getJSONParams({
+        _scilla_version: ["Uint32", 0],
+        initial_contract_owner: [
+          "ByStr20",
+          getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+        ],
+      })
+    )
+    .deploy(TX_PARAMS, 33, 1000, true);
+  const localAllowlistAddress = contract.address;
+  if (localAllowlistAddress === undefined) {
+    throw new Error();
+  }
+
   // MARKETPLACE_CONTRACT_OWNER is the zrc6 marketplace contract owner
   zilliqa.wallet.setDefault(getTestAddr(MARKETPLACE_CONTRACT_OWNER));
   [, contract] = await zilliqa.contracts
@@ -164,6 +186,29 @@ beforeEach(async () => {
   }
 
   for (const call of [
+    {
+      beforeTransition: asyncNoop,
+      sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+      contract: localAllowlistAddress,
+      transition: "Allow",
+      transitionParams: getJSONParams({
+        address_list: [
+          "List (ByStr20)",
+          [getTestAddr(SELLER), getTestAddr(BUYER), getTestAddr(STRANGER)],
+        ],
+      }),
+      txParams: TX_PARAMS,
+    },
+    {
+      beforeTransition: asyncNoop,
+      sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+      contract: globalMarketplaceAddress,
+      transition: "SetAllowlist",
+      transitionParams: getJSONParams({
+        address: ["ByStr20", localAllowlistAddress],
+      }),
+      txParams: TX_PARAMS,
+    },
     {
       beforeTransition: asyncNoop,
       sender: getTestAddr(SELLER),
@@ -273,6 +318,22 @@ describe("Native ZIL", () => {
   });
 
   const testCases = [
+    {
+      name: "throws NotAllowedUserError",
+      transition: "CreateOrder",
+      getSender: () => getTestAddr(FORBIDDEN),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 20000],
+        side: ["Uint32", 0],
+        expiration_bnum: ["BNum", globalBNum + 5],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotAllowedUserError,
+      want: undefined,
+    },
     {
       name: "Seller creates sell order for token #1",
       transition: "CreateOrder",
@@ -401,6 +462,23 @@ describe("Native ZIL", () => {
       },
     },
 
+    {
+      name: "throws NotAllowedUserError",
+      transition: "FulfillOrder",
+      txAmount: 10000,
+      getSender: () => getTestAddr(FORBIDDEN),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 0],
+        dest: ["ByStr20", getTestAddr(BUYER)],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotAllowedUserError,
+      want: undefined,
+    },
     {
       name: "throws ExpiredError",
       transition: "FulfillOrder",

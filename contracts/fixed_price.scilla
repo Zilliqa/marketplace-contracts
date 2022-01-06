@@ -66,6 +66,11 @@ type Order =
 
 (* Error exceptions *)
 type Error =
+  | NotContractOwnerError
+  | NotPausedError
+  | PausedError
+  | ZeroAddressDestinationError
+  | ThisAddressDestinationError
   | SellOrderNotFoundError
   | SellOrderFoundError
   | BuyOrderNotFoundError
@@ -77,38 +82,35 @@ type Error =
   | NotAllowedToCancelOrder
   | SelfError
   | NotAllowedPaymentToken
-  | NotPausedError
-  | PausedError
-  | NotContractOwnerError
   | InvalidFeeBPSError
   | NotEqualAmountError
   | NotContractOwnershipRecipientError
-  | ZeroAddressDestinationError
-  | ThisAddressDestinationError
+  | NotAllowedUserError
   
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | SellOrderNotFoundError             => Int32 -1
-      | SellOrderFoundError                => Int32 -2
-      | BuyOrderNotFoundError              => Int32 -3
-      | BuyOrderFoundError                 => Int32 -4
-      | NotSpenderError                    => Int32 -5
-      | NotTokenOwnerError                 => Int32 -6
-      | ExpiredError                       => Int32 -7
-      | NotMakerError                      => Int32 -8
-      | NotAllowedToCancelOrder            => Int32 -9
-      | SelfError                          => Int32 -10
-      | NotAllowedPaymentToken             => Int32 -11
-      | NotPausedError                     => Int32 -12
-      | PausedError                        => Int32 -13
-      | NotContractOwnerError              => Int32 -14
-      | InvalidFeeBPSError                 => Int32 -15
-      | NotEqualAmountError                => Int32 -16
-      | NotContractOwnershipRecipientError => Int32 -17
-      | ZeroAddressDestinationError        => Int32 -18
-      | ThisAddressDestinationError        => Int32 -19
+      | NotContractOwnerError              => Int32 -1
+      | NotPausedError                     => Int32 -2
+      | PausedError                        => Int32 -3
+      | ZeroAddressDestinationError        => Int32 -4
+      | ThisAddressDestinationError        => Int32 -5
+      | SellOrderNotFoundError             => Int32 -6
+      | SellOrderFoundError                => Int32 -7
+      | BuyOrderNotFoundError              => Int32 -8
+      | BuyOrderFoundError                 => Int32 -9
+      | NotSpenderError                    => Int32 -10
+      | NotTokenOwnerError                 => Int32 -11
+      | ExpiredError                       => Int32 -12
+      | NotMakerError                      => Int32 -13
+      | NotAllowedToCancelOrder            => Int32 -14
+      | SelfError                          => Int32 -15
+      | NotAllowedPaymentToken             => Int32 -16
+      | InvalidFeeBPSError                 => Int32 -17
+      | NotEqualAmountError                => Int32 -18
+      | NotContractOwnershipRecipientError => Int32 -19
+      | NotAllowedUserError                => Int32 -20
       end
     in
     { _exception : "Error"; code : result_code }
@@ -129,6 +131,10 @@ contract FixedPriceOrderbook
   - payment token contract address (ZRC-2)
   - sale price
 *)
+
+(* Allowlist Contract Address *)
+(* Defaults to `zero_address` *)
+field allowlist_address: ByStr20 = zero_address
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -292,6 +298,31 @@ procedure RequireNotExpired(expiration_bnum: BNum)
   end
 end
 
+procedure RequireAllowedUser(address: ByStr20)
+  allowlist <- allowlist_address;
+  is_zero_address = builtin eq zero_address allowlist;
+  match is_zero_address with
+  | True =>
+    (* Noop *)
+    (* This contract doesn't use allowlist *)
+  | False =>
+    maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
+    match maybe_allowlist_contract_address with 
+    | None => 
+    | Some contract_address =>
+      maybe_allowed_address <- & contract_address.allowed_addresses[address];
+      match maybe_allowed_address with
+      | Some _ =>
+        (* Noop *)
+        (* The address is allowed *)
+      | None =>
+        error = NotAllowedUserError;
+        Throw error
+      end
+    end
+  end
+end
+
 procedure RequireThisToBeSpender(token_address: ByStr20 with contract field spenders: Map Uint256 ByStr20 end, token_id: Uint256)
   opt_spender <- & token_address.spenders[token_id];
   spender = option_address zero_address opt_spender;
@@ -371,6 +402,8 @@ procedure HandleFulfillOrder(
   seller_profit = builtin sub profit svc_fee;
   
   royalty_recipient <- & token_address.royalty_recipient;
+  RequireAllowedUser royalty_recipient;
+
   svc_fee_recipient <- service_fee_recipient;
 
   is_native_zil = builtin eq payment_token_address zero_address;
@@ -542,6 +575,9 @@ transition Unpause()
   event e
 end
 
+(* Creates sell order and buy orders. *)
+(* - Sellers can create sell orders (listings) *)
+(* - Buyers can create buy orders (offers) *)
 transition CreateOrder(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -555,11 +591,8 @@ transition CreateOrder(
   side: Uint32,
   expiration_bnum: BNum
   )
-  (* 
-    - Sellers can create sell orders (listings) 
-    - Buyers can create buy orders (offers) 
-  *)
   RequireNotPaused;
+  RequireAllowedUser _sender;
   RequireNotExpired expiration_bnum;
   RequireAllowedPaymentToken payment_token_address;
   RequireThisToBeSpender token_address token_id;
@@ -639,6 +672,7 @@ transition CreateOrder(
   end
 end
 
+(* Fulfills orders *)
 transition FulfillOrder(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -650,22 +684,18 @@ transition FulfillOrder(
   payment_token_address: ByStr20,
   sale_price: Uint128,
   side: Uint32,
+  (* `dest` enables buyers to set an address to receive the asset when fulfilling a sell order. *)
   (* `dest` is only meaningful for buyers at the moment *)
   dest: ByStr20
   )
-  (* 
-    - Sellers can fulfill buy orders
-    - Buyers can fulfill sell orders
-    - When a sell order is fulfilled, the sell order is removed and the other orders for the token are also removed.
-    - When a buy order is fulfilled, the buy order is removed.
-    - Buyers should be able to set an address to receive the asset when fulfilling a sell order. 
-  *)
   RequireNotPaused;
-
+  RequireAllowedUser _sender;
+  
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True => 
     (* Side: Sell *)
+    (* - Buyers can fulfill sell orders. *)
     buyer = _sender;
     opt_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
 
@@ -687,10 +717,12 @@ transition FulfillOrder(
       HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
       
       (* Remove all sell orders *)
+      (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
       delete sell_orders[token_address][token_id]
     end
   | False => 
     (* Side: Buy *)
+    (* - Sellers can fulfill buy orders. *)
     seller = _sender;
     opt_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
 
@@ -705,6 +737,8 @@ transition FulfillOrder(
 
       (* Remove all sell orders *)
       delete sell_orders[token_address][token_id];
+      
+      (* - When a buy order is fulfilled, the buy order is removed. *)
       (* Remove the buy order *)
       delete buy_orders[token_address][token_id][payment_token_address][sale_price]
     end
@@ -763,6 +797,17 @@ transition SetServiceFeeRecipient(to: ByStr20)
   event e
 end
 
+transition SetAllowlist(address: ByStr20)
+  RequireContractOwner;
+  allowlist_address := address;
+  
+  e = { 
+    _eventname: "SetAllowlist";
+    address: address
+  };
+  event e
+end
+
 (* Sets `to` as the contract ownership recipient. *)
 (* To reset `contract_ownership_recipient`, use `zero_address`. *)
 (* i.e., `0x0000000000000000000000000000000000000000` *)
@@ -800,6 +845,7 @@ transition AcceptContractOwnership()
   end
 end
 
+(* Cancels orders *)
 transition CancelOrder(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -815,11 +861,12 @@ transition CancelOrder(
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
   
-  (* only if this contract is paused, the contract owner can cancel orders *)
   match is_contract_owner with
   | True => 
+    (* the contract owner can cancel orders only if this contract is paused. *)
     RequirePaused
   | False =>
+    (* - the makers can cancel their orders only if this contract is not paused. *)
     RequireNotPaused
   end;
 
