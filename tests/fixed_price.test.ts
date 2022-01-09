@@ -194,7 +194,12 @@ beforeEach(async () => {
       transitionParams: getJSONParams({
         address_list: [
           "List (ByStr20)",
-          [getTestAddr(SELLER), getTestAddr(BUYER), getTestAddr(STRANGER)],
+          [
+            getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+            getTestAddr(SELLER),
+            getTestAddr(BUYER),
+            getTestAddr(STRANGER),
+          ],
         ],
       }),
       txParams: TX_PARAMS,

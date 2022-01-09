@@ -400,11 +400,12 @@ procedure HandleFulfillOrder(
 
   profit = builtin sub sale_price royalty_amount;
   seller_profit = builtin sub profit svc_fee;
-  
+
   royalty_recipient <- & token_address.royalty_recipient;
   RequireAllowedUser royalty_recipient;
 
   svc_fee_recipient <- service_fee_recipient;
+  RequireAllowedUser svc_fee_recipient;
 
   is_native_zil = builtin eq payment_token_address zero_address;
   match is_native_zil with

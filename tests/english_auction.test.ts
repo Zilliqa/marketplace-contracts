@@ -194,6 +194,7 @@ beforeEach(async () => {
         address_list: [
           "List (ByStr20)",
           [
+            getTestAddr(MARKETPLACE_CONTRACT_OWNER),
             getTestAddr(SELLER),
             getTestAddr(BUYER_A),
             getTestAddr(BUYER_B),
