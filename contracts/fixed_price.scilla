@@ -700,6 +700,8 @@ transition FulfillOrder(
       Throw error
     | Some (Order seller expiration_bnum) =>  
       RequireNotExpired expiration_bnum;
+      (* Sender must not be the seller *)
+      RequireNotSelf seller;
       
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
@@ -727,6 +729,8 @@ transition FulfillOrder(
       Throw error
     | Some (Order buyer expiration_bnum) =>  
       RequireNotExpired expiration_bnum;
+      (* Sender must not be the buyer *)
+      RequireNotSelf buyer;
       
       HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
 
