@@ -9,21 +9,21 @@ export const MSG_VERSION = 1;
 export const VERSION = bytes.pack(CHAIN_ID, MSG_VERSION);
 export const asyncNoop = async () => undefined;
 export const CONTRACTS = {
-  allowlist: {
-    path: "contracts/allowlist.scilla",
-  },
   zrc6: {
-    path: "contracts/zrc6.scilla",
+    path: "tests/zrc6.scilla",
     baseURI: "https://creatures-api.zilliqa.com/api/creature/",
     name: "Test",
     symbol: "T",
   },
   wzil: {
-    path: "contracts/wrapped_zil.scilla",
+    path: "tests/wrapped_zil.scilla",
     name: "Wrapped ZIL",
     symbol: "wZIL",
     decimal: "12",
     initial_supply: "1000000000000000",
+  },
+  allowlist: {
+    path: "contracts/allowlist.scilla",
   },
   fixed_price: {
     path: "contracts/fixed_price.scilla",
