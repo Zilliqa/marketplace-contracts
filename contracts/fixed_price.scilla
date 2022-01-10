@@ -723,7 +723,7 @@ transition FulfillOrder(
 
     match maybe_buy_order with
     | None => 
-      error = SellOrderNotFoundError;
+      error = BuyOrderNotFoundError;
       Throw error
     | Some (Order buyer expiration_bnum) =>  
       RequireNotExpired expiration_bnum;
