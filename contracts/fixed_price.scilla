@@ -559,13 +559,7 @@ end
 
 (* Unpauses the contract. *)
 transition Unpause()
-  paused <- is_paused;
-  match paused with
-  | True =>
-  | False =>
-    error = NotPausedError;
-    Throw error
-  end;
+  RequirePaused;
   RequireContractOwner;
 
   is_paused := false;
