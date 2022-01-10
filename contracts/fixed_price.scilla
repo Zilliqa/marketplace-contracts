@@ -715,6 +715,7 @@ transition FulfillOrder(
       
       (* Remove all sell orders *)
       (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
+      (* Note that we should keep the buy orders for the new owner *)
       delete sell_orders[token_address][token_id]
     end
   | False => 
@@ -739,6 +740,7 @@ transition FulfillOrder(
       
       (* - When a buy order is fulfilled, the buy order is removed. *)
       (* Remove the buy order *)
+      (* Note that we should keep other buy orders for the new owner *)
       delete buy_orders[token_address][token_id][payment_token_address][sale_price]
     end
   end
