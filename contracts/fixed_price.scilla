@@ -740,6 +740,34 @@ transition FulfillOrder(
   end
 end
 
+(* Cancels orders *)
+transition CancelOrder(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  sale_price: Uint128,
+  side: Uint32
+)
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  
+  match is_contract_owner with
+  | True => 
+    (* the contract owner can cancel orders only if this contract is paused. *)
+    RequirePaused
+  | False =>
+    (* - the makers can cancel their orders only if this contract is not paused. *)
+    RequireNotPaused
+  end;
+
+  Cancel token_address token_id payment_token_address sale_price side
+end
+
 transition AllowPaymentTokenAddress(
   address: ByStr20 with contract 
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
@@ -838,34 +866,6 @@ transition AcceptContractOwnership()
     };
     event e
   end
-end
-
-(* Cancels orders *)
-transition CancelOrder(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  sale_price: Uint128,
-  side: Uint32
-)
-  cur_owner <- contract_owner;
-  is_contract_owner = builtin eq cur_owner _sender;
-  
-  match is_contract_owner with
-  | True => 
-    (* the contract owner can cancel orders only if this contract is paused. *)
-    RequirePaused
-  | False =>
-    (* - the makers can cancel their orders only if this contract is not paused. *)
-    RequireNotPaused
-  end;
-
-  Cancel token_address token_id payment_token_address sale_price side
 end
 
 (* empty callbacks *)
