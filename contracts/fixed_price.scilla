@@ -72,9 +72,7 @@ type Error =
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
   | SellOrderNotFoundError
-  | SellOrderFoundError
   | BuyOrderNotFoundError
-  | BuyOrderFoundError
   | NotSpenderError
   | NotTokenOwnerError
   | ExpiredError
@@ -97,20 +95,18 @@ let make_error =
       | ZeroAddressDestinationError        => Int32 -4
       | ThisAddressDestinationError        => Int32 -5
       | SellOrderNotFoundError             => Int32 -6
-      | SellOrderFoundError                => Int32 -7
-      | BuyOrderNotFoundError              => Int32 -8
-      | BuyOrderFoundError                 => Int32 -9
-      | NotSpenderError                    => Int32 -10
-      | NotTokenOwnerError                 => Int32 -11
-      | ExpiredError                       => Int32 -12
-      | NotMakerError                      => Int32 -13
-      | NotAllowedToCancelOrder            => Int32 -14
-      | SelfError                          => Int32 -15
-      | NotAllowedPaymentToken             => Int32 -16
-      | InvalidFeeBPSError                 => Int32 -17
-      | NotEqualAmountError                => Int32 -18
-      | NotContractOwnershipRecipientError => Int32 -19
-      | NotAllowedUserError                => Int32 -20
+      | BuyOrderNotFoundError              => Int32 -7
+      | NotSpenderError                    => Int32 -8
+      | NotTokenOwnerError                 => Int32 -9
+      | ExpiredError                       => Int32 -10
+      | NotMakerError                      => Int32 -11
+      | NotAllowedToCancelOrder            => Int32 -12
+      | SelfError                          => Int32 -13
+      | NotAllowedPaymentToken             => Int32 -14
+      | InvalidFeeBPSError                 => Int32 -15
+      | NotEqualAmountError                => Int32 -16
+      | NotContractOwnershipRecipientError => Int32 -17
+      | NotAllowedUserError                => Int32 -18
       end
     in
     { _exception : "Error"; code : result_code }
@@ -570,10 +566,10 @@ transition Unpause()
   event e
 end
 
-(* Creates sell order and buy orders. *)
-(* - Sellers can create sell orders (listings) *)
-(* - Buyers can create buy orders (offers) *)
-transition CreateOrder(
+(* Sets sell and buy orders. *)
+(* - Sellers can set sell orders (listings) *)
+(* - Buyers can set buy orders (offers) *)
+transition SetOrder(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
     field royalty_fee_bps: Uint128, 
@@ -598,38 +594,29 @@ transition CreateOrder(
     (* Side: Sell *)
     RequireSenderToBeTokenOwner token_address token_id;
     
-    has_sell_order <- exists sell_orders[token_address][token_id][payment_token_address][sale_price];
-    match has_sell_order with
-    | True =>
-      (* It's already listed *)
-      error = SellOrderFoundError;
-      Throw error
-    | False =>
-      (* create new sell order *)
-      new_order = Order _sender expiration_bnum;
-      sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
-      
-      e = {
-        _eventname : "CreateOrder";
-        maker: _sender;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price;
-        expiration_bnum: expiration_bnum
-      };
-      event e
-    end
+    (* set new sell order *)
+    new_order = Order _sender expiration_bnum;
+    sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
+    
+    e = {
+      _eventname : "SetOrder";
+      maker: _sender;
+      side: side;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price;
+      expiration_bnum: expiration_bnum
+    };
+    event e
   | False => 
     (* Side: Buy *)
 
-    (* create new buy order *)
+    (* set new buy order *)
     new_order = Order _sender expiration_bnum;
 
     (* It's native ZIL case if the payment_token_address is zero address and sale_price is 0 *)
     is_native_zil = builtin eq payment_token_address zero_address;
-    
     match is_native_zil with 
       | False =>
       | True => 
@@ -643,18 +630,10 @@ transition CreateOrder(
         | False =>  sale_price
       end;
 
-    has_buy_order <- exists buy_orders[token_address][token_id][payment_token_address][amount];
-    match has_buy_order with
-    | True =>
-      (* It's already listed *)
-      error = BuyOrderFoundError;
-      Throw error
-    | False =>
-      buy_orders[token_address][token_id][payment_token_address][amount] := new_order
-    end;
+    buy_orders[token_address][token_id][payment_token_address][amount] := new_order;
 
     e = {
-      _eventname : "CreateOrder";
+      _eventname : "SetOrder";
       maker: _sender;
       side: side;
       token_address: token_address;

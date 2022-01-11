@@ -282,7 +282,7 @@ describe("Native ZIL", () => {
         beforeTransition: asyncNoop,
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
-        transition: "CreateOrder",
+        transition: "SetOrder",
         transitionParams: getJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
@@ -297,7 +297,7 @@ describe("Native ZIL", () => {
         beforeTransition: asyncNoop,
         sender: getTestAddr(BUYER),
         contract: globalMarketplaceAddress,
-        transition: "CreateOrder",
+        transition: "SetOrder",
         transitionParams: getJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
@@ -325,7 +325,7 @@ describe("Native ZIL", () => {
   const testCases = [
     {
       name: "throws NotAllowedUserError",
-      transition: "CreateOrder",
+      transition: "SetOrder",
       getSender: () => getTestAddr(FORBIDDEN),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
@@ -341,7 +341,7 @@ describe("Native ZIL", () => {
     },
     {
       name: "Seller creates sell order for token #1",
-      transition: "CreateOrder",
+      transition: "SetOrder",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
@@ -368,7 +368,7 @@ describe("Native ZIL", () => {
         }),
         events: [
           {
-            name: "CreateOrder",
+            name: "SetOrder",
             getParams: () => ({
               maker: ["ByStr20", getTestAddr(SELLER).toLowerCase()],
               side: ["Uint32", 0],
@@ -404,7 +404,7 @@ describe("Native ZIL", () => {
     },
     {
       name: "Buyer creates buy order for token #1",
-      transition: "CreateOrder",
+      transition: "SetOrder",
       txAmount: 20000,
       getSender: () => getTestAddr(BUYER),
       getParams: () => ({
@@ -432,7 +432,7 @@ describe("Native ZIL", () => {
         }),
         events: [
           {
-            name: "CreateOrder",
+            name: "SetOrder",
             getParams: () => ({
               maker: ["ByStr20", getTestAddr(BUYER).toLowerCase()],
               side: ["Uint32", 1],
@@ -949,7 +949,7 @@ describe("WZIL", () => {
         beforeTransition: asyncNoop,
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
-        transition: "CreateOrder",
+        transition: "SetOrder",
         transitionParams: getJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
@@ -964,7 +964,7 @@ describe("WZIL", () => {
         beforeTransition: asyncNoop,
         sender: getTestAddr(BUYER),
         contract: globalMarketplaceAddress,
-        transition: "CreateOrder",
+        transition: "SetOrder",
         transitionParams: getJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
@@ -992,7 +992,7 @@ describe("WZIL", () => {
   const testCases = [
     {
       name: "throws NotAllowedPaymentToken",
-      transition: "CreateOrder",
+      transition: "SetOrder",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
@@ -1008,7 +1008,7 @@ describe("WZIL", () => {
     },
     {
       name: "Seller creates sell order for token #1",
-      transition: "CreateOrder",
+      transition: "SetOrder",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
@@ -1038,7 +1038,7 @@ describe("WZIL", () => {
         }),
         events: [
           {
-            name: "CreateOrder",
+            name: "SetOrder",
             getParams: () => ({
               maker: ["ByStr20", getTestAddr(SELLER).toLowerCase()],
               side: ["Uint32", 0],
@@ -1074,7 +1074,7 @@ describe("WZIL", () => {
     },
     {
       name: "Buyer creates buy order for token #1",
-      transition: "CreateOrder",
+      transition: "SetOrder",
       getSender: () => getTestAddr(BUYER),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
@@ -1104,7 +1104,7 @@ describe("WZIL", () => {
         }),
         events: [
           {
-            name: "CreateOrder",
+            name: "SetOrder",
             getParams: () => ({
               maker: ["ByStr20", getTestAddr(BUYER).toLowerCase()],
               side: ["Uint32", 1],
