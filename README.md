@@ -29,7 +29,7 @@
 
 ### `yarn test`
 
-Runs contract tests using [Isolated Server docker image](https://hub.docker.com/r/zilliqa/zilliqa-isolated-server) and [Jest](https://jestjs.io/).
+Runs contract tests using [Isolated Server container](https://hub.docker.com/r/zilliqa/zilliqa-isolated-server), [Jest](https://jestjs.io/), and [Scilla JSON Utils](https://github.com/Zilliqa/scilla-json-utils)
 
 We run tests sequentially since block numbers are increased with `IncreaseBlocknum`.
 
