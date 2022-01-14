@@ -378,7 +378,6 @@ procedure AddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, 
   
   new_bal = 
     let cur_bal = get_bal maybe_bal in
-    (* if underflow occurs, it throws CALL_CONTRACT_FAILED *)
     builtin add cur_bal amount;
     
   payment_tokens[to][payment_token_address] := new_bal
