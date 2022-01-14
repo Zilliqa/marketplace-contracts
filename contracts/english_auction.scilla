@@ -78,7 +78,6 @@ type Error =
   | NotExpiredError
   | ExpiredError
   | AccountNotFoundError
-  | InsufficientPaymentTokenError
   | AssetNotFoundError
   | NotAllowedToEndError
   | NotAllowedPaymentToken
@@ -107,7 +106,6 @@ let make_error =
       | NotExpiredError                     => Int32 -14
       | ExpiredError                        => Int32 -15
       | AccountNotFoundError                => Int32 -16
-      | InsufficientPaymentTokenError       => Int32 -17
       | AssetNotFoundError                  => Int32 -18
       | NotAllowedToEndError                => Int32 -19
       | NotAllowedPaymentToken              => Int32 -20
@@ -894,7 +892,7 @@ transition End(
 end
 
 (* Withraws payment tokens *)
-transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128)
+transition WithdrawPaymentTokens(payment_token_address: ByStr20)
   RequireNotPaused;
   RequireAllowedUser _sender;
 
@@ -904,33 +902,24 @@ transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128
     error = AccountNotFoundError;
     Throw error
   | Some balance =>
-    is_insufficient = builtin lt balance amount;
-    match is_insufficient with 
-    | True => 
-      error = InsufficientPaymentTokenError;
-      Throw error
-    | False => 
+    is_native_zil = builtin eq payment_token_address zero_address;
+    match is_native_zil with
+    | True =>
+      (* marketplace transfers the native ZILs to _sender *)
+      AddFunds _sender balance
+    | False =>
+      (* marketplace transfers the payment tokens to _sender *)
+      ZRC2Transfer payment_token_address _sender balance
+    end;
 
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-      | True =>
-        (* marketplace transfers the native ZILs to _sender *)
-        AddFunds _sender amount
-      | False => 
-        (* marketplace transfers the amount to _sender *)
-        ZRC2Transfer payment_token_address _sender amount
-      end;
-
-      left = builtin sub balance amount;
-      payment_tokens[_sender][payment_token_address] := left;
-      e = {
-        _eventname : "WithdrawPaymentTokens";
-        recipient: _sender;
-        payment_token_address: payment_token_address;
-        amount: amount
-      };
-      event e
-    end
+    delete payment_tokens[_sender][payment_token_address];
+    e = {
+      _eventname : "WithdrawPaymentTokens";
+      recipient: _sender;
+      payment_token_address: payment_token_address;
+      amount: balance
+    };
+    event e
   end
 end
 

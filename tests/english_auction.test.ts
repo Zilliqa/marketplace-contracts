@@ -1990,22 +1990,9 @@ describe("ZIL - Withdraw", () => {
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
         payment_token_address: ["ByStr20", ZERO_ADDRESS],
-        amount: ["Uint128", 1000],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.AccountNotFoundError,
-      want: undefined,
-    },
-    {
-      name: "throws InsufficientPaymentTokenError",
-      transition: "WithdrawPaymentTokens",
-      getSender: () => getTestAddr(SELLER),
-      getParams: () => ({
-        payment_token_address: ["ByStr20", ZERO_ADDRESS],
-        amount: ["Uint128", 10000],
-      }),
-      beforeTransition: asyncNoop,
-      error: ENG_AUC_ERROR.InsufficientPaymentTokenError,
       want: undefined,
     },
     {
@@ -2014,7 +2001,6 @@ describe("ZIL - Withdraw", () => {
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
         payment_token_address: ["ByStr20", ZERO_ADDRESS],
-        amount: ["Uint128", 1000],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -2025,8 +2011,8 @@ describe("ZIL - Withdraw", () => {
           3: getTestAddr(SELLER),
         }),
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -1000,
-          [getTestAddr(SELLER)]: 1000,
+          [globalMarketplaceAddress]: -9750,
+          [getTestAddr(SELLER)]: 9750,
           [getTestAddr(BUYER_A)]: 0,
           [getTestAddr(BUYER_B)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
@@ -2042,7 +2028,7 @@ describe("ZIL - Withdraw", () => {
             getParams: () => ({
               recipient: ["ByStr20", getTestAddr(SELLER)],
               payment_token_address: ["ByStr20", ZERO_ADDRESS],
-              amount: ["Uint128", 1000],
+              amount: ["Uint128", 9750],
             }),
           },
           {
@@ -2050,16 +2036,16 @@ describe("ZIL - Withdraw", () => {
             getParams: () => ({
               sender: ["ByStr20", globalMarketplaceAddress],
               recipient: ["ByStr20", getTestAddr(SELLER)],
-              amount: ["Uint128", 1000],
+              amount: ["Uint128", 9750],
             }),
           },
         ],
         expectState: (state) => {
           expect(
-            state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-              ZERO_ADDRESS.toLowerCase()
-            ]
-          ).toBe("8750");
+            JSON.stringify(
+              state.payment_tokens[getTestAddr(SELLER).toLowerCase()]
+            )
+          ).toBe("{}");
 
           expect(
             state.payment_tokens[
@@ -2280,22 +2266,9 @@ describe("WZIL - Withdraw", () => {
       getSender: () => getTestAddr(STRANGER),
       getParams: () => ({
         payment_token_address: ["ByStr20", globalPaymentTokenAddress],
-        amount: ["Uint128", 1000],
       }),
       beforeTransition: asyncNoop,
       error: ENG_AUC_ERROR.AccountNotFoundError,
-      want: undefined,
-    },
-    {
-      name: "throws InsufficientPaymentTokenError",
-      transition: "WithdrawPaymentTokens",
-      getSender: () => getTestAddr(SELLER),
-      getParams: () => ({
-        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
-        amount: ["Uint128", 10000],
-      }),
-      beforeTransition: asyncNoop,
-      error: ENG_AUC_ERROR.InsufficientPaymentTokenError,
       want: undefined,
     },
     {
@@ -2304,7 +2277,6 @@ describe("WZIL - Withdraw", () => {
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
         payment_token_address: ["ByStr20", globalPaymentTokenAddress],
-        amount: ["Uint128", 1000],
       }),
       beforeTransition: asyncNoop,
       error: undefined,
@@ -2315,8 +2287,8 @@ describe("WZIL - Withdraw", () => {
           3: getTestAddr(SELLER),
         }),
         getBalanceDeltas: () => ({
-          [globalMarketplaceAddress]: -1000,
-          [getTestAddr(SELLER)]: 1000,
+          [globalMarketplaceAddress]: -9750,
+          [getTestAddr(SELLER)]: 9750,
           [getTestAddr(BUYER_A)]: 0,
           [getTestAddr(BUYER_B)]: 0,
           [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
@@ -2332,7 +2304,7 @@ describe("WZIL - Withdraw", () => {
             getParams: () => ({
               recipient: ["ByStr20", getTestAddr(SELLER)],
               payment_token_address: ["ByStr20", globalPaymentTokenAddress],
-              amount: ["Uint128", 1000],
+              amount: ["Uint128", 9750],
             }),
           },
           {
@@ -2340,16 +2312,22 @@ describe("WZIL - Withdraw", () => {
             getParams: () => ({
               sender: ["ByStr20", globalMarketplaceAddress.toLowerCase()],
               recipient: ["ByStr20", getTestAddr(SELLER)],
-              amount: ["Uint128", 1000],
+              amount: ["Uint128", 9750],
             }),
           },
         ],
         expectState: (state) => {
           expect(
-            state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
-              globalPaymentTokenAddress.toLowerCase()
-            ]
-          ).toBe("8750");
+            JSON.stringify(
+              state.payment_tokens[getTestAddr(SELLER).toLowerCase()]
+            )
+          ).toBe("{}");
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][globalPaymentTokenAddress.toLowerCase()]
+          ).toBe("250");
         },
       },
     },

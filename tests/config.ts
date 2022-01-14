@@ -88,7 +88,6 @@ export const ENG_AUC_ERROR = {
   NotExpiredError: -14,
   ExpiredError: -15,
   AccountNotFoundError: -16,
-  InsufficientPaymentTokenError: -17,
   AssetNotFoundError: -18,
   NotAllowedToEndError: -19,
   NotAllowedPaymentToken: -20,
