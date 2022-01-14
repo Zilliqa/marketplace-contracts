@@ -601,32 +601,6 @@ procedure CancelAuction(
   end
 end
 
-(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
-transition Pause()
-  RequireNotPaused;
-  RequireContractOwner;
-
-  is_paused := true;
-  e = {
-    _eventname: "Pause";
-    is_paused: true
-  };
-  event e
-end
-
-(* Unpauses the contract. *)
-transition Unpause()
-  RequirePaused;
-  RequireContractOwner;
-
-  is_paused := false;
-  e = {
-    _eventname: "Unpause";
-    is_paused: false
-  };
-  event e
-end
-
 (* Starts an auction *)
 transition Start(
   token_address: ByStr20 with contract 
@@ -949,6 +923,32 @@ transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
     };
     event e
   end
+end
+
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* Unpauses the contract. *)
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
 end
 
 transition SetServiceFeeBPS(fee_bps: Uint128)
