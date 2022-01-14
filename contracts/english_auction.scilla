@@ -643,8 +643,13 @@ transition Start(
     ZRC6TransferFrom token_address _this_address token_id;
 
     royalty_recipient <- & token_address.royalty_recipient;
+    RequireAllowedUser royalty_recipient;
+
     royalty_fee_bps <- & token_address.royalty_fee_bps;
+
     svc_fee_recipient <- service_fee_recipient;
+    RequireAllowedUser svc_fee_recipient;
+
     svc_fee_bps <- service_fee_bps;
 
     (* create a sell order *)
