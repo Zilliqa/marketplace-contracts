@@ -802,7 +802,6 @@ transition End(
       is_seller_or_buyer = orb is_seller is_buyer;
       match is_seller_or_buyer with
       | False => 
-        (* Buy order doesn't exist *)
         error = NotAllowedToEndError;
         Throw error
       | True => 
@@ -826,7 +825,6 @@ transition End(
 
         royalty_recipient <- & token_address.royalty_recipient;
         svc_fee_recipient <- service_fee_recipient;
-
         
         (* royalties for the royalty recipient *)
         AddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
