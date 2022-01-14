@@ -894,7 +894,6 @@ transition End(
 end
 
 (* Withraws payment tokens *)
-(* - Anyone who has payment tokens can draw their tokens. *)
 transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128)
   RequireNotPaused;
   RequireAllowedUser _sender;
@@ -936,9 +935,9 @@ transition WithdrawPaymentTokens(payment_token_address: ByStr20, amount: Uint128
 end
 
 (* Withraws assets *)
-(* - Anyone who has assets can draw their asset. *)
 transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
   RequireNotPaused;
+  RequireAllowedUser _sender;
   
   has_token <- exists assets[_sender][token_address][token_id];
   match has_token with
