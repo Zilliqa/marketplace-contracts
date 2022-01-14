@@ -52,9 +52,15 @@ let option_value =
 
 let option_address = @option_value ByStr20
 
-(* maker, expiration block number, payment_token_address, start amount *)
 type SellOrder = 
-| SellOrder of ByStr20 BNum ByStr20 Uint128
+| SellOrder of ByStr20 (* maker *)
+               BNum    (* expiration_blocknumber *)
+               ByStr20 (* payment_token_address *)
+               Uint128 (* start_amount *)
+               ByStr20 (* royalty_recipient *)
+               Uint128 (* royalty_fee_bps *)
+               ByStr20 (* service_fee_recipient *)
+               Uint128 (* service_fee_bps *)
 
 (* maker, amount, dest, bid count *)
 type BuyOrder = 
@@ -576,7 +582,7 @@ procedure CancelAuction(
     (* Sell order doesn't exist *)
     error = SellOrderNotFoundError;
     Throw error
-  | Some (SellOrder seller expiration_bnum payment_token_address start_amount)  => 
+  | Some (SellOrder seller expiration_bnum payment_token_address start_amount _ _ _ _)  => 
     (* Check the sell order is not expired *)
     (* An auction cannot be cancelled once it has been expired. *)
     RequireNotExpired expiration_bnum;
@@ -636,8 +642,22 @@ transition Start(
     (* lock up token by holding it *)
     ZRC6TransferFrom token_address _this_address token_id;
 
+    royalty_recipient <- & token_address.royalty_recipient;
+    royalty_fee_bps <- & token_address.royalty_fee_bps;
+    svc_fee_recipient <- service_fee_recipient;
+    svc_fee_bps <- service_fee_bps;
+
     (* create a sell order *)
-    new_order = SellOrder _sender expiration_bnum payment_token_address start_amount;
+    new_order = SellOrder 
+      _sender 
+      expiration_bnum 
+      payment_token_address 
+      start_amount 
+      royalty_recipient 
+      royalty_fee_bps 
+      svc_fee_recipient 
+      svc_fee_bps;
+
     sell_orders[token_address][token_id] := new_order
   end;
   
@@ -678,7 +698,7 @@ transition Bid(
     (* Bidders can bid only for an existing auction. *)
     error = SellOrderNotFoundError;
     Throw error
-  | Some (SellOrder seller expiration_bnum payment_token_address start_amount) =>
+  | Some (SellOrder seller expiration_bnum payment_token_address start_amount _ _ _ _) =>
     (* Check the sell order is not expired *)
     RequireNotExpired expiration_bnum;
 
@@ -777,7 +797,18 @@ transition End(
     (* Sell order doesn't exist *)
     error = SellOrderNotFoundError;
     Throw error
-  | Some (SellOrder seller expiration_bnum payment_token_address start_amount)  => 
+
+  | Some (
+    SellOrder 
+    seller 
+    expiration_bnum 
+    payment_token_address 
+    start_amount 
+    royalty_recipient 
+    royalty_fee_bps 
+    svc_fee_recipient 
+    svc_fee_bps
+    ) => 
     (* Check the sell order is expired *)
     (* Seller or buyer can end the auction only after the sell order has been expired. *)
     RequireExpired expiration_bnum;
@@ -838,23 +869,18 @@ transition End(
         (* 1. the buyer can withdraw the asset. *)
         (* 2. the seller can withdraw the payment tokens. *)
         (* 3. the royalty recipient can withdraw the royalty amount. *)
-        (* 4. the service fee recipient can withdraw the service fee.  *)
+        (* 4. the service fee recipient can withdraw the service fee. *)
 
         (* Calculate royalty amount *)
-        royalty_fee_bps <- & token_address.royalty_fee_bps;
         royalty_amount = portion sale_price royalty_fee_bps;
 
         (* Calculate service fee *)
-        fee_bps <- service_fee_bps;
-        service_fee = portion sale_price fee_bps;
+        service_fee = portion sale_price svc_fee_bps;
 
         (* Calculate seller profit *)
         profit = builtin sub sale_price royalty_amount;
         seller_profit = builtin sub profit service_fee;
 
-        royalty_recipient <- & token_address.royalty_recipient;
-        svc_fee_recipient <- service_fee_recipient;
-        
         (* royalties for the royalty recipient *)
         AddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
 

@@ -349,8 +349,17 @@ describe("ZIL - Auction", () => {
       JSON.stringify({
         [globalTokenAddress.toLowerCase()]: {
           [1]: getJSONValue(
-            [getTestAddr(SELLER), globalBNum + 5, ZERO_ADDRESS, 1000],
-            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+            [
+              getTestAddr(SELLER),
+              globalBNum + 5,
+              ZERO_ADDRESS,
+              1000,
+              getTestAddr(SELLER),
+              1000,
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+              250,
+            ],
+            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
           ),
         },
       })
@@ -468,12 +477,30 @@ describe("ZIL - Auction", () => {
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: getJSONValue(
-                  [getTestAddr(SELLER), globalBNum + 5, ZERO_ADDRESS, 1000],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                  [
+                    getTestAddr(SELLER),
+                    globalBNum + 5,
+                    ZERO_ADDRESS,
+                    1000,
+                    getTestAddr(SELLER),
+                    1000,
+                    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+                    250,
+                  ],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
                 ),
                 [2]: getJSONValue(
-                  [getTestAddr(SELLER), globalBNum + 5, ZERO_ADDRESS, 1000],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                  [
+                    getTestAddr(SELLER),
+                    globalBNum + 5,
+                    ZERO_ADDRESS,
+                    1000,
+                    getTestAddr(SELLER),
+                    1000,
+                    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+                    250,
+                  ],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
                 ),
               },
             })
@@ -840,8 +867,17 @@ describe("ZIL - Auction", () => {
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
                 [1]: getJSONValue(
-                  [getTestAddr(SELLER), globalBNum + 5, ZERO_ADDRESS, 1000],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                  [
+                    getTestAddr(SELLER),
+                    globalBNum + 5,
+                    ZERO_ADDRESS,
+                    1000,
+                    getTestAddr(SELLER),
+                    1000,
+                    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+                    250,
+                  ],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
                 ),
               },
             })
@@ -1132,8 +1168,12 @@ describe("WZIL - Auction", () => {
               globalBNum + 5,
               globalPaymentTokenAddress,
               1000,
+              getTestAddr(SELLER),
+              1000,
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+              250,
             ],
-            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
           ),
         },
       })
@@ -1259,8 +1299,12 @@ describe("WZIL - Auction", () => {
                     globalBNum + 5,
                     globalPaymentTokenAddress,
                     1000,
+                    getTestAddr(SELLER),
+                    1000,
+                    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+                    250,
                   ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
                 ),
                 [2]: getJSONValue(
                   [
@@ -1268,8 +1312,12 @@ describe("WZIL - Auction", () => {
                     globalBNum + 5,
                     globalPaymentTokenAddress,
                     1000,
+                    getTestAddr(SELLER),
+                    1000,
+                    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+                    250,
                   ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
                 ),
               },
             })
@@ -1650,8 +1698,12 @@ describe("WZIL - Auction", () => {
                     globalBNum + 5,
                     globalPaymentTokenAddress,
                     1000,
+                    getTestAddr(SELLER),
+                    1000,
+                    getTestAddr(MARKETPLACE_CONTRACT_OWNER),
+                    250,
                   ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
                 ),
               },
             })
