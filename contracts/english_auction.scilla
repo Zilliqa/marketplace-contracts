@@ -172,8 +172,9 @@ field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
 field service_fee_bps: Uint128 = Uint128 250
 
 (* bid increment BPS (e.g. 1000 = 10% *)
-(* This is used to calculcate the Minimum Bid *)
+(* This is used to calculate the Minimum Bid *)
 (* Minimum Bid = Current Bid + Bid Increment *)
+(* If Current Bid is 100 and Bid Increment BPS is 1000 (10%), then, Bid Increment is 10 and Minimum Bid is 110 *)
 (* Defaults to 1000 *)
 field bid_increment_bps: Uint128 = Uint128 1000
 
