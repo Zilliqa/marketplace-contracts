@@ -87,10 +87,12 @@ type Error =
   | AssetNotFoundError
   | NotAllowedToEndError
   | NotAllowedPaymentToken
-  | InvalidBPSError
   | NotEqualAmountError
   | NotContractOwnershipRecipientError
   | NotAllowedUserError
+  | InvalidBidIncrementBPSError
+  | InvalidRoyaltyFeeBPSError
+  | InvalidServiceFeeBPSError
 
 let make_error =
   fun (result : Error) =>
@@ -115,10 +117,12 @@ let make_error =
       | AssetNotFoundError                  => Int32 -18
       | NotAllowedToEndError                => Int32 -19
       | NotAllowedPaymentToken              => Int32 -20
-      | InvalidBPSError                     => Int32 -21
-      | NotEqualAmountError                 => Int32 -22
-      | NotContractOwnershipRecipientError  => Int32 -23
-      | NotAllowedUserError                 => Int32 -24
+      | NotEqualAmountError                 => Int32 -21
+      | NotContractOwnershipRecipientError  => Int32 -22
+      | NotAllowedUserError                 => Int32 -23
+      | InvalidBidIncrementBPSError         => Int32 -24
+      | InvalidRoyaltyFeeBPSError           => Int32 -25
+      | InvalidServiceFeeBPSError           => Int32 -26
       end
     in
     { _exception : "Error"; code : result_code }
@@ -180,6 +184,8 @@ field service_fee_bps: Uint128 = Uint128 250
 (* Defaults to 1000 *)
 field bid_increment_bps: Uint128 = Uint128 1000
 
+(* Service Fee Recipient *)
+(* Defaults to `initial_contract_owner` *)
 field service_fee_recipient: ByStr20 = initial_contract_owner
 
 (* Procedures *)
@@ -232,7 +238,37 @@ procedure RequireValidDestination(to: ByStr20)
   end
 end
 
-procedure RequireValidBPS(val_bps: Uint128)
+procedure RequireValidRoyaltyFeeBPS(val_bps: Uint128)
+  (* max: 25% (arbitrary number) *)
+  max = Uint128 2500;
+  is_gte_min = uint128_ge val_bps min_bps;
+  is_lte_max = uint128_le val_bps max;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidRoyaltyFeeBPSError;
+      Throw error
+  end
+end
+
+procedure RequireValidServiceFeeBPS(val_bps: Uint128)
+  (* max: 10% (arbitrary number) *)
+  max = Uint128 1000;
+  is_gte_min = uint128_ge val_bps min_bps;
+  is_lte_max = uint128_le val_bps max;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidServiceFeeBPSError;
+      Throw error
+  end
+end
+
+procedure RequireValidBidIncrementBPS(val_bps: Uint128)
   is_gte_min = uint128_ge val_bps min_bps;
   is_lte_max = uint128_le val_bps max_bps;
   
@@ -240,7 +276,7 @@ procedure RequireValidBPS(val_bps: Uint128)
   match is_valid with 
     | True => 
     | False =>
-      error = InvalidBPSError;
+      error = InvalidBidIncrementBPSError;
       Throw error
   end
 end
@@ -646,10 +682,12 @@ transition Start(
     RequireAllowedUser royalty_recipient;
 
     royalty_fee_bps <- & token_address.royalty_fee_bps;
+    RequireValidRoyaltyFeeBPS royalty_fee_bps;
 
     svc_fee_recipient <- service_fee_recipient;
     RequireAllowedUser svc_fee_recipient;
 
+    (* service_fee_bps is already validated by SetServiceFeeBPS *)
     svc_fee_bps <- service_fee_bps;
 
     (* create a sell order *)
@@ -1008,7 +1046,7 @@ end
 
 transition SetServiceFeeBPS(fee_bps: Uint128)
   RequireContractOwner;
-  RequireValidBPS fee_bps;
+  RequireValidServiceFeeBPS fee_bps;
   service_fee_bps := fee_bps;
   e = {
     _eventname : "SetServiceFeeBPS";
@@ -1019,7 +1057,7 @@ end
 
 transition SetBidIncrementBPS(increment_bps: Uint128)
   RequireContractOwner;
-  RequireValidBPS increment_bps;
+  RequireValidBidIncrementBPS increment_bps;
   bid_increment_bps := increment_bps;
   e = {
     _eventname : "SetBidIncrementBPS";
