@@ -14,8 +14,8 @@ let one_uint128 = Uint128 1
 let false = False
 let true = True
 
-let min_fee_bps = Uint128 1
-let max_fee_bps = Uint128 10000
+let min_bps = Uint128 1
+let max_bps = Uint128 10000
 
 let one_msg = 
   fun (msg : Message) => 
@@ -83,7 +83,7 @@ type Error =
   | AssetNotFoundError
   | NotAllowedToEndError
   | NotAllowedPaymentToken
-  | InvalidFeeBPSError
+  | InvalidBPSError
   | NotEqualAmountError
   | NotContractOwnershipRecipientError
   | NotAllowedUserError
@@ -113,7 +113,7 @@ let make_error =
       | AssetNotFoundError                  => Int32 -19
       | NotAllowedToEndError                => Int32 -20
       | NotAllowedPaymentToken              => Int32 -21
-      | InvalidFeeBPSError                  => Int32 -22
+      | InvalidBPSError                     => Int32 -22
       | NotEqualAmountError                 => Int32 -23
       | NotContractOwnershipRecipientError  => Int32 -24
       | NotAllowedUserError                 => Int32 -25
@@ -171,6 +171,12 @@ field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
 (* Defaults to 250 *)
 field service_fee_bps: Uint128 = Uint128 250
 
+(* bid increment BPS (e.g. 1000 = 10% *)
+(* This is used to calculcate the Minimum Bid *)
+(* Minimum Bid = Current Bid + Bid Increment *)
+(* Defaults to 1000 *)
+field bid_increment_bps: Uint128 = Uint128 1000
+
 field service_fee_recipient: ByStr20 = initial_contract_owner
 
 (* Procedures *)
@@ -223,15 +229,15 @@ procedure RequireValidDestination(to: ByStr20)
   end
 end
 
-procedure RequireValidFeeBPS(fee_bps: Uint128)
-  is_gte_min = uint128_ge fee_bps min_fee_bps;
-  is_lte_max = uint128_le fee_bps max_fee_bps;
+procedure RequireValidBPS(val_bps: Uint128)
+  is_gte_min = uint128_ge val_bps min_bps;
+  is_lte_max = uint128_le val_bps max_bps;
   
   is_valid = andb is_gte_min is_lte_max;
   match is_valid with 
     | True => 
     | False =>
-      error = InvalidFeeBPSError;
+      error = InvalidBPSError;
       Throw error
   end
 end
@@ -455,11 +461,11 @@ procedure BidWithNativeZILs(
     end
   | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
     (* We have the existing bid. We track the max only. *)
+    
     (* Minimum Bid = Current Bid + Bid Increment *)
-
-    (* Calculate min bid *)
-    ten_percent = Uint128 1000;
-    bid_increment = portion cur_amount ten_percent;
+    (* Calculate Minimum Bid *)
+    bid_inc_bps <- bid_increment_bps;
+    bid_increment = portion cur_amount bid_inc_bps;
     min_bid = builtin add cur_amount bid_increment;
 
     is_less_than_min_bid = builtin lt amount min_bid;
@@ -532,11 +538,11 @@ procedure BidWithZRC2(
         end
       | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
         (* We have the existing bid. We track the max only. *)
+        
         (* Minimum Bid = Current Bid + Bid Increment *)
-
-        (* Calculate min bid *)
-        ten_percent = Uint128 1000;
-        bid_increment = portion cur_amount ten_percent;
+        (* Calculate Minimum Bid *)
+        bid_inc_bps <- bid_increment_bps;
+        bid_increment = portion cur_amount bid_inc_bps;
         min_bid = builtin add cur_amount bid_increment;
         
         is_less_than_min_bid = builtin lt amount min_bid;
@@ -953,11 +959,22 @@ end
 
 transition SetServiceFeeBPS(fee_bps: Uint128)
   RequireContractOwner;
-  RequireValidFeeBPS fee_bps;
+  RequireValidBPS fee_bps;
   service_fee_bps := fee_bps;
   e = {
     _eventname : "SetServiceFeeBPS";
     service_fee_bps: fee_bps
+  };
+  event e
+end
+
+transition SetBidIncrementBPS(increment_bps: Uint128)
+  RequireContractOwner;
+  RequireValidBPS increment_bps;
+  bid_increment_bps := increment_bps;
+  e = {
+    _eventname : "SetBidIncrementBPS";
+    bid_increment_bps: increment_bps
   };
   event e
 end
