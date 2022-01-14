@@ -69,7 +69,6 @@ type Error =
   | ThisAddressDestinationError
   | SellOrderNotFoundError
   | SellOrderFoundError
-  | BuyOrderNotFoundError
   | NotSpenderError
   | NotTokenOwnerError
   | NotAllowedToCancelOrder
@@ -99,24 +98,23 @@ let make_error =
       | ThisAddressDestinationError         => Int32 -5
       | SellOrderNotFoundError              => Int32 -6
       | SellOrderFoundError                 => Int32 -7
-      | BuyOrderNotFoundError               => Int32 -8
-      | NotSpenderError                     => Int32 -9
-      | NotTokenOwnerError                  => Int32 -10
-      | NotAllowedToCancelOrder             => Int32 -11
-      | SelfError                           => Int32 -12
-      | LessThanMinBidError                 => Int32 -13
-      | InsufficientAllowanceError          => Int32 -14
-      | NotExpiredError                     => Int32 -15
-      | ExpiredError                        => Int32 -16
-      | AccountNotFoundError                => Int32 -17
-      | InsufficientPaymentTokenError       => Int32 -18
-      | AssetNotFoundError                  => Int32 -19
-      | NotAllowedToEndError                => Int32 -20
-      | NotAllowedPaymentToken              => Int32 -21
-      | InvalidBPSError                     => Int32 -22
-      | NotEqualAmountError                 => Int32 -23
-      | NotContractOwnershipRecipientError  => Int32 -24
-      | NotAllowedUserError                 => Int32 -25
+      | NotSpenderError                     => Int32 -8
+      | NotTokenOwnerError                  => Int32 -9
+      | NotAllowedToCancelOrder             => Int32 -10
+      | SelfError                           => Int32 -11
+      | LessThanMinBidError                 => Int32 -12
+      | InsufficientAllowanceError          => Int32 -13
+      | NotExpiredError                     => Int32 -14
+      | ExpiredError                        => Int32 -15
+      | AccountNotFoundError                => Int32 -16
+      | InsufficientPaymentTokenError       => Int32 -17
+      | AssetNotFoundError                  => Int32 -18
+      | NotAllowedToEndError                => Int32 -19
+      | NotAllowedPaymentToken              => Int32 -20
+      | InvalidBPSError                     => Int32 -21
+      | NotEqualAmountError                 => Int32 -22
+      | NotContractOwnershipRecipientError  => Int32 -23
+      | NotAllowedUserError                 => Int32 -24
       end
     in
     { _exception : "Error"; code : result_code }
@@ -790,11 +788,44 @@ transition End(
     maybe_buy_order <- buy_orders[token_address][token_id];
     match maybe_buy_order with 
     | None =>
-      (* Buy order doesn't exist *)
-      error = BuyOrderNotFoundError;
-      Throw error
+      (* If buy order doesn't exist, seller must be able to end the auction *)
+      (* and get the asset back *)
+
+      (* Check _sender is the seller *)
+      is_seller = builtin eq _sender seller;
+      match is_seller with
+      | True => 
+      | False => 
+        error = NotAllowedToEndError;
+        Throw error
+      end;
+
+      (* Asset for seller *)
+      assets[seller][token_address][token_id] := true;
+
+      (* Cleanup sell order *)
+      delete sell_orders[token_address][token_id];
+
+      (* Use zero values for irrelavent fields *)
+      (* e.g. zero address for ByStr20 *)
+      e = {
+        _eventname : "End";
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: zero_uint128;
+        seller: seller;
+        buyer: zero_address;
+        asset_recipient: seller;
+        payment_tokens_recipient: zero_address;
+        royalty_recipient: zero_address;
+        royalty_amount: zero_uint128;
+        service_fee: zero_uint128
+      };
+      event e
     | Some (BuyOrder buyer sale_price buy_dest _) =>
 
+      (* If buy order exists, seller or buyer must be able to end the auction *)
       (* Check _sender is the seller or the buyer *)
       is_seller = builtin eq _sender seller;
       is_buyer = builtin eq _sender buyer;

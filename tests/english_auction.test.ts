@@ -345,6 +345,17 @@ describe("ZIL - Auction", () => {
       .at(globalMarketplaceAddress)
       .getState();
 
+    expect(JSON.stringify(state.sell_orders)).toBe(
+      JSON.stringify({
+        [globalTokenAddress.toLowerCase()]: {
+          [1]: getJSONValue(
+            [getTestAddr(SELLER), globalBNum + 5, ZERO_ADDRESS, 1000],
+            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+          ),
+        },
+      })
+    );
+
     expect(JSON.stringify(state.buy_orders)).toBe(
       JSON.stringify({
         [globalTokenAddress.toLowerCase()]: {
@@ -755,9 +766,190 @@ describe("ZIL - Auction", () => {
       want: undefined,
     },
     {
+      name: "Seller finalizes the auction without buy order",
+      transition: "End",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+      }),
+      beforeTransition: async () => {
+        for (const call of [
+          {
+            beforeTransition: asyncNoop,
+            sender: getTestAddr(SELLER),
+            contract: globalMarketplaceAddress,
+            transition: "Start",
+            transitionParams: getJSONParams({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 2],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              start_amount: ["Uint128", 1000],
+              expiration_bnum: ["BNum", globalBNum + 5],
+            }),
+            txParams: TX_PARAMS,
+          },
+        ]) {
+          await call.beforeTransition();
+          zilliqa.wallet.setDefault(call.sender);
+          const tx: any = await zilliqa.contracts
+            .at(call.contract)
+            .call(call.transition, call.transitionParams, call.txParams);
+          if (!tx.receipt.success) {
+            throw new Error();
+          }
+        }
+        await increaseBNum(zilliqa, 5);
+      },
+      error: undefined,
+      want: {
+        getTokenOwners: () => ({
+          1: globalMarketplaceAddress,
+          2: globalMarketplaceAddress,
+          3: getTestAddr(SELLER),
+        }),
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "End",
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 2],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 0],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", ZERO_ADDRESS],
+              asset_recipient: ["ByStr20", getTestAddr(SELLER)],
+              payment_tokens_recipient: ["ByStr20", ZERO_ADDRESS],
+              royalty_recipient: ["ByStr20", ZERO_ADDRESS],
+              royalty_amount: ["Uint128", 0],
+              service_fee: ["Uint128", 0],
+            }),
+          },
+        ],
+        expectState: (state) => {
+          // preconditions must not be mutated
+          expect(JSON.stringify(state.sell_orders)).toBe(
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: getJSONValue(
+                  [getTestAddr(SELLER), globalBNum + 5, ZERO_ADDRESS, 1000],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                ),
+              },
+            })
+          );
+
+          // preconditions are must not be mutated
+          expect(JSON.stringify(state.buy_orders)).toBe(
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: getJSONValue(
+                  [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                ),
+              },
+            })
+          );
+
+          expect(
+            JSON.stringify(
+              state.assets[getTestAddr(SELLER).toLowerCase()][
+                globalTokenAddress.toLowerCase()
+              ]["2"]
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(JSON.stringify(state.payment_tokens)).toBe(`{}`);
+        },
+      },
+    },
+    {
       name: "Seller finalizes the auction",
       transition: "End",
       getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+      }),
+      beforeTransition: async () => {
+        await increaseBNum(zilliqa, 5);
+      },
+      error: undefined,
+      want: {
+        getTokenOwners: () => ({
+          1: globalMarketplaceAddress,
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        events: [
+          {
+            name: "End",
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 10000],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", getTestAddr(BUYER_A)],
+              asset_recipient: ["ByStr20", getTestAddr(BUYER_A)],
+              payment_tokens_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_amount: ["Uint128", 1000],
+              service_fee: ["Uint128", 250],
+            }),
+          },
+        ],
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
+            JSON.stringify(
+              state.assets[getTestAddr(BUYER_A).toLowerCase()][
+                globalTokenAddress.toLowerCase()
+              ]["1"]
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(
+            state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
+              ZERO_ADDRESS.toLowerCase()
+            ]
+          ).toBe(`${8750 + 1000}`);
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][ZERO_ADDRESS]
+          ).toBe("250");
+        },
+      },
+    },
+    {
+      name: "Buyer A finalizes the auction",
+      transition: "End",
+      getSender: () => getTestAddr(BUYER_A),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
         token_id: ["Uint256", 1],
@@ -930,6 +1122,22 @@ describe("WZIL - Auction", () => {
     const state = await zilliqa.contracts
       .at(globalMarketplaceAddress)
       .getState();
+
+    expect(JSON.stringify(state.sell_orders)).toBe(
+      JSON.stringify({
+        [globalTokenAddress.toLowerCase()]: {
+          [1]: getJSONValue(
+            [
+              getTestAddr(SELLER),
+              globalBNum + 5,
+              globalPaymentTokenAddress,
+              1000,
+            ],
+            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+          ),
+        },
+      })
+    );
 
     expect(JSON.stringify(state.buy_orders)).toBe(
       JSON.stringify({
@@ -1358,10 +1566,202 @@ describe("WZIL - Auction", () => {
       error: ENG_AUC_ERROR.NotExpiredError,
       want: undefined,
     },
+
     {
       name: "Seller finalizes the auction",
       transition: "End",
       getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 2],
+      }),
+      beforeTransition: async () => {
+        for (const call of [
+          {
+            beforeTransition: asyncNoop,
+            sender: getTestAddr(SELLER),
+            contract: globalMarketplaceAddress,
+            transition: "Start",
+            transitionParams: getJSONParams({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 2],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              start_amount: ["Uint128", 1000],
+              expiration_bnum: ["BNum", globalBNum + 5],
+            }),
+            txParams: TX_PARAMS,
+          },
+        ]) {
+          await call.beforeTransition();
+          zilliqa.wallet.setDefault(call.sender);
+          const tx: any = await zilliqa.contracts
+            .at(call.contract)
+            .call(call.transition, call.transitionParams, call.txParams);
+          if (!tx.receipt.success) {
+            throw new Error();
+          }
+        }
+        await increaseBNum(zilliqa, 5);
+      },
+      error: undefined,
+      want: {
+        getTokenOwners: () => ({
+          1: globalMarketplaceAddress,
+          2: globalMarketplaceAddress,
+          3: getTestAddr(SELLER),
+        }),
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
+        events: [
+          {
+            name: "End",
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 2],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              sale_price: ["Uint128", 0],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", ZERO_ADDRESS],
+              asset_recipient: ["ByStr20", getTestAddr(SELLER)],
+              payment_tokens_recipient: ["ByStr20", ZERO_ADDRESS],
+              royalty_recipient: ["ByStr20", ZERO_ADDRESS],
+              royalty_amount: ["Uint128", 0],
+              service_fee: ["Uint128", 0],
+            }),
+          },
+        ],
+        expectState: (state) => {
+          expect(JSON.stringify(state.sell_orders)).toBe(
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: getJSONValue(
+                  [
+                    getTestAddr(SELLER),
+                    globalBNum + 5,
+                    globalPaymentTokenAddress,
+                    1000,
+                  ],
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128`
+                ),
+              },
+            })
+          );
+
+          expect(JSON.stringify(state.buy_orders)).toBe(
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: getJSONValue(
+                  [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                ),
+              },
+            })
+          );
+
+          expect(
+            JSON.stringify(
+              state.assets[getTestAddr(SELLER).toLowerCase()][
+                globalTokenAddress.toLowerCase()
+              ]["2"]
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(JSON.stringify(state.payment_tokens)).toBe(`{}`);
+        },
+      },
+    },
+    {
+      name: "Seller finalizes the auction",
+      transition: "End",
+      getSender: () => getTestAddr(SELLER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+      }),
+      beforeTransition: async () => {
+        await increaseBNum(zilliqa, 5);
+      },
+      error: undefined,
+      want: {
+        getTokenOwners: () => ({
+          1: globalMarketplaceAddress,
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER_A)]: 0,
+          [getTestAddr(BUYER_B)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER_A), globalMarketplaceAddress].join()]: 0,
+          [[getTestAddr(BUYER_B), globalMarketplaceAddress].join()]: 0,
+        }),
+        events: [
+          {
+            name: "End",
+            getParams: () => ({
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              sale_price: ["Uint128", 10000],
+              seller: ["ByStr20", getTestAddr(SELLER)],
+              buyer: ["ByStr20", getTestAddr(BUYER_A)],
+              asset_recipient: ["ByStr20", getTestAddr(BUYER_A)],
+              payment_tokens_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_recipient: ["ByStr20", getTestAddr(SELLER)],
+              royalty_amount: ["Uint128", 1000],
+              service_fee: ["Uint128", 250],
+            }),
+          },
+        ],
+        expectState: (state) => {
+          expect(
+            JSON.stringify(state.sell_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+          expect(
+            JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
+          ).toBe("{}");
+
+          expect(
+            JSON.stringify(
+              state.assets[getTestAddr(BUYER_A).toLowerCase()][
+                globalTokenAddress.toLowerCase()
+              ]["1"]
+            )
+          ).toBe(JSON.stringify(getJSONValue(true)));
+
+          expect(
+            state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
+              globalPaymentTokenAddress.toLowerCase()
+            ]
+          ).toBe(`${8750 + 1000}`);
+
+          expect(
+            state.payment_tokens[
+              getTestAddr(MARKETPLACE_CONTRACT_OWNER).toLowerCase()
+            ][globalPaymentTokenAddress.toLowerCase()]
+          ).toBe("250");
+        },
+      },
+    },
+    {
+      name: "Buyer A finalizes the auction",
+      transition: "End",
+      getSender: () => getTestAddr(BUYER_A),
       getParams: () => ({
         token_address: ["ByStr20", globalTokenAddress],
         token_id: ["Uint256", 1],
