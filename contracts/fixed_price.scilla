@@ -540,32 +540,6 @@ procedure Cancel(
   end
 end
 
-(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
-transition Pause()
-  RequireNotPaused;
-  RequireContractOwner;
-
-  is_paused := true;
-  e = {
-    _eventname: "Pause";
-    is_paused: true
-  };
-  event e
-end
-
-(* Unpauses the contract. *)
-transition Unpause()
-  RequirePaused;
-  RequireContractOwner;
-
-  is_paused := false;
-  e = {
-    _eventname: "Unpause";
-    is_paused: false
-  };
-  event e
-end
-
 (* Sets sell and buy orders. *)
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
@@ -752,6 +726,32 @@ transition CancelOrder(
   end;
 
   Cancel token_address token_id payment_token_address sale_price side
+end
+
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* Unpauses the contract. *)
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
 end
 
 transition AllowPaymentTokenAddress(
