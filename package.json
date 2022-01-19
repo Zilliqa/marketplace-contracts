@@ -4,7 +4,7 @@
     "run:isolated-server": "npm run rm:isolated-server; docker run --name marketplace-contracts -d -p 3333:5555 --entrypoint isolatedServer zilliqa/zilliqa-isolated-server:a01fe00 -t 0 -f boot.json -u 0",
     "rm:isolated-server": "docker stop marketplace-contracts | xargs docker rm",
     "test:local": "PORT=3333 CONTAINER=marketplace-contracts jest --verbose --runInBand",
-    "test": "npm run run:isolated-server && npm run test:local; npm run rm:isolated-server",
+    "test": "npm run run:isolated-server && npm run test:local && npm run rm:isolated-server",
     "format": "npx prettier --write ."
   },
   "devDependencies": {
