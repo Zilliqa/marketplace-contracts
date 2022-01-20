@@ -1,4 +1,4 @@
-import { getJSONParams, getJSONValue } from "@zilliqa-js/scilla-json-utils";
+import { scillaJSONParams, scillaJSONVal } from "@zilliqa-js/scilla-json-utils";
 import { BN, Zilliqa } from "@zilliqa-js/zilliqa";
 import { expect } from "@jest/globals";
 import fs from "fs";
@@ -91,7 +91,7 @@ beforeAll(async () => {
   const [, contract] = await zilliqa.contracts
     .new(
       fs.readFileSync(CONTRACTS.wzil.path).toString(),
-      getJSONParams({
+      scillaJSONParams({
         _scilla_version: ["Uint32", 0],
         contract_owner: ["ByStr20", getTestAddr(STRANGER)],
         name: ["String", CONTRACTS.wzil.name],
@@ -112,7 +112,7 @@ beforeEach(async () => {
   let [, contract] = await zilliqa.contracts
     .new(
       fs.readFileSync(CONTRACTS.zrc6.path).toString(),
-      getJSONParams({
+      scillaJSONParams({
         _scilla_version: ["Uint32", 0],
         initial_contract_owner: ["ByStr20", getTestAddr(SELLER)],
         initial_base_uri: ["String", CONTRACTS.zrc6.baseURI],
@@ -131,7 +131,7 @@ beforeEach(async () => {
   [, contract] = await zilliqa.contracts
     .new(
       fs.readFileSync(CONTRACTS.wzil.path).toString(),
-      getJSONParams({
+      scillaJSONParams({
         _scilla_version: ["Uint32", 0],
         contract_owner: ["ByStr20", getTestAddr(BUYER_A)],
         name: ["String", CONTRACTS.wzil.name],
@@ -151,7 +151,7 @@ beforeEach(async () => {
   [, contract] = await zilliqa.contracts
     .new(
       fs.readFileSync(CONTRACTS.allowlist.path).toString(),
-      getJSONParams({
+      scillaJSONParams({
         _scilla_version: ["Uint32", 0],
         initial_contract_owner: [
           "ByStr20",
@@ -170,7 +170,7 @@ beforeEach(async () => {
   [, contract] = await zilliqa.contracts
     .new(
       fs.readFileSync(CONTRACTS.english_auction.path).toString(),
-      getJSONParams({
+      scillaJSONParams({
         _scilla_version: ["Uint32", 0],
         initial_contract_owner: [
           "ByStr20",
@@ -190,7 +190,7 @@ beforeEach(async () => {
       sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
       contract: localAllowlistAddress,
       transition: "Allow",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         address_list: [
           "List (ByStr20)",
           [
@@ -209,7 +209,7 @@ beforeEach(async () => {
       sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
       contract: globalMarketplaceAddress,
       transition: "SetAllowlist",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         address: ["ByStr20", localAllowlistAddress],
       }),
       txParams: TX_PARAMS,
@@ -219,7 +219,7 @@ beforeEach(async () => {
       sender: getTestAddr(BUYER_A),
       contract: globalPaymentTokenAddress,
       transition: "Transfer",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         to: ["ByStr20", getTestAddr(BUYER_B)],
         amount: ["Uint128", 100 * 1000],
       }),
@@ -230,7 +230,7 @@ beforeEach(async () => {
       sender: getTestAddr(SELLER),
       contract: globalTokenAddress,
       transition: "BatchMint",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         to_token_uri_pair_list: [
           "List (Pair (ByStr20) (String))",
           [
@@ -247,7 +247,7 @@ beforeEach(async () => {
       sender: getTestAddr(MARKETPLACE_CONTRACT_OWNER),
       contract: globalMarketplaceAddress,
       transition: "AllowPaymentTokenAddress",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         address: ["ByStr20", globalPaymentTokenAddress],
       }),
       txParams: TX_PARAMS,
@@ -257,7 +257,7 @@ beforeEach(async () => {
       sender: getTestAddr(BUYER_A),
       contract: globalPaymentTokenAddress,
       transition: "IncreaseAllowance",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         spender: ["ByStr20", globalMarketplaceAddress],
         amount: ["Uint128", 100 * 1000],
       }),
@@ -268,7 +268,7 @@ beforeEach(async () => {
       sender: getTestAddr(BUYER_B),
       contract: globalPaymentTokenAddress,
       transition: "IncreaseAllowance",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         spender: ["ByStr20", globalMarketplaceAddress],
         amount: ["Uint128", 100 * 1000],
       }),
@@ -279,7 +279,7 @@ beforeEach(async () => {
       sender: getTestAddr(SELLER),
       contract: globalTokenAddress,
       transition: "SetSpender",
-      transitionParams: getJSONParams({
+      transitionParams: scillaJSONParams({
         spender: ["ByStr20", globalMarketplaceAddress],
         token_id: ["Uint256", tokenId],
       }),
@@ -305,7 +305,7 @@ describe("ZIL - Auction", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           payment_token_address: ["ByStr20", ZERO_ADDRESS],
@@ -319,7 +319,7 @@ describe("ZIL - Auction", () => {
         sender: getTestAddr(BUYER_A),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           amount: ["Uint128", 10000],
@@ -348,7 +348,8 @@ describe("ZIL - Auction", () => {
     expect(JSON.stringify(state.sell_orders)).toBe(
       JSON.stringify({
         [globalTokenAddress.toLowerCase()]: {
-          [1]: getJSONValue(
+          [1]: scillaJSONVal(
+            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
             [
               getTestAddr(SELLER),
               globalBNum + 5,
@@ -358,8 +359,7 @@ describe("ZIL - Auction", () => {
               1000,
               getTestAddr(MARKETPLACE_CONTRACT_OWNER),
               250,
-            ],
-            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+            ]
           ),
         },
       })
@@ -368,9 +368,9 @@ describe("ZIL - Auction", () => {
     expect(JSON.stringify(state.buy_orders)).toBe(
       JSON.stringify({
         [globalTokenAddress.toLowerCase()]: {
-          [1]: getJSONValue(
-            [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
-            `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+          [1]: scillaJSONVal(
+            `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+            [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1]
           ),
         },
       })
@@ -476,7 +476,8 @@ describe("ZIL - Auction", () => {
           expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
                   [
                     getTestAddr(SELLER),
                     globalBNum + 5,
@@ -486,10 +487,10 @@ describe("ZIL - Auction", () => {
                     1000,
                     getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                     250,
-                  ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+                  ]
                 ),
-                [2]: getJSONValue(
+                [2]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
                   [
                     getTestAddr(SELLER),
                     globalBNum + 5,
@@ -499,8 +500,7 @@ describe("ZIL - Auction", () => {
                     1000,
                     getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                     250,
-                  ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+                  ]
                 ),
               },
             })
@@ -644,9 +644,9 @@ describe("ZIL - Auction", () => {
           expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
-                  [getTestAddr(BUYER_B), 11000, getTestAddr(BUYER_B), 2],
-                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+                  [getTestAddr(BUYER_B), 11000, getTestAddr(BUYER_B), 2]
                 ),
               },
             })
@@ -741,7 +741,7 @@ describe("ZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
@@ -807,7 +807,7 @@ describe("ZIL - Auction", () => {
             sender: getTestAddr(SELLER),
             contract: globalMarketplaceAddress,
             transition: "Start",
-            transitionParams: getJSONParams({
+            transitionParams: scillaJSONParams({
               token_address: ["ByStr20", globalTokenAddress],
               token_id: ["Uint256", 2],
               payment_token_address: ["ByStr20", ZERO_ADDRESS],
@@ -866,7 +866,8 @@ describe("ZIL - Auction", () => {
           expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
                   [
                     getTestAddr(SELLER),
                     globalBNum + 5,
@@ -876,8 +877,7 @@ describe("ZIL - Auction", () => {
                     1000,
                     getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                     250,
-                  ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+                  ]
                 ),
               },
             })
@@ -887,9 +887,9 @@ describe("ZIL - Auction", () => {
           expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
-                  [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
-                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+                  [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1]
                 ),
               },
             })
@@ -901,7 +901,7 @@ describe("ZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["2"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(JSON.stringify(state.payment_tokens)).toBe(`{}`);
         },
@@ -966,7 +966,7 @@ describe("ZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -1041,7 +1041,7 @@ describe("ZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -1076,7 +1076,7 @@ describe("ZIL - Auction", () => {
       zilliqa.wallet.setDefault(testCase.getSender());
       const tx: any = await zilliqa.contracts
         .at(globalMarketplaceAddress)
-        .call(testCase.transition, getJSONParams(testCase.getParams()), {
+        .call(testCase.transition, scillaJSONParams(testCase.getParams()), {
           ...TX_PARAMS,
           amount: new BN(testCase.txAmount || 0),
         });
@@ -1119,7 +1119,7 @@ describe("WZIL - Auction", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           payment_token_address: ["ByStr20", globalPaymentTokenAddress],
@@ -1133,7 +1133,7 @@ describe("WZIL - Auction", () => {
         sender: getTestAddr(BUYER_A),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           amount: ["Uint128", 10000],
@@ -1162,7 +1162,8 @@ describe("WZIL - Auction", () => {
     expect(JSON.stringify(state.sell_orders)).toBe(
       JSON.stringify({
         [globalTokenAddress.toLowerCase()]: {
-          [1]: getJSONValue(
+          [1]: scillaJSONVal(
+            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
             [
               getTestAddr(SELLER),
               globalBNum + 5,
@@ -1172,8 +1173,7 @@ describe("WZIL - Auction", () => {
               1000,
               getTestAddr(MARKETPLACE_CONTRACT_OWNER),
               250,
-            ],
-            `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+            ]
           ),
         },
       })
@@ -1182,9 +1182,9 @@ describe("WZIL - Auction", () => {
     expect(JSON.stringify(state.buy_orders)).toBe(
       JSON.stringify({
         [globalTokenAddress.toLowerCase()]: {
-          [1]: getJSONValue(
-            [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
-            `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+          [1]: scillaJSONVal(
+            `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+            [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1]
           ),
         },
       })
@@ -1293,7 +1293,8 @@ describe("WZIL - Auction", () => {
           expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
                   [
                     getTestAddr(SELLER),
                     globalBNum + 5,
@@ -1303,10 +1304,10 @@ describe("WZIL - Auction", () => {
                     1000,
                     getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                     250,
-                  ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+                  ]
                 ),
-                [2]: getJSONValue(
+                [2]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
                   [
                     getTestAddr(SELLER),
                     globalBNum + 5,
@@ -1316,8 +1317,7 @@ describe("WZIL - Auction", () => {
                     1000,
                     getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                     250,
-                  ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+                  ]
                 ),
               },
             })
@@ -1459,9 +1459,9 @@ describe("WZIL - Auction", () => {
             JSON.stringify(state.buy_orders) !==
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
-                  [getTestAddr(BUYER_B), 11000, getTestAddr(BUYER_B), 2],
-                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+                  [getTestAddr(BUYER_B), 11000, getTestAddr(BUYER_B), 2]
                 ),
               },
             })
@@ -1563,7 +1563,7 @@ describe("WZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(BUYER_A).toLowerCase()][
@@ -1630,7 +1630,7 @@ describe("WZIL - Auction", () => {
             sender: getTestAddr(SELLER),
             contract: globalMarketplaceAddress,
             transition: "Start",
-            transitionParams: getJSONParams({
+            transitionParams: scillaJSONParams({
               token_address: ["ByStr20", globalTokenAddress],
               token_id: ["Uint256", 2],
               payment_token_address: ["ByStr20", globalPaymentTokenAddress],
@@ -1692,7 +1692,8 @@ describe("WZIL - Auction", () => {
           expect(JSON.stringify(state.sell_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`,
                   [
                     getTestAddr(SELLER),
                     globalBNum + 5,
@@ -1702,8 +1703,7 @@ describe("WZIL - Auction", () => {
                     1000,
                     getTestAddr(MARKETPLACE_CONTRACT_OWNER),
                     250,
-                  ],
-                  `${globalMarketplaceAddress}.SellOrder.SellOrder.of.ByStr20.BNum.ByStr20.Uint128.ByStr20.Uint128.ByStr20.Uint128`
+                  ]
                 ),
               },
             })
@@ -1712,9 +1712,9 @@ describe("WZIL - Auction", () => {
           expect(JSON.stringify(state.buy_orders)).toBe(
             JSON.stringify({
               [globalTokenAddress.toLowerCase()]: {
-                [1]: getJSONValue(
-                  [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1],
-                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+                [1]: scillaJSONVal(
+                  `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+                  [getTestAddr(BUYER_A), 10000, getTestAddr(BUYER_A), 1]
                 ),
               },
             })
@@ -1726,7 +1726,7 @@ describe("WZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["2"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(JSON.stringify(state.payment_tokens)).toBe(`{}`);
         },
@@ -1794,7 +1794,7 @@ describe("WZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -1872,7 +1872,7 @@ describe("WZIL - Auction", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -1919,7 +1919,7 @@ describe("WZIL - Auction", () => {
         .at(globalMarketplaceAddress)
         .call(
           testCase.transition,
-          getJSONParams(testCase.getParams()),
+          scillaJSONParams(testCase.getParams()),
           TX_PARAMS
         );
 
@@ -1963,7 +1963,7 @@ describe("ZIL - Withdraw", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           payment_token_address: ["ByStr20", ZERO_ADDRESS],
@@ -1977,7 +1977,7 @@ describe("ZIL - Withdraw", () => {
         sender: getTestAddr(BUYER_A),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           amount: ["Uint128", 10000],
@@ -1992,7 +1992,7 @@ describe("ZIL - Withdraw", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "End",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
         }),
@@ -2022,7 +2022,7 @@ describe("ZIL - Withdraw", () => {
           globalTokenAddress.toLowerCase()
         ]["1"]
       )
-    ).toBe(JSON.stringify(getJSONValue(true)));
+    ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][ZERO_ADDRESS]
@@ -2195,7 +2195,7 @@ describe("ZIL - Withdraw", () => {
       zilliqa.wallet.setDefault(testCase.getSender());
       const tx: any = await zilliqa.contracts
         .at(globalMarketplaceAddress)
-        .call(testCase.transition, getJSONParams(testCase.getParams()), {
+        .call(testCase.transition, scillaJSONParams(testCase.getParams()), {
           ...TX_PARAMS,
         });
 
@@ -2237,7 +2237,7 @@ describe("WZIL - Withdraw", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           payment_token_address: ["ByStr20", globalPaymentTokenAddress],
@@ -2251,7 +2251,7 @@ describe("WZIL - Withdraw", () => {
         sender: getTestAddr(BUYER_A),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           amount: ["Uint128", 10000],
@@ -2266,7 +2266,7 @@ describe("WZIL - Withdraw", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "End",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
         }),
@@ -2296,7 +2296,7 @@ describe("WZIL - Withdraw", () => {
           globalTokenAddress.toLowerCase()
         ]["1"]
       )
-    ).toBe(JSON.stringify(getJSONValue(true)));
+    ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -2483,7 +2483,7 @@ describe("WZIL - Withdraw", () => {
         .at(globalMarketplaceAddress)
         .call(
           testCase.transition,
-          getJSONParams(testCase.getParams()),
+          scillaJSONParams(testCase.getParams()),
           TX_PARAMS
         );
 
@@ -2527,7 +2527,7 @@ describe("ZIL - Balance", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           payment_token_address: ["ByStr20", ZERO_ADDRESS],
@@ -2541,7 +2541,7 @@ describe("ZIL - Balance", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 2],
           payment_token_address: ["ByStr20", ZERO_ADDRESS],
@@ -2555,7 +2555,7 @@ describe("ZIL - Balance", () => {
         sender: getTestAddr(BUYER_A),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           amount: ["Uint128", 10000],
@@ -2568,7 +2568,7 @@ describe("ZIL - Balance", () => {
         sender: getTestAddr(BUYER_B),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 2],
           amount: ["Uint128", 10000],
@@ -2583,7 +2583,7 @@ describe("ZIL - Balance", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "End",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
         }),
@@ -2613,7 +2613,7 @@ describe("ZIL - Balance", () => {
           globalTokenAddress.toLowerCase()
         ]["1"]
       )
-    ).toBe(JSON.stringify(getJSONValue(true)));
+    ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][ZERO_ADDRESS]
@@ -2686,9 +2686,9 @@ describe("ZIL - Balance", () => {
             JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
           ).toBe(
             JSON.stringify({
-              [2]: getJSONValue(
-                [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2],
-                `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+              [2]: scillaJSONVal(
+                `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+                [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2]
               ),
             })
           );
@@ -2755,7 +2755,7 @@ describe("ZIL - Balance", () => {
                 globalTokenAddress.toLowerCase()
               ]["1"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -2790,7 +2790,7 @@ describe("ZIL - Balance", () => {
       zilliqa.wallet.setDefault(testCase.getSender());
       const tx: any = await zilliqa.contracts
         .at(globalMarketplaceAddress)
-        .call(testCase.transition, getJSONParams(testCase.getParams()), {
+        .call(testCase.transition, scillaJSONParams(testCase.getParams()), {
           ...TX_PARAMS,
           amount: new BN(testCase.txAmount || 0),
         });
@@ -2833,7 +2833,7 @@ describe("WZIL - Balance", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           payment_token_address: ["ByStr20", globalPaymentTokenAddress],
@@ -2847,7 +2847,7 @@ describe("WZIL - Balance", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "Start",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 2],
           payment_token_address: ["ByStr20", globalPaymentTokenAddress],
@@ -2861,7 +2861,7 @@ describe("WZIL - Balance", () => {
         sender: getTestAddr(BUYER_A),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
           amount: ["Uint128", 10000],
@@ -2874,7 +2874,7 @@ describe("WZIL - Balance", () => {
         sender: getTestAddr(BUYER_B),
         contract: globalMarketplaceAddress,
         transition: "Bid",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 2],
           amount: ["Uint128", 10000],
@@ -2889,7 +2889,7 @@ describe("WZIL - Balance", () => {
         sender: getTestAddr(SELLER),
         contract: globalMarketplaceAddress,
         transition: "End",
-        transitionParams: getJSONParams({
+        transitionParams: scillaJSONParams({
           token_address: ["ByStr20", globalTokenAddress],
           token_id: ["Uint256", 1],
         }),
@@ -2919,7 +2919,7 @@ describe("WZIL - Balance", () => {
           globalTokenAddress.toLowerCase()
         ]["1"]
       )
-    ).toBe(JSON.stringify(getJSONValue(true)));
+    ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
     expect(
       state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -2997,9 +2997,9 @@ describe("WZIL - Balance", () => {
             JSON.stringify(state.buy_orders[globalTokenAddress.toLowerCase()])
           ).toBe(
             JSON.stringify({
-              [2]: getJSONValue(
-                [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2],
-                `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`
+              [2]: scillaJSONVal(
+                `${globalMarketplaceAddress}.BuyOrder.BuyOrder.of.ByStr20.Uint128.ByStr20.Uint128`,
+                [getTestAddr(BUYER_A), 11000, getTestAddr(BUYER_A), 2]
               ),
             })
           );
@@ -3070,7 +3070,7 @@ describe("WZIL - Balance", () => {
                 globalTokenAddress.toLowerCase()
               ]["2"]
             )
-          ).toBe(JSON.stringify(getJSONValue(true)));
+          ).toBe(JSON.stringify(scillaJSONVal("Bool", true)));
 
           expect(
             state.payment_tokens[getTestAddr(SELLER).toLowerCase()][
@@ -3117,7 +3117,7 @@ describe("WZIL - Balance", () => {
         .at(globalMarketplaceAddress)
         .call(
           testCase.transition,
-          getJSONParams(testCase.getParams()),
+          scillaJSONParams(testCase.getParams()),
           TX_PARAMS
         );
 

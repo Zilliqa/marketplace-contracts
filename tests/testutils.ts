@@ -1,4 +1,4 @@
-import { getJSONParams } from "@zilliqa-js/scilla-json-utils";
+import { scillaJSONParams } from "@zilliqa-js/scilla-json-utils";
 import { BN } from "@zilliqa-js/util";
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -101,7 +101,7 @@ export const expectEvents = (events, want) => {
 
   for (const [index, event] of events.entries()) {
     expect(event._eventname).toBe(want[index].name);
-    const wantParams = getJSONParams(want[index].getParams());
+    const wantParams = scillaJSONParams(want[index].getParams());
     expect(JSON.stringify(event.params)).toBe(JSON.stringify(wantParams));
   }
 };
@@ -118,7 +118,7 @@ export const expectTransitions = (transitions, want) => {
     want[index].recipient && expect(msg._recipient).toBe(want[index].recipient);
 
     expect(msg._tag).toBe(want[index].tag);
-    const wantParams = getJSONParams(want[index].getParams());
+    const wantParams = scillaJSONParams(want[index].getParams());
     expect(JSON.stringify(msg.params)).toBe(JSON.stringify(wantParams));
   }
 };
