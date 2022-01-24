@@ -27,7 +27,7 @@
 
 ## Contract Testing
 
-### `yarn test`
+### `npm test`
 
 Runs contract tests using [Isolated Server container](https://hub.docker.com/r/zilliqa/zilliqa-isolated-server), [Jest](https://jestjs.io/), and [Scilla JSON Utils](https://github.com/Zilliqa/scilla-json-utils)
 
