@@ -1,8 +1,6 @@
 import { bytes, units } from "@zilliqa-js/util";
 import { Long, BN } from "@zilliqa-js/util";
 
-export const CONTAINER = process.env["CONTAINER"];
-
 export const API = `http://localhost:${process.env["PORT"]}`; // Zilliqa Isolated Server
 export const CHAIN_ID = 222;
 export const MSG_VERSION = 1;
