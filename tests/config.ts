@@ -22,6 +22,9 @@ export const CONTRACTS = {
     decimal: "12",
     initial_supply: "1000000000000000",
   },
+  msw: {
+    path: "contracts/msw.scilla",
+  },
   allowlist: {
     path: "contracts/allowlist.scilla",
   },

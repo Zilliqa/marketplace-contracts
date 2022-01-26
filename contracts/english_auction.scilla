@@ -1018,6 +1018,7 @@ transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
   end
 end
 
+(* @multi-sig *)
 (* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
 transition Pause()
   RequireNotPaused;
@@ -1031,6 +1032,7 @@ transition Pause()
   event e
 end
 
+(* @multi-sig *)
 (* Unpauses the contract. *)
 transition Unpause()
   RequirePaused;
@@ -1044,6 +1046,7 @@ transition Unpause()
   event e
 end
 
+(* @multi-sig *)
 transition SetServiceFeeBPS(fee_bps: Uint128)
   RequireContractOwner;
   RequireValidServiceFeeBPS fee_bps;
@@ -1055,6 +1058,7 @@ transition SetServiceFeeBPS(fee_bps: Uint128)
   event e
 end
 
+(* @multi-sig *)
 transition SetBidIncrementBPS(increment_bps: Uint128)
   RequireContractOwner;
   RequireValidBidIncrementBPS increment_bps;
@@ -1066,6 +1070,7 @@ transition SetBidIncrementBPS(increment_bps: Uint128)
   event e
 end
 
+(* @multi-sig *)
 transition SetServiceFeeRecipient(to: ByStr20)
   RequireContractOwner;
   RequireValidDestination to;
@@ -1079,6 +1084,7 @@ transition SetServiceFeeRecipient(to: ByStr20)
   event e
 end
 
+(* @multi-sig *)
 transition AllowPaymentTokenAddress(
   address: ByStr20 with contract 
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
@@ -1093,6 +1099,7 @@ transition AllowPaymentTokenAddress(
   event e
 end
 
+(* @multi-sig *)
 transition DisallowPaymentTokenAddress(
   address: ByStr20 with contract 
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
@@ -1107,6 +1114,7 @@ transition DisallowPaymentTokenAddress(
   event e
 end
 
+(* @multi-sig *)
 transition SetAllowlist(address: ByStr20)
   RequireContractOwner;
   allowlist_address := address;
@@ -1118,6 +1126,7 @@ transition SetAllowlist(address: ByStr20)
   event e
 end
 
+(* @multi-sig *)
 (* Sets `to` as the contract ownership recipient. *)
 (* To reset `contract_ownership_recipient`, use `zero_address`. *)
 (* i.e., `0x0000000000000000000000000000000000000000` *)
@@ -1134,6 +1143,7 @@ transition SetContractOwnershipRecipient(to: ByStr20)
   event e
 end
 
+(* @multi-sig *)
 (* Sets `contract_ownership_recipient` as the contract owner. *)
 transition AcceptContractOwnership()
   recipient <- contract_ownership_recipient;
