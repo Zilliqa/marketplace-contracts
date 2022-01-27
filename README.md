@@ -1,6 +1,7 @@
 [zrc-6]: https://github.com/Zilliqa/ZRC/blob/master/zrcs/zrc-6.md
 [zrc-2]: https://github.com/Zilliqa/ZRC/blob/master/zrcs/zrc-2.md
 [allowlist]: contracts/allowlist.scilla
+[multi-sig wallet]: contracts/msw.scilla
 [fixed price]: contracts/fixed_price.scilla
 [english auction]: contracts/english_auction.scilla
 
@@ -19,11 +20,12 @@
 
 ## Contracts
 
-| Contract Name     | Description                                                                                                                                                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Fixed Price]     | This contract is for the Listings and Offers. The price stays fixed. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                                             |
-| [English Auction] | This contract is for the English auction sale, i.e. sell to the highest bidder at the end. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                       |
-| [Allowlist]       | For the access control, this contract can be used optionally by the [Fixed Price] and [English Auction] contract. To use this contract, run `SetAllowlist` transition in the [Fixed Price] or [English Auction] contract. |
+| Contract Name      | Description                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Fixed Price]      | This contract is for the Listings and Offers. The price stays fixed. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                                             |
+| [English Auction]  | This contract is for the English auction sale, i.e. sell to the highest bidder at the end. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                       |
+| [Allowlist]        | For the access control, this contract can be used optionally by the [Fixed Price] and [English Auction] contract. To use this contract, run `SetAllowlist` transition in the [Fixed Price] or [English Auction] contract. |
+| [Multi-Sig Wallet] | This auto-generated contract is a multi-sig wallet for the above contracts.                                                                                                                                               |
 
 ## Contract Testing
 

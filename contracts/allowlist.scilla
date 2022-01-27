@@ -123,6 +123,7 @@ procedure DisallowAddress(address: ByStr20)
   delete allowed_addresses[address]
 end
 
+(* @multi-sig *)
 (* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
 transition Pause()
   RequireNotPaused;
@@ -136,6 +137,7 @@ transition Pause()
   event e
 end
 
+(* @multi-sig *)
 (* Unpauses the contract. *)
 transition Unpause()
   RequirePaused;
@@ -149,6 +151,7 @@ transition Unpause()
   event e
 end
 
+(* @multi-sig *)
 transition Allow(address_list: List ByStr20)
   RequireNotPaused;
   RequireContractOwner;
@@ -160,6 +163,7 @@ transition Allow(address_list: List ByStr20)
   event e
 end
 
+(* @multi-sig *)
 transition Disallow(address_list: List ByStr20)
   RequireNotPaused;
   RequireContractOwner;
@@ -171,6 +175,7 @@ transition Disallow(address_list: List ByStr20)
   event e
 end
 
+(* @multi-sig *)
 (* Sets `to` as the contract ownership recipient. *)
 (* To reset `contract_ownership_recipient`, use `zero_address`. *)
 (* i.e., `0x0000000000000000000000000000000000000000` *)
@@ -187,6 +192,7 @@ transition SetContractOwnershipRecipient(to: ByStr20)
   event e
 end
 
+(* @multi-sig *)
 (* Sets `contract_ownership_recipient` as the contract owner. *)
 transition AcceptContractOwnership()
   recipient <- contract_ownership_recipient;
