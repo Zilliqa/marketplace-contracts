@@ -295,12 +295,12 @@ transition SignTransaction (transaction_id: Uint32)
     Throw err
   | True =>
     (* Transaction must have been submitted *)
-    transaction <- transactions[transaction_id];
-    match transaction with
-    | None =>
+    has_transaction <- exists transactions[transaction_id];
+    match has_transaction with
+    | False =>
       err = TransactionNotFoundError;
       Throw err
-    | Some _ =>
+    | True =>
       AddSignature transaction_id _sender
     end
   end
@@ -313,7 +313,6 @@ transition RevokeSignature (transaction_id: Uint32)
     err = SigNotFoundError;
     Throw err
   | True =>
-    
     maybe_count <- signature_counts[transaction_id];
     match maybe_count with
     | None =>
