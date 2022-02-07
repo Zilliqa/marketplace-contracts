@@ -75,6 +75,7 @@ type Error =
   | BuyOrderNotFoundError
   | NotSpenderError
   | NotTokenOwnerError
+  | TokenOwnerError
   | ExpiredError
   | NotMakerError
   | NotAllowedToCancelOrder
@@ -98,15 +99,16 @@ let make_error =
       | BuyOrderNotFoundError              => Int32 -7
       | NotSpenderError                    => Int32 -8
       | NotTokenOwnerError                 => Int32 -9
-      | ExpiredError                       => Int32 -10
-      | NotMakerError                      => Int32 -11
-      | NotAllowedToCancelOrder            => Int32 -12
-      | SelfError                          => Int32 -13
-      | NotAllowedPaymentToken             => Int32 -14
-      | InvalidBPSError                    => Int32 -15
-      | NotEqualAmountError                => Int32 -16
-      | NotContractOwnershipRecipientError => Int32 -17
-      | NotAllowedUserError                => Int32 -18
+      | TokenOwnerError                    => Int32 -10
+      | ExpiredError                       => Int32 -11
+      | NotMakerError                      => Int32 -12
+      | NotAllowedToCancelOrder            => Int32 -13
+      | SelfError                          => Int32 -14
+      | NotAllowedPaymentToken             => Int32 -15
+      | InvalidBPSError                    => Int32 -16
+      | NotEqualAmountError                => Int32 -17
+      | NotContractOwnershipRecipientError => Int32 -18
+      | NotAllowedUserError                => Int32 -19
       end
     in
     { _exception : "Error"; code : result_code }
@@ -339,6 +341,18 @@ procedure RequireSenderToBeTokenOwner(token_address: ByStr20 with contract field
   | True =>
   | False =>
     error = NotTokenOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireSenderNotToBeTokenOwner(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
+  maybe_token_owner <- & token_address.token_owners[token_id];
+  token_owner = option_address zero_address maybe_token_owner;
+  is_token_owner = builtin eq _sender token_owner;
+  match is_token_owner with
+  | False =>
+  | True =>
+    error = TokenOwnerError;
     Throw error
   end
 end
@@ -585,6 +599,7 @@ transition SetOrder(
     event e
   | False => 
     (* Side: Buy *)
+    RequireSenderNotToBeTokenOwner token_address token_id;
 
     (* set new buy order *)
     new_order = Order _sender expiration_bnum;
