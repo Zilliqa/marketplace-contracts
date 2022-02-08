@@ -372,6 +372,86 @@ describe("Native ZIL", () => {
       want: undefined,
     },
     {
+      name: "throws NotSelfError (stranger must not update the order)",
+      transition: "SetOrder",
+      txAmount: 10000,
+      getSender: () => getTestAddr(STRANGER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+        expiration_bnum: ["BNum", globalBNum + 10],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotSelfError,
+      want: undefined,
+    },
+    {
+      name: "buyer updates expiration_bnum of buy order",
+      transition: "SetOrder",
+      txAmount: 0, // _amount is irelevant for the update operaton
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", ZERO_ADDRESS],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+        expiration_bnum: ["BNum", 99999],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER), globalMarketplaceAddress].join()]: 0,
+        }),
+        events: [
+          {
+            name: "SetOrder",
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(BUYER).toLowerCase()],
+              side: ["Uint32", 1],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", ZERO_ADDRESS],
+              sale_price: ["Uint128", 10000],
+              expiration_bnum: ["BNum", (99999).toString()],
+            }),
+          },
+        ],
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: {
+                  [ZERO_ADDRESS.toLowerCase()]: {
+                    [10000]: scillaJSONVal(
+                      `${globalMarketplaceAddress}.Order.Order.of.ByStr20.BNum`,
+                      [getTestAddr(BUYER), 99999]
+                    ),
+                  },
+                },
+              },
+            })
+          );
+        },
+      },
+    },
+    {
       name: "Seller creates sell order for token #1",
       transition: "SetOrder",
       getSender: () => getTestAddr(SELLER),
@@ -943,13 +1023,16 @@ describe("Native ZIL", () => {
         });
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)
         );
       } else {
         // Positive Cases
+        if (!tx.receipt.success) {
+          console.log(JSON.stringify(tx.receipt));
+        }
         expect(tx.receipt.success).toBe(true);
         expectEvents(tx.receipt.event_logs, testCase.want.events);
         testCase.want.transitions &&
@@ -1055,7 +1138,7 @@ describe("WZIL", () => {
       want: undefined,
     },
     {
-      name: "throws TokenOwnerError (seller creates buy order for token #1)",
+      name: "throws TokenOwnerError (seller must not create a buy order for token #1)",
       transition: "SetOrder",
       getSender: () => getTestAddr(SELLER),
       getParams: () => ({
@@ -1069,6 +1152,84 @@ describe("WZIL", () => {
       beforeTransition: asyncNoop,
       error: FIXED_PRICE_ERROR.TokenOwnerError,
       want: undefined,
+    },
+    {
+      name: "throws NotSelfError (stranger must not update the order)",
+      transition: "SetOrder",
+      getSender: () => getTestAddr(STRANGER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+        expiration_bnum: ["BNum", globalBNum + 10],
+      }),
+      beforeTransition: asyncNoop,
+      error: FIXED_PRICE_ERROR.NotSelfError,
+      want: undefined,
+    },
+    {
+      name: "buyer updates expiration_bnum of buy order",
+      transition: "SetOrder",
+      getSender: () => getTestAddr(BUYER),
+      getParams: () => ({
+        token_address: ["ByStr20", globalTokenAddress],
+        token_id: ["Uint256", 1],
+        payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+        sale_price: ["Uint128", 10000],
+        side: ["Uint32", 1],
+        expiration_bnum: ["BNum", 99999],
+      }),
+      beforeTransition: asyncNoop,
+      error: undefined,
+      want: {
+        getTokenOwners: () => ({
+          1: getTestAddr(SELLER),
+          2: getTestAddr(SELLER),
+          3: getTestAddr(SELLER),
+        }),
+        getBalanceDeltas: () => ({
+          [globalMarketplaceAddress]: 0,
+          [getTestAddr(SELLER)]: 0,
+          [getTestAddr(BUYER)]: 0,
+          [getTestAddr(MARKETPLACE_CONTRACT_OWNER)]: 0,
+          [getTestAddr(STRANGER)]: 0,
+        }),
+        getAllowanceDeltas: () => ({
+          [[getTestAddr(BUYER), globalMarketplaceAddress].join()]: 0,
+        }),
+        events: [
+          {
+            name: "SetOrder",
+            getParams: () => ({
+              maker: ["ByStr20", getTestAddr(BUYER).toLowerCase()],
+              side: ["Uint32", 1],
+              token_address: ["ByStr20", globalTokenAddress],
+              token_id: ["Uint256", 1],
+              payment_token_address: ["ByStr20", globalPaymentTokenAddress],
+              sale_price: ["Uint128", 10000],
+              expiration_bnum: ["BNum", (99999).toString()],
+            }),
+          },
+        ],
+        expectState: (state) => {
+          expect(JSON.stringify(state.buy_orders)).toBe(
+            JSON.stringify({
+              [globalTokenAddress.toLowerCase()]: {
+                [1]: {
+                  [globalPaymentTokenAddress.toLowerCase()]: {
+                    [10000]: scillaJSONVal(
+                      `${globalMarketplaceAddress}.Order.Order.of.ByStr20.BNum`,
+                      [getTestAddr(BUYER), 99999]
+                    ),
+                  },
+                },
+              },
+            })
+          );
+        },
+      },
     },
     {
       name: "Seller creates sell order for token #1",
@@ -1613,7 +1774,7 @@ describe("WZIL", () => {
         });
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)

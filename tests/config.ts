@@ -65,12 +65,13 @@ export const FIXED_PRICE_ERROR = {
   ExpiredError: -11,
   NotMakerError: -12,
   NotAllowedToCancelOrder: -13,
-  SelfError: -14,
-  NotAllowedPaymentToken: -15,
-  InvalidBPSError: -16,
-  NotEqualAmountError: -17,
-  NotContractOwnershipRecipientError: -18,
-  NotAllowedUserError: -19,
+  NotSelfError: -14,
+  SelfError: -15,
+  NotAllowedPaymentToken: -16,
+  InvalidBPSError: -17,
+  NotEqualAmountError: -18,
+  NotContractOwnershipRecipientError: -19,
+  NotAllowedUserError: -20,
 };
 
 export const ENG_AUC_ERROR = {

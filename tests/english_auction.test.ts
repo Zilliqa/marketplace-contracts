@@ -1082,7 +1082,7 @@ describe("ZIL - Auction", () => {
         });
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)
@@ -1924,7 +1924,7 @@ describe("WZIL - Auction", () => {
         );
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)
@@ -2200,7 +2200,7 @@ describe("ZIL - Withdraw", () => {
         });
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)
@@ -2488,7 +2488,7 @@ describe("WZIL - Withdraw", () => {
         );
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)
@@ -2796,7 +2796,7 @@ describe("ZIL - Balance", () => {
         });
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)
@@ -3122,7 +3122,7 @@ describe("WZIL - Balance", () => {
         );
 
       if (testCase.want === undefined) {
-        // Nagative Cases
+        // Negative Cases
         expect(tx.receipt.success).toBe(false);
         expect(tx.receipt.exceptions[0].message).toBe(
           getErrorMsg(testCase.error)

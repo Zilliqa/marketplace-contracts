@@ -79,6 +79,7 @@ type Error =
   | ExpiredError
   | NotMakerError
   | NotAllowedToCancelOrder
+  | NotSelfError
   | SelfError
   | NotAllowedPaymentToken
   | InvalidBPSError
@@ -103,12 +104,13 @@ let make_error =
       | ExpiredError                       => Int32 -11
       | NotMakerError                      => Int32 -12
       | NotAllowedToCancelOrder            => Int32 -13
-      | SelfError                          => Int32 -14
-      | NotAllowedPaymentToken             => Int32 -15
-      | InvalidBPSError                    => Int32 -16
-      | NotEqualAmountError                => Int32 -17
-      | NotContractOwnershipRecipientError => Int32 -18
-      | NotAllowedUserError                => Int32 -19
+      | NotSelfError                       => Int32 -14
+      | SelfError                          => Int32 -15
+      | NotAllowedPaymentToken             => Int32 -16
+      | InvalidBPSError                    => Int32 -17
+      | NotEqualAmountError                => Int32 -18
+      | NotContractOwnershipRecipientError => Int32 -19
+      | NotAllowedUserError                => Int32 -20
       end
     in
     { _exception : "Error"; code : result_code }
@@ -285,6 +287,16 @@ procedure RequireNotSelf(address: ByStr20)
   end
 end
 
+procedure RequireSelf(address: ByStr20)
+  is_self = builtin eq address _sender;
+  match is_self with
+  | True =>
+  | False =>
+    error = NotSelfError;
+    Throw error
+  end
+end
+
 procedure RequireNotExpired(expiration_bnum: BNum)
   cur_bnum <- & BLOCKNUMBER;  
   is_not_expired = builtin blt cur_bnum expiration_bnum;
@@ -417,6 +429,7 @@ procedure HandleFulfillOrder(
   svc_fee_recipient <- service_fee_recipient;
   RequireAllowedUser svc_fee_recipient;
 
+  (* The currency is ZIL if the payment_token_address is zero address *)
   is_native_zil = builtin eq payment_token_address zero_address;
   match is_native_zil with
   | True =>
@@ -524,6 +537,7 @@ procedure Cancel(
       (* sender must be the maker or the contract owner *)
       RequireAccessToCancel maker;
 
+      (* The currency is ZIL if the payment_token_address is zero address *)
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
         | False =>
@@ -580,6 +594,7 @@ transition SetOrder(
   match is_sell_order with 
   | True => 
     (* Side: Sell *)
+    (* Only the token owner can create sell orders *)
     RequireSenderToBeTokenOwner token_address token_id;
     
     (* set new sell order *)
@@ -599,27 +614,33 @@ transition SetOrder(
     event e
   | False => 
     (* Side: Buy *)
+    (* The token owner must be able to create buy orders *)
     RequireSenderNotToBeTokenOwner token_address token_id;
+
+    (* The currency is ZIL if the payment_token_address is zero address *)
+    is_native_zil = builtin eq payment_token_address zero_address;
+
+    maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
+    match maybe_buy_order with 
+      | None =>
+        (* create a buy order *)
+        match is_native_zil with 
+        | False =>
+        | True => 
+          (* _amount must be equal to sale_price *)
+          RequireEqualZILAmount sale_price;
+          (* ZILs must be accepted only if a buy order is newly created *)
+          accept
+        end
+      | Some (Order buyer _) => 
+        (* update the buy order *)
+        RequireSelf buyer
+    end;
 
     (* set new buy order *)
     new_order = Order _sender expiration_bnum;
 
-    (* It's native ZIL case if the payment_token_address is zero address and sale_price is 0 *)
-    is_native_zil = builtin eq payment_token_address zero_address;
-    match is_native_zil with 
-      | False =>
-      | True => 
-        RequireEqualZILAmount sale_price;
-        accept
-    end;
-
-    amount = 
-      match is_native_zil with 
-        | True => _amount
-        | False =>  sale_price
-      end;
-
-    buy_orders[token_address][token_id][payment_token_address][amount] := new_order;
+    buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
 
     e = {
       _eventname : "SetOrder";
@@ -628,7 +649,7 @@ transition SetOrder(
       token_address: token_address;
       token_id: token_id;
       payment_token_address: payment_token_address;
-      sale_price: amount;
+      sale_price: sale_price;
       expiration_bnum: expiration_bnum
     };
     event e
@@ -672,11 +693,14 @@ transition FulfillOrder(
       (* Sender must not be the seller *)
       RequireNotSelf seller;
       
+      (* The currency is ZIL if the payment_token_address is zero address *)
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
       | False => 
       | True => 
+        (* _amount must be equal to sale_price *)
         RequireEqualZILAmount sale_price;
+        (* ZILs must be accepted only if a sell order is fulfilled *)
         accept
       end;
       
