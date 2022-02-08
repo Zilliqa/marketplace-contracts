@@ -429,6 +429,7 @@ procedure HandleFulfillOrder(
   svc_fee_recipient <- service_fee_recipient;
   RequireAllowedUser svc_fee_recipient;
 
+  (* The currency is ZIL if the payment_token_address is zero address *)
   is_native_zil = builtin eq payment_token_address zero_address;
   match is_native_zil with
   | True =>
@@ -536,6 +537,7 @@ procedure Cancel(
       (* sender must be the maker or the contract owner *)
       RequireAccessToCancel maker;
 
+      (* The currency is ZIL if the payment_token_address is zero address *)
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
         | False =>
@@ -592,6 +594,7 @@ transition SetOrder(
   match is_sell_order with 
   | True => 
     (* Side: Sell *)
+    (* Only the token owner can create sell orders *)
     RequireSenderToBeTokenOwner token_address token_id;
     
     (* set new sell order *)
@@ -611,9 +614,10 @@ transition SetOrder(
     event e
   | False => 
     (* Side: Buy *)
+    (* The token owner must be able to create buy orders *)
     RequireSenderNotToBeTokenOwner token_address token_id;
 
-    (* It's native ZIL case if the payment_token_address is zero address *)
+    (* The currency is ZIL if the payment_token_address is zero address *)
     is_native_zil = builtin eq payment_token_address zero_address;
 
     maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
@@ -689,11 +693,14 @@ transition FulfillOrder(
       (* Sender must not be the seller *)
       RequireNotSelf seller;
       
+      (* The currency is ZIL if the payment_token_address is zero address *)
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
       | False => 
       | True => 
+        (* _amount must be equal to sale_price *)
         RequireEqualZILAmount sale_price;
+        (* ZILs must be accepted only if a sell order is fulfilled *)
         accept
       end;
       
