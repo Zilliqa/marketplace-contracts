@@ -172,12 +172,12 @@ field signatures: Map Uint32 (Map ByStr20 Bool) = Emp Uint32 (Map ByStr20 Bool)
 
 field signature_counts: Map Uint32 Uint32 = Emp Uint32 Uint32
 
-procedure Throw (err: Error)
+procedure Throw(err: Error)
   e = make_error err;
   throw e
 end
 
-procedure AddSignature (transaction_id: Uint32, signee: ByStr20)
+procedure AddSignature(transaction_id: Uint32, signee: ByStr20)
   has_sig <- exists signatures[transaction_id][signee];
   match has_sig with
   | True =>
@@ -201,7 +201,7 @@ procedure AddSignature (transaction_id: Uint32, signee: ByStr20)
   end
 end
 
-procedure SubmitTransaction (transaction: Transaction)
+procedure SubmitTransaction(transaction: Transaction)
   is_owner <- exists owners[_sender];
   match is_owner with
   | False =>
@@ -222,13 +222,13 @@ procedure SubmitTransaction (transaction: Transaction)
   end
 end
 
-procedure DeleteTransaction (transaction_id: Uint32)
+procedure DeleteTransaction(transaction_id: Uint32)
   delete transactions[transaction_id];
   delete signatures[transaction_id];
   delete signature_counts[transaction_id]
 end
 
-procedure ExecuteNativeTransaction (recipient: ByStr20, amount: Uint128, tag: String)
+procedure ExecuteNativeTransaction(recipient: ByStr20, amount: Uint128, tag: String)
   (* Only the recipient or an owner can execute the transaction *)
   recipient_is_sender = builtin eq recipient _sender;
   is_owner <- exists owners[_sender];
@@ -255,7 +255,7 @@ procedure ExecuteNativeTransaction (recipient: ByStr20, amount: Uint128, tag: St
   end
 end
 
-procedure ExecuteCustomTransaction (contract_address: ByStr20, transaction: MultiSigTransition)
+procedure ExecuteCustomTransaction(contract_address: ByStr20, transaction: MultiSigTransition)
   (* Only owners may execute *)
   is_owner <- exists owners[_sender];
   match is_owner with
@@ -268,7 +268,7 @@ procedure ExecuteCustomTransaction (contract_address: ByStr20, transaction: Mult
   end
 end
 
-transition SubmitNativeTransaction (recipient: ByStr20, amount: Uint128, tag: String)
+transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: String)
   zero_uint128 = Uint128 0;
   is_zero = builtin eq amount zero_uint128;
   match is_zero with
@@ -281,12 +281,12 @@ transition SubmitNativeTransaction (recipient: ByStr20, amount: Uint128, tag: St
   end
 end
 
-transition SubmitCustomTransaction (contract_address: ByStr20, transaction: MultiSigTransition)
+transition SubmitCustomTransaction(contract_address: ByStr20, transaction: MultiSigTransition)
   tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
-transition SignTransaction (transaction_id: Uint32)
+transition SignTransaction(transaction_id: Uint32)
   (* Only owners are allowed to sign off transactions *)
   is_owner <- exists owners[_sender];
   match is_owner with
@@ -306,7 +306,7 @@ transition SignTransaction (transaction_id: Uint32)
   end
 end
 
-transition RevokeSignature (transaction_id: Uint32)
+transition RevokeSignature(transaction_id: Uint32)
   has_sig <- exists signatures[transaction_id][_sender];
   match has_sig with
   | False =>
@@ -337,7 +337,7 @@ transition RevokeSignature (transaction_id: Uint32)
   end
 end
 
-transition ExecuteTransaction (transaction_id: Uint32)
+transition ExecuteTransaction(transaction_id: Uint32)
   maybe_transaction <- transactions[transaction_id];
   match maybe_transaction with
   | None =>
@@ -372,7 +372,7 @@ transition ExecuteTransaction (transaction_id: Uint32)
   end
 end
 
-transition AddFunds ()
+transition AddFunds()
   accept;
   e = { _eventname: "AddFunds"; sender: _sender; amount: _amount };
   event e
