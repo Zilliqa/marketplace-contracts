@@ -101,7 +101,7 @@ beforeEach(async () => {
       transitionParams: scillaJSONParams({
         contract_address: ["ByStr20", globalAllowlistAddress],
         transaction: [
-          `${globalMSWAddress}.MultiSigTransition.Allow.of.List (ByStr20)`,
+          `${globalMSWAddress}.MultiSigTransition.T_Allow.of.List (ByStr20)`,
           [[getTestAddr(OWNER_A), getTestAddr(OWNER_B)]],
         ],
       }),

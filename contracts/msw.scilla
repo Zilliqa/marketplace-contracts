@@ -15,67 +15,67 @@ let one_msg =
 
 (* --- gen start --- *)
 type MultiSigTransition = 
-  | Pause
-  | Unpause
-  | Allow of (List (ByStr20))
-  | Disallow of (List (ByStr20))
-  | SetContractOwnershipRecipient of (ByStr20)
-  | AcceptContractOwnership
-  | SetServiceFeeBPS of (Uint128)
-  | SetBidIncrementBPS of (Uint128)
-  | SetServiceFeeRecipient of (ByStr20)
-  | AllowPaymentTokenAddress of (ByStr20)
-  | DisallowPaymentTokenAddress of (ByStr20)
-  | SetAllowlist of (ByStr20)
-  | CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
+  | T_Pause
+  | T_Unpause
+  | T_Allow of (List (ByStr20))
+  | T_Disallow of (List (ByStr20))
+  | T_SetContractOwnershipRecipient of (ByStr20)
+  | T_AcceptContractOwnership
+  | T_SetServiceFeeBPS of (Uint128)
+  | T_SetBidIncrementBPS of (Uint128)
+  | T_SetServiceFeeRecipient of (ByStr20)
+  | T_AllowPaymentTokenAddress of (ByStr20)
+  | T_DisallowPaymentTokenAddress of (ByStr20)
+  | T_SetAllowlist of (ByStr20)
+  | T_CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
-  | Pause => {
+  | T_Pause => {
       _tag: "Pause"; _amount: Uint128 0; _recipient: r
     }
-  | Unpause => {
+  | T_Unpause => {
       _tag: "Unpause"; _amount: Uint128 0; _recipient: r
     }
-  | Allow address_list => {
+  | T_Allow address_list => {
       address_list: address_list;
       _tag: "Allow"; _amount: Uint128 0; _recipient: r
     }
-  | Disallow address_list => {
+  | T_Disallow address_list => {
       address_list: address_list;
       _tag: "Disallow"; _amount: Uint128 0; _recipient: r
     }
-  | SetContractOwnershipRecipient to => {
+  | T_SetContractOwnershipRecipient to => {
       to: to;
       _tag: "SetContractOwnershipRecipient"; _amount: Uint128 0; _recipient: r
     }
-  | AcceptContractOwnership => {
+  | T_AcceptContractOwnership => {
       _tag: "AcceptContractOwnership"; _amount: Uint128 0; _recipient: r
     }
-  | SetServiceFeeBPS fee_bps => {
+  | T_SetServiceFeeBPS fee_bps => {
       fee_bps: fee_bps;
       _tag: "SetServiceFeeBPS"; _amount: Uint128 0; _recipient: r
     }
-  | SetBidIncrementBPS increment_bps => {
+  | T_SetBidIncrementBPS increment_bps => {
       increment_bps: increment_bps;
       _tag: "SetBidIncrementBPS"; _amount: Uint128 0; _recipient: r
     }
-  | SetServiceFeeRecipient to => {
+  | T_SetServiceFeeRecipient to => {
       to: to;
       _tag: "SetServiceFeeRecipient"; _amount: Uint128 0; _recipient: r
     }
-  | AllowPaymentTokenAddress address => {
+  | T_AllowPaymentTokenAddress address => {
       address: address;
       _tag: "AllowPaymentTokenAddress"; _amount: Uint128 0; _recipient: r
     }
-  | DisallowPaymentTokenAddress address => {
+  | T_DisallowPaymentTokenAddress address => {
       address: address;
       _tag: "DisallowPaymentTokenAddress"; _amount: Uint128 0; _recipient: r
     }
-  | SetAllowlist address => {
+  | T_SetAllowlist address => {
       address: address;
       _tag: "SetAllowlist"; _amount: Uint128 0; _recipient: r
     }
-  | CancelOrder token_address token_id payment_token_address sale_price side => {
+  | T_CancelOrder token_address token_id payment_token_address sale_price side => {
       token_address: token_address;
       token_id: token_id;
       payment_token_address: payment_token_address;
