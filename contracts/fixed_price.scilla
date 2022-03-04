@@ -706,9 +706,14 @@ transition FulfillOrder(
       
       HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
       
-      (* Remove all sell orders *)
+      (* Remove all sell orders. *)
       (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
-      (* Note that we should keep the buy orders for the new owner *)
+      
+      (* Note that we should keep the buy orders for the new owner. *)
+      (* The following is the reasons why the existing buy orders should not be removed: *) 
+      (* a) The buyers don't have to create new buy orders every single time whenever the owner of the token has changed. *)
+      (* b) The new owner can sell the token again shortly by fulfilling existing buy orders. *)
+
       delete sell_orders[token_address][token_id]
     end
   | False => 
