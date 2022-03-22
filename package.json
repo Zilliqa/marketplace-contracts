@@ -18,7 +18,6 @@
   },
   "jest": {
     "preset": "ts-jest",
-    "verbose": true,
     "testTimeout": 60000,
     "globals": {
       "GENESIS_PRIVATE_KEYS": [
