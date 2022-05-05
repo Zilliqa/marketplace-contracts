@@ -719,7 +719,7 @@ transition Start(order: OrderParam)
   (* 
     - Seller can start an auction for an asset only if the asset has no ongoing auction. 
   *)
-  DoStart order_param
+  DoStart order
 end
 
 (* batch starting auctions *)
