@@ -660,21 +660,8 @@ end
 (* Sets sell and buy orders. *)
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
-transition SetOrder(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  sale_price: Uint128,
-  side: Uint32,
-  expiration_bnum: BNum
-  )
-  order_param = OrderParam token_address token_id payment_token_address sale_price side expiration_bnum;
-  DoSetOrder order_param
+transition SetOrder(order: OrderParam)
+  DoSetOrder order
 end
 
 (* Batch set order *)

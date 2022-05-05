@@ -715,22 +715,10 @@ procedure DoStart(order: OrderParam)
 end
 
 (* Starts an individual auction *)
-transition Start(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20  
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  start_amount: Uint128,
-  expiration_bnum: BNum
-  )
+transition Start(order: OrderParam)
   (* 
     - Seller can start an auction for an asset only if the asset has no ongoing auction. 
   *)
-  order_param = OrderParam token_address token_id payment_token_address start_amount expiration_bnum;
   DoStart order_param
 end
 
