@@ -23,7 +23,9 @@
 | Contract Name      | Description                                                                                                                                                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Fixed Price]      | This contract is for the Listings and Offers. The price stays fixed. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                                             |
+| [Fixed Price Rev 1.1] | This contract is a revision to Fixed Price contract. It allows users to sell and buy in batches. |
 | [English Auction]  | This contract is for the English auction sale, i.e. sell to the highest bidder at the end. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                       |
+| [English Auction Rev 1.1] | This contract is a revision to Auction contract. It allows users to sell in batches. |
 | [Allowlist]        | For the access control, this contract can be used optionally by the [Fixed Price] and [English Auction] contract. To use this contract, run `SetAllowlist` transition in the [Fixed Price] or [English Auction] contract. |
 | [Multi-Sig Wallet] | This auto-generated contract is a multi-sig wallet for the above contracts.                                                                                                                                               |
 
