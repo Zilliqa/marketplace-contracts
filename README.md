@@ -4,6 +4,8 @@
 [multi-sig wallet]: contracts/msw.scilla
 [fixed price]: contracts/fixed_price.scilla
 [english auction]: contracts/english_auction.scilla
+[fixed price rev 1.1]: contracts/fixed_price_rev1.1.scilla
+[english auction rev 1.1]: contracts/english_auction_rev1.1.scilla
 
 <div align="center">
   <h1>
