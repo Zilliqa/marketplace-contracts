@@ -45,10 +45,10 @@ This section will walk-through how to execute and test the batch selling transit
 
 ### Deploy ZRC-6
 1. Visit https://ide.zilliqa.com, connect with your ZilPay wallet, switch the environment at the top right to Testnet.
-3. We would need to get some ZILs to deploy contracts. Click on the Faucet at the navigation bar, paste your ZilPay wallet address.
+3. We would need to get some ZILs to deploy contracts. Click on the **Faucet** at the navigation bar, paste your ZilPay wallet address.
 4. Wait for the transaction to be confirmed, you should have some ZILs on your ZilPay wallet.
 5. Next, head back to the IDE, click on ZRC-6.scilla on the left panel.
-6. Click on the 'Deploy' button at the top.
+6. Click on the **Deploy** button at the top.
 7. Fill in the fields as follows:
 ```
 initial_contract_owner: your_wallet_address
@@ -56,7 +56,7 @@ initial_base_uri: leave_empty
 name: some_random_name
 symbol: some_random_symbol
 ```
-8. Click on "Deploy Contract" at the bottom.
+8. Click on **Deploy Contract** at the bottom.
 
 ### Mint
 1. Once the contract is deployed successfully, it would show up at the **Contracts** section on the IDE.
@@ -120,7 +120,7 @@ Now we have our fixed price contract and ZRC-6 contract ready, we can start to s
 5. Execute the script:
 ```
 cd scripts/batch
-node sell-batch-fixed-price.js <fixed_price_contract_address> <your_private_key>
+node sell-batch-fixed-price.js <0x_fixed_price_contract_address> <0x_ZRC-6_contract_address> <your_private_key>
 ```
 
 6. Once the transaction is confirmed. You can view the Fixed Price contract's `sell orders` state to see the two sell orders for Token #1 and Token #2!.
