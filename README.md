@@ -125,7 +125,7 @@ node sell-batch-fixed-price.js <fixed_price_contract_address> <your_private_key>
 
 6. Once the transaction is confirmed. You can view the Fixed Price contract's `sell orders` state to see the two sell orders for Token #1 and Token #2!.
 
-7. That's it, you can repeat the same steps from the beginning but this time, to sell the tokens via the [Auction Rev 1.1] contract!.
+7. That's it, you can repeat the same steps from the beginning but this time, to sell the tokens via the [English Auction Rev 1.1] contract!.
 
 
 ## References
