@@ -43,7 +43,7 @@ We run tests sequentially since block numbers are increased with `IncreaseBlockn
 
 This section will walk-through how to execute and test the batch selling transition `SetBatchOrder` and `BatchStart` for Fixed Price Rev 1.1 and Auction Rev 1.1 contracts respectively.
 
-## Deploy ZRC-6
+### Deploy ZRC-6
 1. Visit https://ide.zilliqa.com, connect with your ZilPay wallet, switch the environment at the top right to Testnet.
 3. We would need to get some ZILs to deploy contracts. Click on the Faucet at the navigation bar, paste your ZilPay wallet address.
 4. Wait for the transaction to be confirmed, you should have some ZILs on your ZilPay wallet.
@@ -58,7 +58,7 @@ symbol: some_random_symbol
 ```
 8. Click on "Deploy Contract" at the bottom.
 
-## Mint
+### Mint
 1. Once the contract is deployed successfully, it would show up at the **Contracts** section on the IDE.
 2. Click on the newly deployed ZRC-6 contract, you should see a list of **Transitions** at the right panel.
 3. Click on the **Mint** transition, and fill in the following input fields.
@@ -69,13 +69,13 @@ token_uri: https://api.creature.com
 4. Click on **Call transition** and wait for it to complete. You have minted one NFT to your wallet!
 5. Repeat Step 3 again to mint another one.
 
-## Deploy Fixed Price
+### Deploy Fixed Price
 1. On the IDE, under the **FILES** section, click on the "plus" icon. This would create an empty contract. 
 2. Copy and paste the [Fixed Price Rev 1.1] code into the empty contract.
 3. Click on **Deploy**; remember to connect your ZilPay wallet and ensure that your are on Testnet. Enter your own wallet address as the `initial_contract_owner`.
 4. Once deployed, you should see it under the **Contracts** section.
 
-## Give perimission to sell
+### Give perimission to sell
 1. Now, we need to give the newly deployed Fixed Price contract the rights to sell our NFT.
 2. Head back to IDE, click on the deployed ZRC-6 contract under the **Contracts** section.
 3. On the **Transitions** panel, click on **SetSpender** and fill up the following fields:
@@ -86,7 +86,7 @@ token_id: <1>
 4. Click on **Call transition** and wait for it to complete. You have given the Fixed Price contract the permission to sell Token #1!
 5. Repeat Step 3 again but change the `token_id` to `2`.
 
-## Execute Batch Sell
+### Execute Batch Sell
 Now we have our fixed price contract and ZRC-6 contract ready, we can start to sell our NFT in batches (for education purposes). Note, we are using **ZilliqaJS** to sell the NFT in batches because the IDE does not support custom ADT param yet in the form fields. These scripts are useful especially when we want to implement the sell batch code in any frontend dapp.
 
 1. Open this project repo.
@@ -125,7 +125,7 @@ node sell-batch-fixed-price.js <fixed_price_contract_address> <your_private_key>
 
 6. Once the transaction is confirmed. You can view the Fixed Price contract's `sell orders` state to see the two sell orders for Token #1 and Token #2!.
 
-7. That's it, you can repeat the same steps from the beginning but this time, to sell the tokens via the Auction Rev 1.1 contract!.
+7. That's it, you can repeat the same steps from the beginning but this time, to sell the tokens via the [Auction Rev 1.1] contract!.
 
 
 ## References
