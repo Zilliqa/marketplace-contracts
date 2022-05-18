@@ -139,6 +139,12 @@ Stars the auction.
 
 **Events:**
 
-|    | Name | Description | Event Parameters |
-| -- | ---- | ----------- | ---------------- |
-| `_eventname` | `Start`  | <ul><li>`maker` : `ByStr20`<br/>Sender address</li></ul>  
+```
+    _eventname : "Start";
+    maker: ByStr20;
+    token_address: ByStr20;
+    token_id: Uint256;
+    payment_token_address: ByStr20;
+    start_amount: Uint128;
+    expiration_bnum: BNum
+```
