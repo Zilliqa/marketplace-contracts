@@ -87,6 +87,340 @@ Store order information about buy and sell orders.
 
 ### E1. Transitions
 
+|    | Transition |
+| -- | ---------- |
+| 1   | `SetOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, expiration_bnum: BNum)` |
+| 2   | `FulfillOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, dest: ByStr20)` |
+| 3   | `CancelOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)` |
+| 4   | `Pause()` |
+| 5   | `Unpause()` |
+| 6   | `AllowPaymentTokenAddress(address: ByStr20 with contract)` |
+| 7   | `DisallowPaymentTokenAddress(address: ByStr20 with contract)` |
+| 8   | `SetServiceFeeBPS(fee_bps: Uint128)` |
+| 9   | `SetServiceFeeRecipient(to: ByStr20)` |
+| 10  | `SetAllowlist(address: ByStr20)` |
+| 11  | `SetContractOwnershipRecipient(to: ByStr20)` |
+| 12  | `AcceptContractOwnership()` |
+
+#### 1. `SetOrder`
+
+Sellers can create sell orders (listings). Buyers can create buy orders (offers).
+
+When buyers create buy offers, they need to pay the offer amount upfront. 
+
+Amount is locked with fixed price contract until buyers choose to cancel their offers.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract`    | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | token ID |
+| `payment_token_address`    | `ByStr20`                  | Payment mode that buyers should pay in; leave it as `zero_address` to pay in native ZILs. |
+| `sale_price`               | `Uint128`                  | seller's asking price |
+| `side`                     | `Uint32`                   | `0` indicates that it is a sell order, `1` is a buy order |
+| `expiration_bnum`          | `BNum`                     | Block number that this listing would expired on. |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `expiration_bnum` must not be current block.
+- `payment_token_address` must be a valid payment token method.
+- `_sender` must be the spender or token owner.
+
+**Events:**
+
+```
+{
+    _eventname : "SetOrder";
+    maker: ByStr20;
+    side: Uint32;
+    token_address: ByStr20;
+    token_id: Uint256;
+    payment_token_address: ByStr20;
+    sale_price: Uint128;
+    expiration_bnum: BNum
+}
+```
+
+#### 2. `FulfillOrder`
+
+Sellers can fulfill buy orders (accept buyers offers).
+
+Buyers can fulfill sell orders (purchase the item at the seller's asking price).
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract`    | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | token ID |
+| `payment_token_address`    | `ByStr20`                  | Payment mode that buyers should pay in; leave it as `zero_address` to pay in native ZILs. |
+| `sale_price`               | `Uint128`                  | either the seller's asking price or the buyer's offer price depending on `side` |
+| `side`                     | `Uint32`                   | `0` indicates that it is a sell order, `1` is a buy order |
+| `dest`                     | `ByStr20`                  | Enables buyers to set an address to receive the asset when fulfilling a sell order. Usually defaults to buyers' wallet. Only meaningful for buyers at the moment. |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `dest` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `payment_token_address` must be a valid payment token method.
+- buyers must pay the `sale_price` amount if fulfilling sell order.
+
+**Events:**
+
+```
+{
+    _eventname : "FulfillOrder";
+    taker: ByStr20;
+    side: Uint32;
+    token_address: ByStr20;
+    token_id: Uint256;
+    payment_token_address: ByStr20;
+    sale_price: Uint128;
+    seller: ByStr20;
+    buyer: ByStr20;
+    asset_recipient: ByStr20;
+    payment_tokens_recipient: ByStr20;
+    royalty_recipient: ByStr20;
+    royalty_amount: Uint128;
+    service_fee: Uint128
+}
+```
+
+#### 3. `CancelOrder`
+
+Sellers can cancel their sell orders.
+
+Buyers can cancel their buy orders, locked payment tokens is automatically credited back to buyers' wallets.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract`    | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | token ID |
+| `payment_token_address`    | `ByStr20`                  | Payment mode that buyers should pay in; leave it as `zero_address` to pay in native ZILs. |
+| `sale_price`               | `Uint128`                  | either the seller's asking price or the buyer's offer price depending on `side` |
+| `side`                     | `Uint32`                   | `0` indicates that it is a sell order, `1` is a buy order |
+
+**Requirements:**
+
+- There must be an order with the specific `token_address` and `token_id`.
+
+**Events:**
+
+```
+    _eventname : "CancelOrder";
+    maker: ByStr20;
+    side: Uint32;
+    token_address: ByStr20;
+    token_id: Uint256;
+    payment_token_address: ByStr20;
+    sale_price: Uint128
+```
+
+#### 4. `Pause`
+
+Pauses the contract. Use this when things are going wrong ('circuit breaker').
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "Pause";
+    is_paused: Bool
+}
+```
+
+#### 5. `Unpause`
+
+Unpauses the contract.
+
+**Requirements:**
+
+- The contract must be paused.
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "Unpause";
+    is_paused: Bool
+}
+```
+
+#### 6. `AllowPaymentTokenAddress`
+
+Allow a specific ZRC-2 token address to be used as payment token.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20 with contract` | ZRC-2 token address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "AllowPaymentTokenAddress";
+    payment_token_addresss: ByStr20
+}
+```
+
+#### 7. `DisallowPaymentTokenAddress`
+
+Remove a specific ZRC-2 token address as payment token.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20 with contract` | ZRC-2 token address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "DisallowPaymentTokenAddress";
+    payment_token_addresss: ByStr20
+}
+```
+
+#### 8. `SetServiceFeeBPS`
+
+Sets the `service_fee_bps` field.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `fee_bps` | `Uint128` | New service fee bps |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- `fee_bps` must be within allowable range.
+
+**Events:**
+
+```
+{
+    eventname: "SetServiceFeeBPS";
+    service_fee_bps: Uint128
+}
+```
+
+#### 9. `SetServiceFeeRecipient`
+
+Sets the `service_fee_recipient` field.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `to` | `ByStr20` | New service wallet address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- `to` must be a valid destination wallet.
+
+**Events:**
+
+```
+{
+    eventname: "SetServiceFeeRecipient";
+    to: ByStr20
+}
+```
+
+#### 10. `SetAllowlist`
+
+Updates the `allowlist_address`, for the whitelisting of wallets on contract level.
+
+Set to `zero_address` to remove wallets restriction.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New allowlist address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "SetAllowlist";
+    address: ByStr20
+}
+```
+
+#### 11. `SetContractOwnershipRecipient`
+
+Set the `contract_ownership_recipient` field, for changing the contract owner.
+
+To reset `contract_ownership_recipient`, use `zero_address`.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `to` | `ByStr20` | New contract owner address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- `to` must not be the `_sender`.
+
+**Events:**
+
+```
+{
+    eventname: "SetContractOwnershipRecipient";
+    to: ByStr20
+}
+```
+
+#### 12. `AcceptContractOwnership`
+
+Accepts the contract ownership transfer. `contract_owner` is replaced.
+
+**Requirements:**
+
+- `_sender` must be `contract_ownership_recipient`.
+
+**Events:**
+
+```
+{
+    eventname: "AcceptContractOwnership";
+    contract_owner: ByStr20
+}
+```
+
+
 ## III. Auction Contract
 
 In the English Auction contract, a seller can sell a NFT by setting a opening bid and a duration.
@@ -215,7 +549,7 @@ Stars the auction.
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| `token_address`            | `ByStr20 with contract...` | ZRC-6 token contract address |
+| `token_address`            | `ByStr20 with contract` | ZRC-6 token contract address |
 | `token_id`                 | `Uint256`                  | token ID |
 | `payment_token_address`    | `ByStr20`                  | Payment mode that bidders should bid in; leave it as `zero_address` to pay in native ZILs. |
 | `start_amount`             | `Uint128`                  | Opening bid amount. |
