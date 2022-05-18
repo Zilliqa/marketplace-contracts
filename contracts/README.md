@@ -117,9 +117,22 @@ Store buyers' bid information.
 
 |    | Transition |
 | -- | ---------- |
-| 1  | `Start(token_address: ByStr20 with contract..., token_id: Uint256, payment_token_address: ByStr20, start_amount: Uint128, expiration_bnum: BNum)` |
-
-
+| 1   | `Start(token_address: ByStr20 with contrac, token_id: Uint256, payment_token_address: ByStr20, start_amount: Uint128, expiration_bnum: BNum)` |
+| 2   | `Bid(token_address: ByStr20 with contract, token_id: Uint256, amount: Uint128, dest: ByStr20)` |
+| 3   | `Cancel(token_address: ByStr20 with contract, token_id: Uint256)` |
+| 4   | `End(token_address: ByStr20 with contract, token_id: Uint256)` |
+| 5   | `WithdrawPaymentTokens(payment_token_address: ByStr20)` |
+| 6   | `WithdrawAsset(token_address: ByStr20, token_id: Uint256)` |
+| 7   | `Pause()` |
+| 8   | `Unpause()` |
+| 9   | `SetServiceFeeBPS(fee_bps: Uint128)` | 
+| 10  | `SetBidIncrementBPS(increment_bps: Uint128)` |
+| 11  | `SetServiceFeeRecipient(to: ByStr20)` |
+| 12  | `AllowPaymentTokenAddress(address: ByStr20 with contract)` |
+| 13  | `DisallowPaymentTokenAddress(address: ByStr20 with contract)` |
+| 14  | `SetAllowlist(address: ByStr20)` |
+| 15  | `SetContractOwnershipRecipient(to: ByStr20)` |
+| 16  | `AcceptContractOwnership()` |
 
 #### 1. `Start`
 
@@ -279,88 +292,251 @@ Withdraw locked payment tokens. Used when buyers has lost the bids or for seller
 
 #### 6. `WithdrawAsset`
 
+Withdraw NFT token from auction contract back to rightful owner. Used by seller to get back asset if the auction has no bids or for buyers to collect the artwork if they won the bid.
+
+Can only be used after auction listing is `Cancel` or `End`.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract...` | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | Token ID                     |
 
 **Requirements:**
 
+- The contract must not be paused.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+
 **Events:**
+
+```
+{
+    _eventname : "WithdrawAsset";
+    recipient: ByStr20;
+    token_address: ByStr20;
+    token_id: Uint256
+}
+```
 
 #### 7. `Pause`
 
-**Arguments:**
+Pauses the contract. Use this when things are going wrong ('circuit breaker').
 
 **Requirements:**
 
+- The contract must not be paused.
+- `_sender` must be contract owner.
+
 **Events:**
+
+```
+{
+    eventname: "Pause";
+    is_paused: Bool
+}
+```
 
 #### 8. `Unpause`
 
-**Arguments:**
+Unpauses the contract.
 
 **Requirements:**
 
+- The contract must be paused.
+- `_sender` must be contract owner.
+
 **Events:**
+
+```
+{
+    eventname: "Unpause";
+    is_paused: Bool
+}
+```
 
 #### 9. `SetServiceFeeBPS`
 
+Sets the `service_fee_bps` field.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `fee_bps` | `Uint128` | New service fee bps |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+- `fee_bps` must be within allowable range.
+
 **Events:**
+
+```
+{
+    eventname: "SetServiceFeeBPS";
+    service_fee_bps: Uint128
+}
+```
 
 #### 10. `SetBidIncrementBPS`
 
+Sets the `bid_increment_bps` field.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `increment_bps` | `Uint128` | New increment bps |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+- `increment_bps` must be within allowable range.
+
 **Events:**
+
+```
+{
+    eventname: "SetBidIncrementBPS";
+    increment_bps: Uint128
+}
+```
 
 #### 11. `SetServiceFeeRecipient`
 
+Sets the `service_fee_recipient` field.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `to` | `ByStr20` | New service wallet address |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+- `to` must be a valid destination wallet.
+
 **Events:**
+
+```
+{
+    eventname: "SetServiceFeeRecipient";
+    to: ByStr20
+}
+```
 
 #### 12. `AllowPaymentTokenAddress`
 
+Allow a specific ZRC-2 token address to be used as payment token.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20 with contract` | ZRC-2 token address |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+
 **Events:**
+
+```
+{
+    eventname: "AllowPaymentTokenAddress";
+    payment_token_addresss: ByStr20
+}
+```
 
 #### 13. `DisallowPaymentTokenAddress`
 
+Remove a specific ZRC-2 token address as payment token.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20 with contract` | ZRC-2 token address |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+
 **Events:**
+
+```
+{
+    eventname: "DisallowPaymentTokenAddress";
+    payment_token_addresss: ByStr20
+}
+```
 
 #### 14. `SetAllowlist`
 
+Updates the `allowlist_address`, for the whitelisting of wallets on contract level.
+
+Set to `zero_address` to remove wallets restriction.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New allowlist address |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+
 **Events:**
+
+```
+{
+    eventname: "SetAllowlist";
+    address: ByStr20
+}
+```
 
 #### 15. `SetContractOwnershipRecipient`
 
+Set the `contract_ownership_recipient` field, for changing the contract owner.
+
+To reset `contract_ownership_recipient`, use `zero_address`.
+
 **Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `to` | `ByStr20` | New contract owner address |
 
 **Requirements:**
 
+- `_sender` must be contract owner.
+- `to` must not be the `_sender`.
+
 **Events:**
+
+```
+{
+    eventname: "SetContractOwnershipRecipient";
+    to: ByStr20
+}
+```
 
 #### 16. `AcceptContractOwnership`
 
-**Arguments:**
+Accepts the contract ownership transfer. `contract_owner` is replaced.
 
 **Requirements:**
 
+- `_sender` must be `contract_ownership_recipient`.
+
 **Events:**
+
+```
+{
+    eventname: "AcceptContractOwnership";
+    contract_owner: ByStr20
+}
+```
