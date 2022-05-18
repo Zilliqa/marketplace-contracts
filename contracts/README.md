@@ -115,6 +115,12 @@ Store buyers' bid information.
 
 ### E2. Transitions
 
+|    | Transition |
+| -- | ---------- |
+| 1  | `Start(token_address: ByStr20 with contract..., token_id: Uint256, payment_token_address: ByStr20, start_amount: Uint128, expiration_bnum: BNum)` |
+
+
+
 #### 1. `Start`
 
 Stars the auction.
@@ -140,6 +146,7 @@ Stars the auction.
 **Events:**
 
 ```
+{
     _eventname : "Start";
     maker: ByStr20;
     token_address: ByStr20;
@@ -147,4 +154,213 @@ Stars the auction.
     payment_token_address: ByStr20;
     start_amount: Uint128;
     expiration_bnum: BNum
+}
 ```
+
+#### 2. `Bid`
+
+Bids on an item.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract...` | ZRC-6 token contract address                                                        |
+| `token_id`                 | `Uint256`                  | Token ID                                                                            |
+| `amount`                   | `Uint128`                  | Bid amount                                                                          |
+| `dest`                     | `ByStr20`                  | Enables buyers to set an address to receive the asset when fulfilling a sell order. |
+
+**Requirements:**
+
+- The contract must not be paused.
+- There must be a valid sell order for the given `token_address` and `token_id` and it must not be expired.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `dest` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+
+**Events:**
+
+```
+{
+    _eventname : "Bid";
+    maker: ByStr20;
+    token_address: ByStr20;
+    token_id: Uint256;
+    amount: Uint128;
+    dest: ByStr20
+}
+```
+
+#### 3. `Cancel`
+
+Cancel an auction listing. Asset and payment tokens would be refunded back to users.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract...` | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | Token ID                     |
+
+**Requirements:**
+
+- The auction listing must not have expired. If it has expired, call `End` instead.
+
+**Events:**
+
+```
+{
+    _eventname : "Cancel";
+    token_address: ByStr20;
+    token_id: Uint256
+}
+```
+
+#### 4. `End`
+
+Ends an auction listing. Asset and payment tokens would be refunded back to users.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract...` | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | Token ID                     |
+
+
+**Requirements:**
+
+- The contract must not be paused.
+- There must be a valid sell order for the given `token_address` and `token_id` and it must not be expired.
+
+**Events:**
+
+```
+{
+    _eventname : "End";
+    token_address: ByStr20;
+    token_id: Uint256;
+    payment_token_address: ByStr20;
+    sale_price: Uint128;
+    seller: ByStr20;
+    buyer: ByStr20;
+    asset_recipient: ByStr20;
+    payment_tokens_recipient: ByStr20;
+    royalty_recipient: ByStr20;
+    royalty_amount: Uint128;
+    service_fee: Uint128
+}
+```
+
+#### 5. `WithdrawPaymentTokens`
+
+Withdraw locked payment tokens. Used when buyers has lost the bids or for sellers to collect sales profits. Can only be used after auction listing is `Cancel` or `End`.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `payment_token_address`   | `ByStr20` | payment token address |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+
+**Events:**
+
+```
+{
+    _eventname : "WithdrawPaymentTokens";
+    recipient: ByStr20;
+    payment_token_address: ByStr20;
+    amount: Uint128
+}
+```
+
+#### 6. `WithdrawAsset`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 7. `Pause`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 8. `Unpause`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 9. `SetServiceFeeBPS`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 10. `SetBidIncrementBPS`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 11. `SetServiceFeeRecipient`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 12. `AllowPaymentTokenAddress`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 13. `DisallowPaymentTokenAddress`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 14. `SetAllowlist`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 15. `SetContractOwnershipRecipient`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
+
+#### 16. `AcceptContractOwnership`
+
+**Arguments:**
+
+**Requirements:**
+
+**Events:**
