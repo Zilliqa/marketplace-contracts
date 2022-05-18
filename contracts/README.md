@@ -39,6 +39,7 @@ Sellers and buyers can claim their profits and losing bids by calling a withdraw
 ### B2. ADT
 
 **`SellOrder`**
+
 Store auction sell order information.
 
 ```
@@ -54,6 +55,7 @@ Store auction sell order information.
 
 
 **`BuyOrder`**
+
 Store buyers' bid information.
 
 ```
@@ -80,3 +82,63 @@ Store buyers' bid information.
 | `service_fee_bps`              | `Uint128`                                      | A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee. service fee BPS (e.g. 250 = 2.5%) |
 | `bid_increment_bps`            | `Uint128`                                      | Used to calculate the Minimum Bid; Minimum Bid = Current Bid + Bid Increment. bid increment BPS (e.g. 1000 = 10%) |
 | `service_fee_recipient`        | `ByStr20`                                      | Wallet owned by Zilliqa used to collect the sales commission. If `allowlist_contract` is used, this wallet address must be whitelisted in the `allowlist_contract` as well. |
+
+### D2. Error Codes
+
+| Name | Type | Code | Description |
+| ---- | ---- | -----| ----------- |
+| `NotPausedError`                     | `Int32` | `-1`  | Emit when the contract is not paused.                                                       |
+| `PausedError`                        | `Int32` | `-2`  | Emit when the contract is paused.                                                           |
+| `NotContractOwnerError`              | `Int32` | `-3`  | Emit when the address is not a contract owner.                                              |
+| `ZeroAddressDestinationError`        | `Int32` | `-4`  | Emit when the destination is zero address.                                                  |
+| `ThisAddressDestinationError`        | `Int32` | `-5`  | Emit when the destination is the auction contract.                                          |
+| `SellOrderNotFoundError`             | `Int32` | `-6`  | Emit when the token is not listed in auction contract.                                      |
+| `SellOrderFoundError`                | `Int32` | `-7`  | Emit when the token is already listed in auction contract.                                  |
+| `NotSpenderError`                    | `Int32` | `-8`  | Emit when the sender is not a spender of the token.                                         |
+| `NotTokenOwnerError`                 | `Int32` | `-9`  | Emit when the address is not a token owner.                                                 |
+| `NotAllowedToCancelOrder`            | `Int32` | `-10` | Emit when the sender is not allowed to cancel a sell order.                                 |
+| `SelfError`                          | `Int32` | `-11` | Emit when the address is equal to itself.                                                   |
+| `LessThanMinBidError`                | `Int32` | `-12` | Emit when the bid is less than minimum bid required.                                        |
+| `InsufficientAllowanceError`         | `Int32` | `-13` | Emit when the bidder has not given sufficient ZRC-2 allowance to auction to bid.            |
+| `NotExpiredError`                    | `Int32` | `-14` | Emit when the listing has not expired yet.                                                  |
+| `ExpiredError`                       | `Int32` | `-15` | Emit when the listing has expired.                                                          |
+| `AccountNotFoundError`               | `Int32` | `-16` | Emit when the sender has no available payment token to withdraw.                            |
+| `AssetNotFoundError`                 | `Int32` | `-18` | Emit when the sender has no available asset to withdraw.                                    |
+| `NotAllowedToEndError`               | `Int32` | `-19` | Emit when the sender does not have perimission to end the auction.                          |
+| `NotAllowedPaymentToken`             | `Int32` | `-20` | Emit when the payment token is not allowed.                                                 |
+| `NotEqualAmountError`                | `Int32` | `-21` | Emit when the required ZIL amount does not match the bid amount when paying by native ZILs. |
+| `NotContractOwnershipRecipientError` | `Int32` | `-22` | Emit when the address is not a contract ownership recipient.                                |
+| `NotAllowedUserError`                | `Int32` | `-23` | Emit when the address is not listed in `allowlist_address` contract.                        |
+| `InvalidBidIncrementBPSError`        | `Int32` | `-24` | Emit when the `bid_increment_bps` exceeds the allowable range.                              |
+| `InvalidRoyaltyFeeBPSError`          | `Int32` | `-25` | Emit when the `royalty_fee_bps` in the ZRC-6 token contract exceeds the allowable range.    |
+| `InvalidServiceFeeBPSError`          | `Int32` | `-26` | Emit when the `service_fee_bps` exceeds the allowable range.                                |
+
+### E2. Transitions
+
+#### 1. `Start`
+
+Stars the auction.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract...` | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | token ID |
+| `payment_token_address`    | `ByStr20`                  | Payment mode that bidders should bid in; leave it as `zero_address` to pay in native ZILs. |
+| `start_amount`             | `Uint128`                  | Opening bid amount. |
+| `expiration_bnum`          | `BNum`                     | Block number that this listing would expired on. |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `expiration_bnum` must not be current block.
+- `payment_token_address` must be a valid payment token method.
+- `_sender` must be the spender or token owner.
+
+**Events:**
+
+|    | Name | Description | Event Parameters |
+| -- | ---- | ----------- | ---------------- |
+| `_eventname` | `Start`  | <ul><li>`maker` : `ByStr20`<br/>Sender address</li></ul>  
