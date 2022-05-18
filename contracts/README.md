@@ -1,11 +1,12 @@
 ## Table of Contents
 
-- [I. Fixed Price Contract]
-- [II. Fixed Price Contract Specification]
-  - [A1. Immutable Parameters]
-  - [B1. Mutable Fields]
-  - [C1. Error Codes]
-  - [D1. Transitions]
+- [I. Fixed Price Contract](#i-fixed-price-contract)
+- [II. Fixed Price Contract Specification](#ii-fixed-price-contract-specification)
+  - [A1. Immutable Parameters](#a1-immutable-parameters)
+  - [B1. ADT](#b1-adt)
+  - [C1. Mutable Fields](#c1-mutable-fields)
+  - [D1. Error Codes](#d1-error-codes)
+  - [E1. Transitions](#e1-transitions)
 - [III. Auction Contract](#iii-auction-contract)
 - [IV. Auction Contract Specification](#iv-auction-contract-specification)
   - [A2. Immutable Parameters](#a2-immutable-parameters)
@@ -13,6 +14,78 @@
   - [C2. Mutable Fields](#c2-mutable-fields)
   - [D2. Error Codes](#d2-error-codes)
   - [E2. Transitions](#e2-transitions)
+
+## I. Fixed Price Contract
+
+In the Fixed Price contract, a seller can sell a NFT by creating a sell order with an asking price and a duration. 
+
+The seller can create multiple sell orders. The seller do not have to transfer the NFT ownership to the fixed price contract.
+
+Interested buyers can either purchase NFT at the seller's asking price or they can counter offer by issuing a buy order with their offering price and a duration.
+
+Buyers that make counter offer would have their payment tokens locked up by the fixed price contract.
+
+To get back the payment tokens, buyers must cancel their offers.
+
+## II. Fixed Price Contract Specification
+
+### A1. Immutable Parameters
+
+| Name                     | Type      | Description                |
+| ------------------------ | --------- | -------------------------- |
+| `initial_contract_owner` | `ByStr20` | Address of contract owner. |
+
+### B1. ADT
+
+**`Order`**
+
+Store order information about buy and sell orders.
+
+```
+| Order of ByStr20 (* maker *)
+           BNum    (* expiration block number *)
+```
+
+### C1. Mutable Fields
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `allowlist_address`            | `ByStr20`                                                      | Indicate if the contract has a list of permitted users defined by `allowlist_contract`.  The allowlist contract is used to define which wallet addresses can sell and bid for NFTs. Defaults to `zero_address` to indicate that anyone can sell and bid the auctions. |
+| `contract_owner`               | `ByStr20`                                                      | Contract admin, defaults to `initial_contract_owner` |
+| `contract_ownership_recipient` | `ByStr20`                                                      | Temporary holding field for contract ownership recipient, defaults to `zero_address`. |
+| `is_paused`                    | `Bool`                                                         | `True` if the contract is paused. Otherwise, `False`. `is_paused` defaults to `False`.                                                                                                                                                                                                                                                                                                                                                                                                                             |          |
+| `sell_orders`                  | `Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))`  | Stores selling information. Mapping of token_address -> ( token_id -> ( payment_token_address -> (sale_price -> sell_order ADT  ) ) |
+| `buy_orders`                   | `Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))`  | Stores buyers' bidding information. Mapping of token_address -> ( token_id -> ( payment_token_address -> (sale_price -> buy_order ADT ) ) |
+| `allowed_payment_tokens`       | `Map ByStr20 Bool`                             | An allowlist for the ZRC-2 payment tokens.  |
+| `service_fee_bps`              | `Uint128`                                      | A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee. service fee BPS (e.g. 250 = 2.5%) |
+| `service_fee_recipient`        | `ByStr20`                                      | Wallet owned by Zilliqa used to collect the sales commission. If `allowlist_contract` is used, this wallet address must be whitelisted in the `allowlist_contract` as well. |
+
+### D1. Error Codes
+
+| Name | Type | Code | Description |
+| ---- | ---- | -----| ----------- |
+| `NotContractOwnerError`              | `Int32` | `-1`  | Emit when the address is not ca ontract owner.                                                |
+| `NotPausedError`                     | `Int32` | `-2`  | Emit when the contract is not paused.                                                         |
+| `PausedError`                        | `Int32` | `-3`  | Emit when the contract is paused.                                                             |
+| `ZeroAddressDestinationError`        | `Int32` | `-4`  | Emit when the destination is zero address.                                                    |
+| `ThisAddressDestinationError`        | `Int32` | `-5`  | Emit when the destination is the fixed price contract.                                        |
+| `SellOrderNotFoundError`             | `Int32` | `-6`  | Emit when the token is not listed in fixed price contract.                                    |
+| `BuyOrderNotFoundError`              | `Int32` | `-7`  | Emit when the buy order is not found for the token.                                           |
+| `NotSpenderError`                    | `Int32` | `-8`  | Emit when the sender is not a spender of the token.                                           |
+| `NotTokenOwnerError`                 | `Int32` | `-9`  | Emit when the address is not a token owner.                                                   |
+| `TokenOwnerError`                    | `Int32` | `-10` | Emit when the address is the token owner.                                                     |           
+| `ExpiredError`                       | `Int32` | `-11` | Emit when the sell order or buy order has expired.                                            |
+| `NotMakerError`                      | `Int32` | `-12` | Emit when the address is not the `maker`. *(Not used.)*                                       |
+| `NotAllowedToCancelOrder`            | `Int32` | `-13` | Emit when the address is not allowed to cancel the specific order.                            |
+| `NotSelfError`                       | `Int32` | `-14` | Emit when the address is not the `_sender`.                                                   |
+| `SelfError`                          | `Int32` | `-15` | Emit when the address is the same as `_sender`.                                               |
+| `NotAllowedPaymentToken`             | `Int32` | `-16` | Emit when the payment token is not allowed.                                                   |
+| `InvalidBPSError`                    | `Int32` | `-17` | Emit when the `fee_bps` exceeds the allowable range.                                          |
+| `NotEqualAmountError`                | `Int32` | `-18` | Emit when the required ZIL amount does not match the offer amount when paying by native ZILs. |
+| `NotContractOwnershipRecipientError` | `Int32` | `-19` | Emit when the address is not a contract ownership recipient.                                  |
+| `NotAllowedUserError`                | `Int32` | `-20` | Emit when the address is not listed in `allowlist_address` contract.                          |
+
+### E1. Transitions
 
 ## III. Auction Contract
 
@@ -117,7 +190,7 @@ Store buyers' bid information.
 
 |    | Transition |
 | -- | ---------- |
-| 1   | `Start(token_address: ByStr20 with contrac, token_id: Uint256, payment_token_address: ByStr20, start_amount: Uint128, expiration_bnum: BNum)` |
+| 1   | `Start(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, start_amount: Uint128, expiration_bnum: BNum)` |
 | 2   | `Bid(token_address: ByStr20 with contract, token_id: Uint256, amount: Uint128, dest: ByStr20)` |
 | 3   | `Cancel(token_address: ByStr20 with contract, token_id: Uint256)` |
 | 4   | `End(token_address: ByStr20 with contract, token_id: Uint256)` |
