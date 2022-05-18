@@ -38,17 +38,45 @@ Sellers and buyers can claim their profits and losing bids by calling a withdraw
 
 ### B2. ADT
 
+**`SellOrder`**
+Store auction sell order information.
+
+```
+| SellOrder of ByStr20 (* maker *)
+               BNum    (* expiration_blocknumber *)
+               ByStr20 (* payment_token_address *)
+               Uint128 (* start_amount *)
+               ByStr20 (* royalty_recipient *)
+               Uint128 (* royalty_fee_bps *)
+               ByStr20 (* service_fee_recipient *)
+               Uint128 (* service_fee_bps *)
+```
+
+
+**`BuyOrder`**
+Store buyers' bid information.
+
+```
+| BuyOrder of ByStr20 (* maker *)
+              Uint128 (* bid_amount *)
+              ByStr20 (* buyer_destination_address_for_NFT_token_to_be_transferred *)
+              Uint128 (* total_big_count *)
+```
+
+
 ### C2. Mutable Fields
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| `allowlist_address` | `ByStr20` | Indicate if the contract has a list of permitted users defined by `allowlist_contract`.  The allowlist contract is used to define which wallet addresses can sell and bid for NFTs. Defaults to `zero_address` to indicate that anyone can sell and bid the auctions. |
-| `contract_owner` | `ByStr20` | Contract admin, defaults to `initial_contract_owner` |
-| `contract_ownership_recipient` | `ByStr20` | Temporary holding field for contract ownership recipient, defaults to `zero_address`. |
-| `is_paused`                    | `Bool`                           | `True` if the contract is paused. Otherwise, `False`. `is_paused` defaults to `False`.                                                                                                                                                                                                                                                                                                                                                                                                                             |          |
-| `sell_orders` | `Map ByStr20 (Map Uint256 SellOrder)` | Stores selling information. Mapping from token address to token ID to a list of SellOrder ADT. |
-| `buy_orders` | `Map ByStr20 (Map Uint256 BuyOrder)` | Stores buyers' bidding information. Mapping from token address to token ID to a list of BuyOrder ADT. |
-| `assets` | `Map ByStr20 (Map ByStr20 (Map Uint256 Bool))` | NFT token that is ready to be withdrawn by the user is listed here. Mapping of `owner` -> `token_address` -> `token_id` -> `True/False`. |
-| `payment_tokens` | `Map ByStr20 (Map ByStr20 Uint128)` | Indicates if a user has locked payment tokens to withdraw. Payment tokens can be native ZILs, ZRC-2 currency tokens etc. Mapping of `owner` -> `payment_token_address` -> a`mount` |
-| `allowed_payment_tokens` | `Map ByStr20 Bool` | An allowlist for the ZRC-2 payment tokens.  |
-| `service_fee_bps` | `Uint128` | A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee. service fee BPS (e.g. 250 = 2.5%) |
+| `allowlist_address`            | `ByStr20`                                      | Indicate if the contract has a list of permitted users defined by `allowlist_contract`.  The allowlist contract is used to define which wallet addresses can sell and bid for NFTs. Defaults to `zero_address` to indicate that anyone can sell and bid the auctions. |
+| `contract_owner`               | `ByStr20`                                      | Contract admin, defaults to `initial_contract_owner` |
+| `contract_ownership_recipient` | `ByStr20`                                      | Temporary holding field for contract ownership recipient, defaults to `zero_address`. |
+| `is_paused`                    | `Bool`                                         | `True` if the contract is paused. Otherwise, `False`. `is_paused` defaults to `False`.                                                                                                                                                                                                                                                                                                                                                                                                                             |          |
+| `sell_orders`                  | `Map ByStr20 (Map Uint256 SellOrder)`          | Stores selling information. Mapping from token address to token ID to a list of SellOrder ADT. |
+| `buy_orders`                   | `Map ByStr20 (Map Uint256 BuyOrder)`           | Stores buyers' bidding information. Mapping from token address to token ID to a list of BuyOrder ADT. |
+| `assets`                       | `Map ByStr20 (Map ByStr20 (Map Uint256 Bool))` | NFT token that is ready to be withdrawn by the user is listed here. Mapping of `owner` -> `token_address` -> `token_id` -> `True/False`. |
+| `payment_tokens`               | `Map ByStr20 (Map ByStr20 Uint128)`            | Indicates if a user has locked payment tokens to withdraw. Payment tokens can be native ZILs, ZRC-2 currency tokens etc. Mapping of `owner` -> `payment_token_address` -> a`mount` |
+| `allowed_payment_tokens`       | `Map ByStr20 Bool`                             | An allowlist for the ZRC-2 payment tokens.  |
+| `service_fee_bps`              | `Uint128`                                      | A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee. service fee BPS (e.g. 250 = 2.5%) |
+| `bid_increment_bps`            | `Uint128`                                      | Used to calculate the Minimum Bid; Minimum Bid = Current Bid + Bid Increment. bid increment BPS (e.g. 1000 = 10%) |
+| `service_fee_recipient`        | `ByStr20`                                      | Wallet owned by Zilliqa used to collect the sales commission. If `allowlist_contract` is used, this wallet address must be whitelisted in the `allowlist_contract` as well. |
