@@ -614,7 +614,7 @@ procedure DoSetOrder(order: OrderParam)
       event e
     | False => 
       (* Side: Buy *)
-      (* The token owner must be able to create buy orders *)
+      (* The token owner must not be able to create buy orders *)
       RequireSenderNotToBeTokenOwner token_address token_id;
 
       (* The currency is ZIL if the payment_token_address is zero address *)
