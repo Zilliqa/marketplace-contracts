@@ -688,7 +688,8 @@ transition FulfillOrder(
   RequireNotPaused;
   RequireAllowedUser _sender;
   RequireAllowedUser dest;
-  
+  RequireValidDestination dest;
+
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True => 
