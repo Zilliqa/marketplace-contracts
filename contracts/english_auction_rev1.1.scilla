@@ -743,6 +743,7 @@ transition Bid(
   RequireNotPaused;
   RequireAllowedUser _sender;
   RequireAllowedUser dest;
+  RequireValidDestination dest;
   
   (* Check the sell order does exist *)
   maybe_sell_order <- sell_orders[token_address][token_id];
