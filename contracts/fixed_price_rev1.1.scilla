@@ -87,7 +87,6 @@ type Error =
   | NotTokenOwnerError
   | TokenOwnerError
   | ExpiredError
-  | NotMakerError
   | NotAllowedToCancelOrder
   | NotSelfError
   | SelfError
@@ -112,15 +111,14 @@ let make_error =
       | NotTokenOwnerError                 => Int32 -9
       | TokenOwnerError                    => Int32 -10
       | ExpiredError                       => Int32 -11
-      | NotMakerError                      => Int32 -12
-      | NotAllowedToCancelOrder            => Int32 -13
-      | NotSelfError                       => Int32 -14
-      | SelfError                          => Int32 -15
-      | NotAllowedPaymentToken             => Int32 -16
-      | InvalidBPSError                    => Int32 -17
-      | NotEqualAmountError                => Int32 -18
-      | NotContractOwnershipRecipientError => Int32 -19
-      | NotAllowedUserError                => Int32 -20
+      | NotAllowedToCancelOrder            => Int32 -12
+      | NotSelfError                       => Int32 -13
+      | SelfError                          => Int32 -14
+      | NotAllowedPaymentToken             => Int32 -15
+      | InvalidBPSError                    => Int32 -16
+      | NotEqualAmountError                => Int32 -17
+      | NotContractOwnershipRecipientError => Int32 -18
+      | NotAllowedUserError                => Int32 -19
       end
     in
     { _exception : "Error"; code : result_code }
