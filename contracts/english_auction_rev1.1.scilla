@@ -52,6 +52,14 @@ let option_value =
 
 let option_address = @option_value ByStr20
 
+let is_in_range = 
+  fun(amount: Uint128) =>
+  fun(min: Uint128) => 
+  fun(max: Uint128) =>
+    let is_gte_min = uint128_ge amount min in
+    let is_lte_max = uint128_le amount max in
+    andb is_gte_min is_lte_max
+
 type SellOrder = 
 | SellOrder of ByStr20 (* maker *)
                BNum    (* expiration_blocknumber *)
@@ -251,10 +259,7 @@ end
 procedure RequireValidRoyaltyFeeBPS(val_bps: Uint128)
   (* max: 25% (arbitrary number) *)
   max = Uint128 2500;
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max;
-  
-  is_valid = andb is_gte_min is_lte_max;
+  is_valid = is_in_range val_bps min_bps max;
   match is_valid with 
     | True => 
     | False =>
@@ -266,10 +271,7 @@ end
 procedure RequireValidServiceFeeBPS(val_bps: Uint128)
   (* max: 10% (arbitrary number) *)
   max = Uint128 1000;
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max;
-  
-  is_valid = andb is_gte_min is_lte_max;
+  is_valid = is_in_range val_bps min_bps max;
   match is_valid with 
     | True => 
     | False =>
@@ -279,10 +281,7 @@ procedure RequireValidServiceFeeBPS(val_bps: Uint128)
 end
 
 procedure RequireValidBidIncrementBPS(val_bps: Uint128)
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max_bps;
-  
-  is_valid = andb is_gte_min is_lte_max;
+  is_valid = is_in_range val_bps min_bps max_bps;
   match is_valid with 
     | True => 
     | False =>
