@@ -869,7 +869,10 @@ transition SetServiceFeeRecipient(to: ByStr20)
 end
 
 (* @multi-sig *)
-transition SetAllowlist(address: ByStr20)
+transition SetAllowlist(address: ByStr20 with contract field 
+                                            allowed_addresses : Map ByStr20 Bool 
+                                          end
+  )
   RequireContractOwner;
   allowlist_address := address;
   
