@@ -479,6 +479,23 @@ procedure ZRC6TransferFrom(token_address: ByStr20, to: ByStr20, token_id: Uint25
   send msgs
 end
 
+procedure RequireGrtOrEqToMinBid(cur_amount: Uint128) 
+  (* Minimum Bid = Current Bid + Bid Increment *)
+  (* Calculate Minimum Bid *)
+  bid_inc_bps <- bid_increment_bps;
+  bid_increment = portion cur_amount bid_inc_bps;
+  min_bid = builtin add cur_amount bid_increment;
+  is_less_than_min_bid = builtin lt _amount min_bid;
+
+  match is_less_than_min_bid with
+  | True => 
+    error = LessThanMinBidError;
+    Throw error
+  | False => 
+    (* noop *)  
+  end
+end 
+
 procedure BidWithNativeZILs(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -509,28 +526,15 @@ procedure BidWithNativeZILs(
     end
   | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
     (* We have the existing bid. We track the max only. *)
-    
-    (* Minimum Bid = Current Bid + Bid Increment *)
-    (* Calculate Minimum Bid *)
-    bid_inc_bps <- bid_increment_bps;
-    bid_increment = portion cur_amount bid_inc_bps;
-    min_bid = builtin add cur_amount bid_increment;
+    RequireGrtOrEqToMinBid cur_amount;
+    (* markekplace pays back the old bider the current amount *)
+    (* Use zero address for native ZILs *)
+    AddToPaymentTokenBalance old_buyer zero_address cur_amount;
 
-    is_less_than_min_bid = builtin lt amount min_bid;
-    match is_less_than_min_bid with
-    | True => 
-      error = LessThanMinBidError;
-      Throw error
-    | False =>      
-      (* markekplace pays back the old bider the current amount *)
-      (* Use zero address for native ZILs *)
-      AddToPaymentTokenBalance old_buyer zero_address cur_amount;
-
-      (* Update the buy order with new buyer *)
-      new_bid_count = builtin add bid_count one_uint128;
-      new_order = BuyOrder _sender amount dest new_bid_count;
-      buy_orders[token_address][token_id] := new_order
-    end
+    (* Update the buy order with new buyer *)
+    new_bid_count = builtin add bid_count one_uint128;
+    new_order = BuyOrder _sender amount dest new_bid_count;
+    buy_orders[token_address][token_id] := new_order
   end
 end
 
@@ -587,26 +591,14 @@ procedure BidWithZRC2(
       | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
         (* We have the existing bid. We track the max only. *)
         
-        (* Minimum Bid = Current Bid + Bid Increment *)
-        (* Calculate Minimum Bid *)
-        bid_inc_bps <- bid_increment_bps;
-        bid_increment = portion cur_amount bid_inc_bps;
-        min_bid = builtin add cur_amount bid_increment;
-        
-        is_less_than_min_bid = builtin lt amount min_bid;
-        match is_less_than_min_bid with
-        | True => 
-          error = LessThanMinBidError;
-          Throw error
-        | False =>      
-          (* markekplace pays back the old bider the current amount *)
-          AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
+        RequireGrtOrEqToMinBid cur_amount;
+        (* markekplace pays back the old bider the current amount *)
+        AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
 
-          (* Update the buy order with new buyer *)
-          new_bid_count = builtin add bid_count one_uint128;
-          new_order = BuyOrder _sender amount dest new_bid_count;
-          buy_orders[token_address][token_id] := new_order
-        end
+        (* Update the buy order with new buyer *)
+        new_bid_count = builtin add bid_count one_uint128;
+        new_order = BuyOrder _sender amount dest new_bid_count;
+        buy_orders[token_address][token_id] := new_order
       end
     end
   end
