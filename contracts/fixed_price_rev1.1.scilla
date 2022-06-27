@@ -877,7 +877,6 @@ transition ClearAllowList()
     _eventname: "ClearAllowList"
   };
   event e
-
 end
 
 (* @multi-sig *)
