@@ -818,7 +818,7 @@ transition AllowPaymentTokenAddress(
   allowed_payment_tokens[address] := true;
   e = {
     _eventname : "AllowPaymentTokenAddress";
-    payment_token_addresss: address
+    payment_token_address: address
   };
   event e
 end
@@ -833,7 +833,7 @@ transition DisallowPaymentTokenAddress(
   delete allowed_payment_tokens[address];
   e = {
     _eventname : "DisallowPaymentTokenAddress";
-    payment_token_addresss: address
+    payment_token_address: address
   };
   event e
 end
