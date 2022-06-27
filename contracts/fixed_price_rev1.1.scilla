@@ -869,6 +869,18 @@ transition SetServiceFeeRecipient(to: ByStr20)
 end
 
 (* @multi-sig *)
+transition ClearAllowList()
+  RequireContractOwner;
+  allowlist_address := zero_address;
+
+  e = { 
+    _eventname: "ClearAllowList"
+  };
+  event e
+
+end
+
+(* @multi-sig *)
 transition SetAllowlist(address: ByStr20 with contract field 
                                             allowed_addresses : Map ByStr20 Bool 
                                           end

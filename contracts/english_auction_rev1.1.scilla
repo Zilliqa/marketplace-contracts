@@ -1126,6 +1126,18 @@ transition DisallowPaymentTokenAddress(
 end
 
 (* @multi-sig *)
+transition ClearAllowList()
+  RequireContractOwner;
+  allowlist_address := zero_address;
+
+  e = { 
+    _eventname: "ClearAllowList"
+  };
+  event e
+
+end
+
+(* @multi-sig *)
 transition SetAllowlist(address: ByStr20)
   RequireContractOwner;
   allowlist_address := address;
