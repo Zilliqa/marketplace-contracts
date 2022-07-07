@@ -5,7 +5,8 @@
     "rm:isolated-server": "docker stop marketplace-contracts | xargs docker rm",
     "test:local": "PORT=3333 jest --verbose --runInBand",
     "test": "npm run run:isolated-server && npm run test:local && npm run rm:isolated-server",
-    "format": "npx prettier --write ."
+    "format": "npx prettier --write .",
+    "jest": "jest -i"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",
