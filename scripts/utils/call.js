@@ -369,16 +369,55 @@ async function batchTransfer(privateKey, contract, toList) {
   }
 }
 
-async function setupBalancesOnAccounts() {
+async function setupBalancesOnAccounts(accounts) {
   
-  let dexOwnerBalance = await getBalance(
-    getAddressFromPrivateKey(process.env.DEX_OWNER_PRIVATE_KEY)
+  let nftSellerBalance = await getBalance(
+    accounts.nftSeller.address
   )
-  dexOwnerBalance /= 1000000000000
-  if (dexOwnerBalance < 1000) {
+  nftSellerBalance /= 1000000000000
+  if (nftSellerBalance < 1000) {
     await sendZil(
-      process.env.MASTER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.DEX_OWNER_PRIVATE_KEY),
+      accounts.contractOwner.privateKey,
+      accounts.nftSeller.address,
+      1000,
+      Long.fromNumber(50)
+    )
+  }
+
+  let nftBuyerBalance = await getBalance(
+    accounts.nftBuyer.address
+  )
+  nftBuyerBalance /= 1000000000000
+  if (nftBuyerBalance < 1000) {
+    await sendZil(
+      accounts.contractOwner.privateKey,
+      accounts.nftBuyer.address,
+      1000,
+      Long.fromNumber(50)
+    )
+  }
+
+  let strangerBalance = await getBalance(
+    accounts.stranger.address
+  )
+  strangerBalance /= 1000000000000
+  if (strangerBalance < 1000) {
+    await sendZil(
+      accounts.contractOwner.privateKey,
+      accounts.stranger.address,
+      1000,
+      Long.fromNumber(50)
+    )
+  }
+
+  let forbiddenBalance = await getBalance(
+    accounts.forbidden.address
+  )
+  forbiddenBalance /= 1000000000000
+  if (forbiddenBalance < 1000) {
+    await sendZil(
+      accounts.contractOwner.privateKey,
+      accounts.forbidden.address,
       1000,
       Long.fromNumber(50)
     )
@@ -410,18 +449,18 @@ async function setupBalancesOnAccounts() {
     )
   }*/
 
-  let userBalance = await getBalance(
-    getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY)
-  )
-  userBalance /= 1000000000000
-  if (userBalance < 1000) {
-    await sendZil(
-      process.env.MASTER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY),
-      1000,
-      Long.fromNumber(50)
-    )
-  }
+  // let userBalance = await getBalance(
+  //   getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY)
+  // )
+  // userBalance /= 1000000000000
+  // if (userBalance < 1000) {
+  //   await sendZil(
+  //     process.env.MASTER_PRIVATE_KEY,
+  //     getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY),
+  //     1000,
+  //     Long.fromNumber(50)
+  //   )
+  // }
 /*
   let userBalance2 = await getBalance(
     getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY_2)
@@ -436,18 +475,18 @@ async function setupBalancesOnAccounts() {
     )
   }
 */
-  let tokenOwnerBalance = await getBalance(
-    getAddressFromPrivateKey(process.env.TOKEN_OWNER_PRIVATE_KEY)
-  )
-  tokenOwnerBalance /= 1000000000000
-  if (tokenOwnerBalance < 1000) {
-    await sendZil(
-      process.env.MASTER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.TOKEN_OWNER_PRIVATE_KEY),
-      1000,
-      Long.fromNumber(50)
-    )
-  }
+  // let tokenOwnerBalance = await getBalance(
+  //   getAddressFromPrivateKey(process.env.TOKEN_OWNER_PRIVATE_KEY)
+  // )
+  // tokenOwnerBalance /= 1000000000000
+  // if (tokenOwnerBalance < 1000) {
+  //   await sendZil(
+  //     process.env.MASTER_PRIVATE_KEY,
+  //     getAddressFromPrivateKey(process.env.TOKEN_OWNER_PRIVATE_KEY),
+  //     1000,
+  //     Long.fromNumber(50)
+  //   )
+  // }
   
 }
 
@@ -530,8 +569,9 @@ async function clearBalancesOnAccounts() {
       Long.fromNumber(50)
     )
   }
-  
 }
+
+
 
 exports.batchTransfer = batchTransfer
 exports.increaseAllowance = increaseAllowance

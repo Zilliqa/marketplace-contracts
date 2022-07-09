@@ -7,7 +7,7 @@ const util = require('util')
 const fs = require('fs')
 const readFile = util.promisify(fs.readFile)
 
-async function deployEnglishAuctionPriceContract(
+async function deployAllowlistContract(
   deployerPrivateKey,
   {
     initialOwnerAddress = null
@@ -23,7 +23,7 @@ async function deployEnglishAuctionPriceContract(
 
   // Load code and contract initialization variables
   const code = (
-    await readFile(process.env.CONTRACTS_DIR + '/' + 'english_auction_rev1.1.scilla')
+    await readFile(process.env.CONTRACTS_DIR + '/' + 'allowlist.scilla')
   ).toString()
   const init = [
     // this parameter is mandatory for all init arrays
@@ -39,8 +39,10 @@ async function deployEnglishAuctionPriceContract(
     }
   ]
 
-  console.info('Deploying English Auction Marketplace Contract...')
+  console.info('Deploying Allowlist Contract...')
   return deployContract(deployerPrivateKey, address, code, init)
 }
 
-exports.deployEnglishAuctionPriceContract = deployEnglishAuctionPriceContract
+
+
+exports.deployAllowlistContract = deployAllowlistContract

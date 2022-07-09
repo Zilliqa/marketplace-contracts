@@ -17,7 +17,6 @@ let min_bps = Uint128 1
 let max_bps = Uint128 10000
 
 let sell_side = Uint32 0
-let buy_side = Uint32 1
 
 let one_msg = 
   fun (msg : Message) => 
@@ -87,7 +86,6 @@ type Error =
   | NotTokenOwnerError
   | TokenOwnerError
   | ExpiredError
-  | NotMakerError
   | NotAllowedToCancelOrder
   | NotSelfError
   | SelfError
@@ -112,15 +110,14 @@ let make_error =
       | NotTokenOwnerError                 => Int32 -9
       | TokenOwnerError                    => Int32 -10
       | ExpiredError                       => Int32 -11
-      | NotMakerError                      => Int32 -12
-      | NotAllowedToCancelOrder            => Int32 -13
-      | NotSelfError                       => Int32 -14
-      | SelfError                          => Int32 -15
-      | NotAllowedPaymentToken             => Int32 -16
-      | InvalidBPSError                    => Int32 -17
-      | NotEqualAmountError                => Int32 -18
-      | NotContractOwnershipRecipientError => Int32 -19
-      | NotAllowedUserError                => Int32 -20
+      | NotAllowedToCancelOrder            => Int32 -12
+      | NotSelfError                       => Int32 -13
+      | SelfError                          => Int32 -14
+      | NotAllowedPaymentToken             => Int32 -15
+      | InvalidBPSError                    => Int32 -16
+      | NotEqualAmountError                => Int32 -17
+      | NotContractOwnershipRecipientError => Int32 -18
+      | NotAllowedUserError                => Int32 -19
       end
     in
     { _exception : "Error"; code : result_code }
@@ -193,8 +190,6 @@ procedure RequireContractOwner()
 end
 
 procedure RequireNotPaused()
-  (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | False =>
@@ -206,8 +201,6 @@ procedure RequireNotPaused()
 end
 
 procedure RequirePaused()
-  (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | True =>
@@ -219,7 +212,6 @@ procedure RequirePaused()
 end
 
 procedure RequireValidDestination(to: ByStr20)
-  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
   is_zero_address = builtin eq to zero_address;
   match is_zero_address with
   | False =>
@@ -614,7 +606,7 @@ procedure DoSetOrder(order: OrderParam)
       event e
     | False => 
       (* Side: Buy *)
-      (* The token owner must be able to create buy orders *)
+      (* The token owner must not be able to create buy orders *)
       RequireSenderNotToBeTokenOwner token_address token_id;
 
       (* The currency is ZIL if the payment_token_address is zero address *)
@@ -688,7 +680,8 @@ transition FulfillOrder(
   RequireNotPaused;
   RequireAllowedUser _sender;
   RequireAllowedUser dest;
-  
+  RequireValidDestination dest;
+
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True => 
@@ -824,7 +817,7 @@ transition AllowPaymentTokenAddress(
   allowed_payment_tokens[address] := true;
   e = {
     _eventname : "AllowPaymentTokenAddress";
-    payment_token_addresss: address
+    payment_token_address: address
   };
   event e
 end
@@ -839,7 +832,7 @@ transition DisallowPaymentTokenAddress(
   delete allowed_payment_tokens[address];
   e = {
     _eventname : "DisallowPaymentTokenAddress";
-    payment_token_addresss: address
+    payment_token_address: address
   };
   event e
 end
@@ -871,7 +864,21 @@ transition SetServiceFeeRecipient(to: ByStr20)
 end
 
 (* @multi-sig *)
-transition SetAllowlist(address: ByStr20)
+transition ClearAllowList()
+  RequireContractOwner;
+  allowlist_address := zero_address;
+
+  e = { 
+    _eventname: "ClearAllowList"
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetAllowlist(address: ByStr20 with contract field 
+                                            allowed_addresses : Map ByStr20 Bool 
+                                          end
+  )
   RequireContractOwner;
   allowlist_address := address;
   

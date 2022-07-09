@@ -31,6 +31,12 @@ async function getFraction(d, x, y) {
     .toString()
 }
 
+
+async function getBlockNumber(zilliqa) {
+  const response = await zilliqa.provider.send("GetBlocknum", "");
+  return Number(response.result);
+};
+
 async function calculateMinToken0AmtForRemoveLiquidity(
   token0ContribAmt,
   totalContrib,
@@ -126,3 +132,4 @@ exports.inputFor = inputFor
 exports.removeLiquidityMinToken0Amt = removeLiquidityMinToken0Amt
 exports.removeLiquidityMinToken1Amt = removeLiquidityMinToken1Amt
 exports.mulDiv = mulDiv
+exports.getBlockNumber = getBlockNumber
