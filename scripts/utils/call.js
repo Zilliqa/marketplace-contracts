@@ -374,6 +374,14 @@ async function setupBalancesOnAccounts(accounts) {
   let nftSellerBalance = await getBalance(
     accounts.nftSeller.address
   )
+/*   let masterBalance = await getBalance(
+    accounts.contractOwner.address
+  )
+  let gaeBalance = await getBalance(
+    getAddressFromPrivateKey(process.env.TOKEN_OWNER_PRIVATE_KEY)
+  )
+  
+  console.log('gaeBalance',gaeBalance) */
   nftSellerBalance /= 1000000000000
   if (nftSellerBalance < 1000) {
     await sendZil(
@@ -392,7 +400,7 @@ async function setupBalancesOnAccounts(accounts) {
     await sendZil(
       accounts.contractOwner.privateKey,
       accounts.nftBuyer.address,
-      1000,
+      80000,
       Long.fromNumber(50)
     )
   }
@@ -490,82 +498,56 @@ async function setupBalancesOnAccounts(accounts) {
   
 }
 
-async function clearBalancesOnAccounts() {
+async function clearBalancesOnAccounts(accounts) {
   
-  let dexOwnerBalanceAfter = await getBalance(
-    getAddressFromPrivateKey(process.env.DEX_OWNER_PRIVATE_KEY)
+  let nftSellerBalance = await getBalance(
+    accounts.nftSeller.address
   )
-  dexOwnerBalanceAfter /= 1000000000000
-  if (dexOwnerBalanceAfter > 1) {
+  nftSellerBalance /= 1000000000000
+  if (nftSellerBalance > 1) {
     await sendZil(
-      process.env.DEX_OWNER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY),
-      dexOwnerBalanceAfter - 1,
+      accounts.nftSeller.privateKey,
+      accounts.contractOwner.address,
+      nftSellerBalance - 1,
       Long.fromNumber(50)
     )
   }
-  /*
-  let stakingOwnerBalanceAfter = await getBalance(
-    getAddressFromPrivateKey(process.env.STAKING_OWNER_PRIVATE_KEY)
-  )
-  stakingOwnerBalanceAfter /= 1000000000000
-  if (stakingOwnerBalanceAfter > 1) {
-    await sendZil(
-      process.env.STAKING_OWNER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY),
-      stakingOwnerBalanceAfter - 1,
-      Long.fromNumber(50)
-    )
-  }
-  
-  let stakingUserBalanceAfter = await getBalance(
-    getAddressFromPrivateKey(process.env.STAKE_USER_PRIVATE_KEY)
-  )
-  stakingUserBalanceAfter /= 1000000000000
-  if (stakingUserBalanceAfter > 1) {
-    await sendZil(
-      process.env.STAKE_USER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY),
-      stakingUserBalanceAfter - 1,
-      Long.fromNumber(50)
-    )
-  } */
 
-  let userBalanceAfter = await getBalance(
-    getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY)
+  let nftBuyerBalance = await getBalance(
+    accounts.nftBuyer.address
   )
-  userBalanceAfter /= 1000000000000
-  if (userBalanceAfter > 1) {
+  nftBuyerBalance /= 1000000000000
+  if (nftBuyerBalance > 1) {
     await sendZil(
-      process.env.USER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY),
-      userBalanceAfter - 1,
+      accounts.nftBuyer.privateKey,
+      accounts.contractOwner.address,
+      nftBuyerBalance - 1,
       Long.fromNumber(50)
     )
   }
-/*
-  let userBalanceAfter2 = await getBalance(
-    getAddressFromPrivateKey(process.env.USER_PRIVATE_KEY_2)
+
+  let strangerBalance = await getBalance(
+    accounts.stranger.address
   )
-  userBalanceAfter2 /= 1000000000000
-  if (userBalanceAfter2 > 1) {
+  strangerBalance /= 1000000000000
+  if (strangerBalance > 1) {
     await sendZil(
-      process.env.USER_PRIVATE_KEY_2,
-      getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY),
-      userBalanceAfter2 - 1,
+      accounts.stranger.privateKey,
+      accounts.contractOwner.address,
+      strangerBalance - 1,
       Long.fromNumber(50)
     )
   }
-*/
-  let tokenOwnerBalance = await getBalance(
-    getAddressFromPrivateKey(process.env.TOKEN_OWNER_PRIVATE_KEY)
+
+  let forbiddenBalance = await getBalance(
+    accounts.forbidden.address
   )
-  tokenOwnerBalance /= 1000000000000
-  if (tokenOwnerBalance > 1) {
+  forbiddenBalance /= 1000000000000
+  if (forbiddenBalance > 1) {
     await sendZil(
-      process.env.TOKEN_OWNER_PRIVATE_KEY,
-      getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY),
-      tokenOwnerBalance - 1,
+      accounts.forbidden.privateKey,
+      accounts.contractOwner.address,
+      forbiddenBalance - 1,
       Long.fromNumber(50)
     )
   }

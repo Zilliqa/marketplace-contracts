@@ -1,6 +1,6 @@
 /* eslint-disable no-undef */
 require('dotenv').config({ path: './.env' })
-const { BN } = require('@zilliqa-js/util')
+const { BN, bytes, units } = require('@zilliqa-js/util')
 const { scillaJSONParams, scillaJSONVal } = require("@zilliqa-js/scilla-json-utils");
 const { default: BigNumber } = require('bignumber.js')
 const { getAddressFromPrivateKey, schnorr } = require('@zilliqa-js/crypto')
@@ -11,7 +11,8 @@ const { deployFungibleToken } = require('../scripts/deployFungibleToken.js')
 const { deployNonFungibleToken } = require('../scripts/deployNonFungibleToken.js')
  const {
    setupBalancesOnAccounts,
-   clearBalancesOnAccounts
+   clearBalancesOnAccounts,
+   transfer
 } = require('../scripts/utils/call.js')
 
 // const { getContractState } = require('../scripts/utils/deploy.js')
@@ -21,9 +22,11 @@ const { zilliqa } = require('../scripts/utils/zilliqa.js')
 
 const {
   TX_PARAMS,
+  FAUCET_PARAMS,
   asyncNoop,
   ZERO_ADDRESS
 } = require("./config");
+
 
 
 const accounts = {
@@ -47,6 +50,22 @@ const accounts = {
     'address': getAddressFromPrivateKey(process.env.N_02_PRIVATE_KEY),
     'privateKey': process.env.N_02_PRIVATE_KEY
   },
+  'address01': {
+    'address': getAddressFromPrivateKey(process.env.TOKEN1_PRIVATE_KEY),
+    'privateKey': process.env.N_01_PRIVATE_KEY
+  },
+  'address02': {
+    'address': getAddressFromPrivateKey(process.env.TOKEN2_PRIVATE_KEY),
+    'privateKey': process.env.N_02_PRIVATE_KEY
+  },
+  'address03': {
+    'address': getAddressFromPrivateKey(process.env.N_03_PRIVATE_KEY),
+    'privateKey': process.env.N_03_PRIVATE_KEY
+  },
+  'address04': {
+    'address': getAddressFromPrivateKey(process.env.N_04_PRIVATE_KEY),
+    'privateKey': process.env.N_04_PRIVATE_KEY
+  },
 }
 
 let paymentTokenAddress;
@@ -54,8 +73,47 @@ let fixedPriceAddress;
 let nftTokenAddress;
 let allowlistAddress;
 
-beforeEach(async () => {
+/* beforeAll(async () => {
+  console.log(await getBalance(accounts.nftBuyer.address))
+  const address01Balance = await getBalance(accounts.address01.address)
+  const address02Balance = await getBalance(accounts.address02.address)
+  const address03Balance = await getBalance(accounts.address03.address)
+  const address04Balance = await getBalance(accounts.address04.address)
+
+  await transfer(
+    accounts.address01.privateKey, 
+    accounts.contractOwner.address,
+    address01Balance
+  )
+  
+  await transfer(
+    accounts.address02.privateKey, 
+    accounts.contractOwner.address,
+    address02Balance
+  )
+
+  await transfer(
+    accounts.address03.privateKey, 
+    accounts.nftBuyer.address,
+    address03Balance
+  )
+
+  await transfer(
+    accounts.address04.privateKey, 
+    accounts.nftBuyer.address,
+    address04Balance
+  )
+}) */
+
+beforeAll(async () => {
   await setupBalancesOnAccounts(accounts)
+})
+
+afterAll(async () => {
+  await clearBalancesOnAccounts(accounts)
+})
+
+beforeEach(async () => {
   globalBNum = await getBlockNumber(zilliqa);
 
   // Contract Deployments
@@ -260,10 +318,6 @@ beforeEach(async () => {
 })
 
 
-
-
-
-
 async function createFixedPriceOrder(
     fixedPriceContractAddress,
     tokenAddress, 
@@ -297,14 +351,14 @@ describe('Native ZIL', () => {
       tokenId: String(1),
       salePrice: String(10000),
       side: String(0),
-      expiryBlock: String(globalBNum + 1000)
+      expiryBlock: String(globalBNum + 20)
     }
 
     const buyOrderParams = {
       tokenId: String(1),
       salePrice: String(10000),
       side: String(1),
-      expiryBlock: String(globalBNum + 1000)
+      expiryBlock: String(globalBNum + 20)
     }
     
 
@@ -313,7 +367,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       sellOrderParams.tokenId,
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       sellOrderParams.salePrice,
       sellOrderParams.side,
       sellOrderParams.expiryBlock
@@ -343,7 +397,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       buyOrderParams.tokenId,
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       buyOrderParams.salePrice,
       buyOrderParams.side,
       buyOrderParams.expiryBlock
@@ -366,6 +420,7 @@ describe('Native ZIL', () => {
     )
 
     expect(txSellOrder.receipt.success).toEqual(true)
+    expect(txBuyOrder.receipt.success).toEqual(true)
   })
 
   test('SetOrder: throws NotAllowedUserError', async () => {
@@ -376,7 +431,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       '10000',
       '0',
       String(globalBNum + 35)
@@ -417,7 +472,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       '20000',
       '0',
       String(globalBNum + 35)
@@ -463,7 +518,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       '20000',
       '1',
       String(globalBNum + 35)
@@ -511,7 +566,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       '10000',
       '1',
       String(globalBNum + 35)
@@ -568,7 +623,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       tokenId,
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       salePrice,
       side,
       newExpiryBlock
@@ -638,7 +693,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       tokenId,
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       salePrice,
       side,
       expiryBlock
@@ -694,7 +749,7 @@ describe('Native ZIL', () => {
       JSON.stringify({
         [nftTokenAddress.toLowerCase()]: {
           [1]: {
-            [paymentTokenAddress.toLowerCase()]: {
+            [ZERO_ADDRESS]: {
               [String(10000)]: scillaJSONVal(
                 `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
                 [accounts.nftSeller.address, expiryBlock]
@@ -703,7 +758,7 @@ describe('Native ZIL', () => {
           },
           [2]: 
           {
-            [paymentTokenAddress.toLowerCase()]: {
+            [ZERO_ADDRESS]: {
               [salePrice]: scillaJSONVal(
                 `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
                 [accounts.nftSeller.address, expiryBlock]
@@ -731,7 +786,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       tokenId,
-      paymentTokenAddress.toLowerCase(),
+      paymentTokenAddress,
       salePrice,
       side,
       expiryBlock
@@ -792,7 +847,7 @@ describe('Native ZIL', () => {
       JSON.stringify({
         [nftTokenAddress.toLowerCase()]: {
           [1]: {
-            [paymentTokenAddress.toLowerCase()]: {
+            [paymentTokenAddress]: {
               [salePrice]: scillaJSONVal(
                 `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
                 [accounts.nftBuyer.address, expiryBlock]
@@ -804,7 +859,7 @@ describe('Native ZIL', () => {
     );
   })
 
-  test.only('FulfillOrder: throws NotAllowedUserError', async () => {
+  test('FulfillOrder: throws NotAllowedUserError', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const tokenId = String(1)
@@ -866,7 +921,7 @@ describe('Native ZIL', () => {
   test('FulfillOrder: throws SellOrderNotFoundError', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
-    const tokenId = String(1)
+    const tokenId = String(999)
     const salePrice = String(10000)
     const side = String(0)
 
@@ -911,20 +966,610 @@ describe('Native ZIL', () => {
       false
     )
       
-    console.log(tx)
-    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual(
+      [
+        {
+          line: 1,
+          message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -6))])'
+        },
+        { line: 1, message: 'Raised from RequireValidDestination' },
+        { line: 1, message: 'Raised from RequireAllowedUser' },
+        { line: 1, message: 'Raised from RequireAllowedUser' },
+        { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from FulfillOrder' }
+      ]
+    )
   })
 
-  // test('FulfillOrder: throws BuyOrderNotFoundError', async () => {})
-  // test('FulfillOrder: throws ExpiredError', async () => {})
-  // test('FulfillOrder: throws NotEqualAmountError', async () => {})
-  // test('FulfillOrder: Buyer fullfills sell order', async () => {})
-  // test('FulfillOrder: Seller fullfills buy order', async () => {})
-  // test('CancelOrder: throws NotAllowedToCancelOrder by stranger', async () => {})
-  // test('CancelOrder: Buyer cancels buy order', async () => {})
-  // test('CancelOrder: Seller cancels sell order', async () => {})
+  test('FulfillOrder: throws BuyOrderNotFoundError', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(999)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftSeller.address
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual(
+      [
+        {
+          line: 1,
+          message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -7))])'
+        },
+        { line: 1, message: 'Raised from RequireValidDestination' },
+        { line: 1, message: 'Raised from RequireAllowedUser' },
+        { line: 1, message: 'Raised from RequireAllowedUser' },
+        { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from FulfillOrder' }
+      ]
+    )
+  })
+  
+  test('FulfillOrder: throws ExpiredError', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    await zilliqa.provider.send("IncreaseBlocknum", 100);
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(0)
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log(tx.receipt.exceptions)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual(
+      [
+        {
+          line: 1,
+          message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+        },
+        { line: 1, message: 'Raised from TransferFrom' }
+    ]
+    )
+  })
+
+  test('FulfillOrder: throws NotEqualAmountError', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    console.log('buy balance')
+    console.log(await getBalance(accounts.nftBuyer.address))
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(0)
+    const txAmount = 100 // this is less than the order amount, so expected to fail
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      txAmount,
+      false,
+      false
+    )
+
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual(
+      [
+        {
+          line: 1,
+          message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -7))])'
+        },
+        { line: 1, message: 'Raised from RequireValidDestination' },
+        { line: 1, message: 'Raised from RequireAllowedUser' },
+        { line: 1, message: 'Raised from RequireAllowedUser' },
+        { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from FulfillOrder' }
+      ]
+    )
+  })
+  
+  test('FulfillOrder: Buyer fullfills sell order', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(0)
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      salePrice,
+      false,
+      false
+    )
+
+    console.log(tx)
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+    
+  })
+
+  test('FulfillOrder: Seller fullfills buy order', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      salePrice,
+      false,
+      false
+    )
+
+    console.log(tx)
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+  })
+
+  test('CancelOrder: throws NotAllowedToCancelOrder by stranger', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.stranger.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    //console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -12))])'
+      },
+      { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from CancelOrder' }
+    ])
+
+  })
+
+  test('CancelOrder: Buyer cancels buy order', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    //console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+    
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter(
+      (e) =>
+        e._eventname === 'CancelOrder'
+    )[0]
+
+    //let tokenAddress = txEvent.params[2].value
+    //tokenAddress = tokenAddress.toLowerCase()
+
+    console.log(txEvent)
+
+    expect(txEvent.params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(txEvent.params[5].value).toEqual(salePrice)
+
+    // Confirming that our buy order was in fact updated correctly 
+    const contractState = await fixedPriceContract.getState()
+
+    expect(JSON.stringify(contractState.buy_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: { [paymentTokenAddress.toLowerCase()]: {} },
+        },
+      })
+    );
+
+  })
+
+  test('CancelOrder: Seller cancels sell order', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(0)
+
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    //console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+    
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter(
+      (e) =>
+        e._eventname === 'CancelOrder'
+    )[0]
+
+    //let tokenAddress = txEvent.params[2].value
+    //tokenAddress = tokenAddress.toLowerCase()
+
+    console.log(txEvent)
+
+    expect(txEvent.params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(txEvent.params[5].value).toEqual(salePrice)
+
+    // Confirming that our buy order was in fact updated correctly 
+    const contractState = await fixedPriceContract.getState()
+
+    expect(JSON.stringify(contractState.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: { [paymentTokenAddress.toLowerCase()]: {} },
+        },
+      })
+    );
+
+  })
+
 })
 describe('Wrapped ZIL', () => {
+  beforeEach(async () => {
+    // First we succesfully create a sell order
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const sellOrderParams = {
+      tokenId: String(1),
+      salePrice: String(10000),
+      side: String(0),
+      expiryBlock: String(globalBNum + 20)
+    }
+
+    const buyOrderParams = {
+      tokenId: String(1),
+      salePrice: String(10000),
+      side: String(1),
+      expiryBlock: String(globalBNum + 20)
+    }
+    
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedSaleAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      sellOrderParams.tokenId,
+      paymentTokenAddress,
+      sellOrderParams.salePrice,
+      sellOrderParams.side,
+      sellOrderParams.expiryBlock
+    )
+
+    const txSellOrder = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedSaleAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(txSellOrder.receipt.success).toEqual(true)
+
+    // Then a buy order for the same token_id
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedBuyAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      buyOrderParams.tokenId,
+      paymentTokenAddress,
+      buyOrderParams.salePrice,
+      buyOrderParams.side,
+      buyOrderParams.expiryBlock
+    )
+
+    const txBuyOrder = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedBuyAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(txSellOrder.receipt.success).toEqual(true)
+    expect(txBuyOrder.receipt.success).toEqual(true)
+  })
   // test('SetOrder: throws NotAllowedPaymentToken', async () => {})
   // test('SetOrder: throws NotTokenOwnerError (stranger creates sell order for token #1)', async () => {})
   // test('SetOrder: throws TokenOwnerError (seller must not create a buy order for token #1)', async () => {})
@@ -938,7 +1583,78 @@ describe('Wrapped ZIL', () => {
   // test('FulfillOrder: Buyer fullfills sell order', async () => {})
   // test('FulfillOrder: Seller fullfills buy order', async () => {})
   // test('CancelOrder: throws NotAllowedToCancelOrder by stranger', async () => {})
-  // test('CancelOrder: Buyer cancels buy order', async () => {})
+  test.only('CancelOrder: Buyer cancels buy order', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    //console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+    
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter(
+      (e) =>
+        e._eventname === 'CancelOrder'
+    )[0]
+
+    //let tokenAddress = txEvent.params[2].value
+    //tokenAddress = tokenAddress.toLowerCase()
+
+    console.log(txEvent)
+
+    expect(txEvent.params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(txEvent.params[5].value).toEqual(salePrice)
+
+    // Confirming that our buy order was in fact updated correctly 
+    const contractState = await fixedPriceContract.getState()
+
+    expect(JSON.stringify(contractState.buy_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: { [paymentTokenAddress.toLowerCase()]: {} },
+        },
+      })
+    );
+  })
   // test('CancelOrder: Seller cancels sell order', async () => {})
 })
 
