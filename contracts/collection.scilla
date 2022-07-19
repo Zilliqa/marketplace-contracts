@@ -1,0 +1,242 @@
+(* SPDX-License-Identifier: MIT *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils PairUtils
+library Collections
+
+(* Global variables *)
+let zero_address = 0x0000000000000000000000000000000000000000
+let false = False
+let true = True
+let zero = Uint256 0
+let one = Uint256 1
+let empty_string = ""
+
+(* Error exception *)
+type Error =
+  | TokenAlreadyInCollection
+  | TokenIdDoesNotExist
+  | TokenDoesNotExistInCollection
+  | SenderIsNotTokenOwner
+  | AddToCollectionRequestNeverIssued
+
+let make_error =
+  fun (result: Error) =>
+    let result_code = 
+      match result with
+      | TokenAlreadyInCollection                     => Int32 -1
+      | TokenIdDoesNotExist                          => Int32 -2
+      | TokenDoesNotExistInCollection                => Int32 -3
+      | SenderIsNotTokenOwner                        => Int32 -4
+      | AddToCollectionRequestNeverIssued            => Int32 -5
+      end
+    in
+    { _exception: "Error"; code: result_code }
+
+
+
+type TokenState = 
+    | Requested of Uint32 Uint128 (* collection_id, brand_commission_fee *)
+
+contract Collections
+(
+  initial_contract_owner: ByStr20,
+  (* Initial Base URI. e.g. `https://creatures-api.zilliqa.com/api/creature/` *)
+  initial_base_uri: String,
+  name: String,
+  symbol: String
+)
+
+(* Mapping from token ID to a collection *)
+(* field token_collection: Map Uint256 Uint32 = Emp Uint256 Uint32 *) 
+field token_collection : Map ByStr20 (Map Uint256 Uint32) = Emp Map ByStr20 (Map Uint256 Uint32)
+
+(* Mapping from token ID to a brand *)
+field token_owning_brand: Map Uint256 ByStr20 = Emp Uint256 ByStr20
+
+(* Mapping from collection_id to a brand_owner (address) *)
+field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
+
+field requests: Map ByStr20 (Map Uint256 (Map ByStr20 TokenState))
+
+
+(* Emit Errors *)
+procedure Throw(error: Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireTokenOwner(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256
+    )
+
+    owner <- & token_address.token_owners[token_id];
+
+    match owner with
+        | Some owner =>
+        owner_is_sender = builtin eq owner _sender;
+
+            match owner_is_sender with
+            | True =>
+                (* No operation *)
+            | False =>
+                error = SenderIsNotTokenOwner;
+                Throw error
+            end
+
+        | None =>
+        error = TokenIdDoesNotExist;
+        Throw error
+    end
+end
+
+procedure RequireTokenNotInCollection(
+    token_address: ByStr20 with contract 
+    field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256
+    )
+    is_token_in_collection <- exists token_collection[token_address][token_id];
+
+    match is_token_in_collection with 
+    | True => 
+        (* A token can ONLY belong to ONE collection - TokenAlreadyInCollection *)
+        error = TokenAlreadyInCollection;
+        Throw error
+    | False =>
+        (* No Operation *)
+    end 
+end
+
+procedure RequireBrandOwner(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256
+    )
+
+    owner <- & token_address.token_owners[token_id];
+
+    match owner with
+        | Some owner =>
+        owner_is_sender = builtin eq owner _sender;
+
+            match owner_is_sender with
+            | True =>
+                (* No operation *)
+            | False =>
+                error = SenderIsNotTokenOwner;
+                Throw error
+            end
+
+        | None =>
+        error = TokenIdDoesNotExist;
+        Throw error
+    end
+end
+
+
+transition SetTokenToCollection(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256, 
+    collection_id: Uint32
+    )
+    RequireTokenOwner token_address token_id;
+
+    maybe_collection_id <- token_collection[token_address][token_id];
+
+    match maybe_collection_id with 
+    | Some collection_id => 
+        (* A token can ONLY belong to ONE collection - OnlyOneCollectionAtATime *)
+        error = OnlyOneCollectionAtATime;
+        Throw error
+    | None =>
+        token_collection[token_address][token_id] := collection_id 
+    end 
+end
+
+
+transition RemoveTokenFromCollection(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256, 
+    collection_id: Uint32
+    )
+    (* RequireTokenOwner token_address token_id; *)
+
+    maybe_collection_id <- token_collection[token_address][token_id];
+    
+    match maybe_collection_id with 
+    | Some collection_id => 
+        (* A token can ONLY belong to ONE collection - OnlyOneCollectionAtATime *)
+        delete token_collection[token_address][token_id];
+    | None =>
+        error = TokenDoesNotExistInCollection;
+        Throw error
+    end 
+end
+
+(* transition SetTokenToBrand *)
+(* transition RemoveTokenFromBrand *)
+
+(* transition SetCollectionToBrand *)
+transition CreateCollection()    
+end
+- require token_owner / 
+
+
+
+(* transition RemoveCollectionFromBrand *)
+
+transition RequestTokenToCollection(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256, 
+    collection_id: Uint32,
+    commission_fee: Uint128
+    )
+    RequireBrandOwner _sender;
+    RequireTokenNotInCollection token_address token_id;
+
+    (* When the same brand uses this function a second time, maybe we just overwrite? *)
+    request = Requested collection_id commission_fee;
+    requests[token_address][token_id][_sender] := request
+end
+
+transition AcceptCollectionRequest(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256, 
+    brand_address: ByStr20
+
+    RequireTokenOwner token_address token_id
+
+    maybe_request <- requests[token_address][token_id][brand_address];
+
+    match maybe_request with 
+    | Some (Requested collection_id commission_fee) =>
+        token_collection[token_address][token_id] := collection_id 
+        delete requests[token_address][token_id]
+
+        (* throw event *)
+    | None => 
+        error = AddToCollectionRequestNeverIssued
+        Throw error
+
+
+)
+
+(* transition DeleteRequests 
+delete requests[token_address][token_id]    
+*)

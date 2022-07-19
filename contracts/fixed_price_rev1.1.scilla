@@ -404,7 +404,11 @@ procedure HandleFulfillOrder(
     field royalty_recipient: ByStr20, 
     field royalty_fee_bps: Uint128, 
     field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
+    field token_owners: Map Uint256 ByStr20
+  end,
+  collection_address: ByStr20 with contract
+    field token_collection: Map Uint256 Uint32,
+    field collection_owning_brand: Map Uint32 ByStr20
   end,
   token_id: Uint256,
   payment_token_address: ByStr20,
@@ -430,6 +434,14 @@ procedure HandleFulfillOrder(
 
   svc_fee_recipient <- service_fee_recipient;
   RequireAllowedUser svc_fee_recipient;
+
+  maybe_belongs_to_brand <- & collection_adress.token_owning_brand[token_id]
+
+  match maybe_belongs_to_brand with
+  | Some owning_brand => 
+    msg_to_brand_recepient = {
+      _tag: 
+    }
 
   (* The currency is ZIL if the payment_token_address is zero address *)
   is_native_zil = builtin eq payment_token_address zero_address;
