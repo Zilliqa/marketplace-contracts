@@ -349,14 +349,14 @@ describe('Native ZIL', () => {
 
     const sellOrderParams = {
       tokenId: String(1),
-      salePrice: String(10000),
+      salePrice: new BN("10000"),
       side: String(0),
       expiryBlock: String(globalBNum + 20)
     }
 
     const buyOrderParams = {
       tokenId: String(1),
-      salePrice: String(10000),
+      salePrice: new BN("10000"),
       side: String(1),
       expiryBlock: String(globalBNum + 20)
     }
@@ -367,7 +367,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       sellOrderParams.tokenId,
-      paymentTokenAddress,
+      '0x0000000000000000000000000000000000000000',
       sellOrderParams.salePrice,
       sellOrderParams.side,
       sellOrderParams.expiryBlock
@@ -389,6 +389,7 @@ describe('Native ZIL', () => {
       false
     )
 
+    console.log(txSellOrder.receipt)
     expect(txSellOrder.receipt.success).toEqual(true)
 
     // Then a buy order for the same token_id
@@ -397,7 +398,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       buyOrderParams.tokenId,
-      paymentTokenAddress,
+      '0x0000000000000000000000000000000000000000',
       buyOrderParams.salePrice,
       buyOrderParams.side,
       buyOrderParams.expiryBlock
@@ -414,16 +415,17 @@ describe('Native ZIL', () => {
           value: formattedBuyAdtOrder
         }
       ],
-      0,
+      new BN(buyOrderParams.salePrice),
       false,
       false
     )
 
-    expect(txSellOrder.receipt.success).toEqual(true)
+    console.log(txBuyOrder)
+    console.log(txBuyOrder.receipt)
     expect(txBuyOrder.receipt.success).toEqual(true)
   })
 
-  test('SetOrder: throws NotAllowedUserError', async () => {
+  test.only('SetOrder: throws NotAllowedUserError', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
     
     // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
@@ -431,7 +433,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress,
+      '0x0000000000000000000000000000000000000000',
       '10000',
       '0',
       String(globalBNum + 35)
@@ -453,6 +455,7 @@ describe('Native ZIL', () => {
       false
     )
 
+    console.log(tx.receipt.exceptions)
     expect(tx.receipt.success).toEqual(false)
     expect(tx.receipt.exceptions).toEqual([
       {
@@ -472,7 +475,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress,
+      ZERO_ADDRESS,
       '20000',
       '0',
       String(globalBNum + 35)
@@ -518,7 +521,7 @@ describe('Native ZIL', () => {
       fixedPriceAddress,
       nftTokenAddress,
       '1',
-      paymentTokenAddress,
+      ZERO_ADDRESS,
       '20000',
       '1',
       String(globalBNum + 35)
@@ -1583,7 +1586,7 @@ describe('Wrapped ZIL', () => {
   // test('FulfillOrder: Buyer fullfills sell order', async () => {})
   // test('FulfillOrder: Seller fullfills buy order', async () => {})
   // test('CancelOrder: throws NotAllowedToCancelOrder by stranger', async () => {})
-  test.only('CancelOrder: Buyer cancels buy order', async () => {
+  test('CancelOrder: Buyer cancels buy order', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const tokenId = String(1)
