@@ -43,15 +43,10 @@ type TokenState =
 
 contract Collections
 (
-  initial_contract_owner: ByStr20,
-  (* Initial Base URI. e.g. `https://creatures-api.zilliqa.com/api/creature/` *)
-  initial_base_uri: String,
-  name: String,
-  symbol: String
+  initial_contract_owner: ByStr20
 )
 
 (* Mapping from token ID to a collection *)
-(* field token_collection: Map Uint256 Uint32 = Emp Uint256 Uint32 *) 
 field token_collection : Map ByStr20 (Map Uint256 Uint32) = Emp Map ByStr20 (Map Uint256 Uint32)
 
 (* Mapping from token ID to a brand *)
@@ -60,8 +55,11 @@ field token_owning_brand: Map Uint256 ByStr20 = Emp Uint256 ByStr20
 (* Mapping from collection_id to a brand_owner (address) *)
 field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
 
+(* Mapping from token_address to token_id:brand_address *)
 field requests: Map ByStr20 (Map Uint256 (Map ByStr20 TokenState))
 
+(*                          nft_addr     token_id brand_fee *)
+field token_brand_fee : Map ByStr20 (Map Uint256 Uint128)
 
 (* Emit Errors *)
 procedure Throw(error: Error)
@@ -81,7 +79,6 @@ procedure RequireTokenOwner(
     match owner with
         | Some owner =>
         owner_is_sender = builtin eq owner _sender;
-
             match owner_is_sender with
             | True =>
                 (* No operation *)
@@ -130,6 +127,7 @@ procedure RequireBrandOwner(
             match owner_is_sender with
             | True =>
                 (* No operation *)
+
             | False =>
                 error = SenderIsNotTokenOwner;
                 Throw error
@@ -141,7 +139,7 @@ procedure RequireBrandOwner(
     end
 end
 
-
+(* Depreceated? *)
 transition SetTokenToCollection(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
@@ -189,10 +187,6 @@ end
 (* transition RemoveTokenFromBrand *)
 
 (* transition SetCollectionToBrand *)
-transition CreateCollection()    
-end
-- require token_owner / 
-
 
 
 (* transition RemoveCollectionFromBrand *)
@@ -207,18 +201,21 @@ transition RequestTokenToCollection(
     )
     RequireBrandOwner _sender;
     RequireTokenNotInCollection token_address token_id;
+    (* Should we add a max upper range for commission_fee here? *)
 
     (* When the same brand uses this function a second time, maybe we just overwrite? *)
     request = Requested collection_id commission_fee;
     requests[token_address][token_id][_sender] := request
 end
 
+(* Used by a NFT owner to accept a request to have one of their tokens added to a collection *)
 transition AcceptCollectionRequest(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
     end,
     token_id: Uint256, 
     brand_address: ByStr20
+    )
 
     RequireTokenOwner token_address token_id
 
@@ -226,17 +223,30 @@ transition AcceptCollectionRequest(
 
     match maybe_request with 
     | Some (Requested collection_id commission_fee) =>
-        token_collection[token_address][token_id] := collection_id 
+        token_collection[token_address][token_id] := collection_id; 
+        token_brand_fee[token_address][token_id] := commission_fee;
         delete requests[token_address][token_id]
 
-        (* throw event *)
+        e = {
+            _eventname : "AddToCollectionRequestAccepted";
+            token_address: token_address;
+            token_id: token_id;
+            brand_address: brand_address;
+          };
+        event e
+
     | None => 
         error = AddToCollectionRequestNeverIssued
         Throw error
+    end
+end
 
+transition DeleteCommissionFeeAfterFirstSale(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256, 
+    brand_address: ByStr20
+    )
 
-)
-
-(* transition DeleteRequests 
-delete requests[token_address][token_id]    
-*)
+    delete 
