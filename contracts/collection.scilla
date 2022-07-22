@@ -160,7 +160,7 @@ transition SetTokenToCollection(
     maybe_collection_id <- token_collection[token_address][token_id];
 
     match maybe_collection_id with 
-    | Some collection_id => 
+    | Some maybe_collection_id => 
         (* A token can ONLY belong to ONE collection - TokenAlreadyInCollection *)
         error = TokenAlreadyInCollection;
         Throw error
@@ -182,7 +182,7 @@ transition RemoveTokenFromCollection(
     maybe_collection_id <- token_collection[token_address][token_id];
     
     match maybe_collection_id with 
-    | Some collection_id => 
+    | Some maybe_collection_id => 
         delete token_collection[token_address][token_id];
         e = {
             _eventname : "RemoveTokenFromCollection";
@@ -214,7 +214,7 @@ transition RequestTokenToCollection(
     collection_id: Uint32,
     commission_fee: Uint128
     )
-    RequireBrandOwner _sender;
+    RequireBrandOwner token_address token_id;
     RequireTokenNotInCollection token_address token_id;
     RequireValidBPS commission_fee;
 
