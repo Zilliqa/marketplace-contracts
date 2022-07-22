@@ -150,7 +150,11 @@ contract FixedPriceOrderbook
 field allowlist_address: ByStr20 = zero_address
 
 (* Collection Contract Address *)
-field collection_address: ByStr20 = collection_contract
+field collection_address: ByStr20 with contract
+  field token_collection: Map ByStr20 (Map Uint256 Uint32),
+  field collection_owning_brand: Map Uint32 ByStr20,
+  field token_brand_fee: Map ByStr20 (Map Uint256 Uint128) 
+end = collection_contract
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -438,7 +442,6 @@ procedure HandleFulfillOrder(
   token_id: Uint256,
   payment_token_address: ByStr20,
   sale_price: Uint128,
-  
   buyer: ByStr20,
   seller: ByStr20,
   side: Uint32,
@@ -449,9 +452,11 @@ procedure HandleFulfillOrder(
   royalty_fee_bps <- & token_address.royalty_fee_bps;
   royalty_amount = portion sale_price royalty_fee_bps;
 
+  (* Calculating the Service Fee *)
   fee_bps <- service_fee_bps;
   svc_fee = portion sale_price fee_bps;
 
+  (* Calculating the optional Brand Commission Fee *)
   opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
   brand_commission_fee =
     let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
@@ -525,7 +530,6 @@ procedure HandleFulfillOrder(
     (*   | False =>  *)
     (*     ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee *)
     (*   end *)
-
   end;
 
   msg_to_collection_contract = {
@@ -779,8 +783,8 @@ transition FulfillOrder(
         (* ZILs must be accepted only if a sell order is fulfilled *)
         accept
       end;
-      
-      HandleFulfillOrder token_address collection_address token_id payment_token_address sale_price buyer seller side dest;
+      collection_address_val <- collection_address;
+      HandleFulfillOrder token_address collection_address_val token_id payment_token_address sale_price buyer seller side dest;
       
       (* Remove all sell orders. *)
       (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
@@ -806,8 +810,8 @@ transition FulfillOrder(
       RequireNotExpired expiration_bnum;
       (* Sender must not be the buyer *)
       RequireNotSelf buyer;
-      
-      HandleFulfillOrder token_address collection_address token_id payment_token_address sale_price buyer seller side buyer;
+      collection_address_val <- collection_address;
+      HandleFulfillOrder token_address collection_address_val token_id payment_token_address sale_price buyer seller side buyer;
 
       (* Remove all sell orders *)
       delete sell_orders[token_address][token_id];
