@@ -58,6 +58,7 @@ let option_value =
     end
 
 let option_address = @option_value ByStr20
+let option_uint128 = @option_value Uint128
 
 (* maker, expiration block number *)
 type Order = 
@@ -399,6 +400,21 @@ procedure ZRC6TransferFrom(
   send msgs
 end
 
+procedure SendZilIfNotZero(recipient : ByStr20, amount : Uint128)
+  is_zero = builtin eq amount zero_uint128;
+  match is_zero with
+  | False => 
+    msg = {
+      _tag: "AddFunds";
+      _recipient: recipient;
+      _amount: amount
+    };
+    msg = one_msg msg;
+    send msg
+  | True => (* do not send zero amounts *)
+  end
+end
+
 procedure HandleFulfillOrder(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -413,6 +429,7 @@ procedure HandleFulfillOrder(
   token_id: Uint256,
   payment_token_address: ByStr20,
   sale_price: Uint128,
+  
   buyer: ByStr20,
   seller: ByStr20,
   side: Uint32,
@@ -426,8 +443,10 @@ procedure HandleFulfillOrder(
   fee_bps <- service_fee_bps;
   svc_fee = portion sale_price fee_bps;
 
-  brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
-  brand_commission_fee = portion sale_price commission_fee_bps;
+  opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
+  brand_commission_fee =
+    let brand_commission_bps = option_uint128 opt_brand_commission_bps in
+    portion sale_price brand_commission_bps;
 
   profit = builtin sub sale_price royalty_amount;
   profit_after_commission = builtin sub profit brand_commission_fee;
@@ -439,33 +458,15 @@ procedure HandleFulfillOrder(
   svc_fee_recipient <- service_fee_recipient;
   RequireAllowedUser svc_fee_recipient;
 
-  collection_id <- collection_address.token_collection[token_address][token_id];
-  brand_recipient <- collection_address.collection_owning_brand[collection_id];
-  RequireAllowedUser brand_recipient;
-
-  (* 
-  maybe_belongs_to_brand <- & collection_adress.token_owning_brand[token_id]
-
-  match maybe_belongs_to_brand with
-  | Some owning_brand => 
-
-  maybe_commission_fee <- & collection_address.token_brand_fee[token_address][token_id]
-
-    match maybe_commission_fee with
-    | Some commission_fee_bps =>
-
-    commission_fee = portion sale_price commission_fee_bps;
-
-    msg_to_brand_recepient = {
-      _tag: "AddFunds",
-      _recipient: owning_brand,
-      _amount: commission_fee
-    }
-
-    | None =>
-    (* No Operation *)
-    (* Commission fees are only paid on the 1st sale *)
-    (* and this implies that this is the 2nd sale or later *)
+  maybe_collection_id <- & collection_address.token_collection[token_address][token_id];
+  match maybe_collection_id with
+  | Some collection_id =>
+    brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+    RequireAllowedUser brand_recipient (* How do we manage this in the case where the brand is removed from whitelist or never there *)
+  | None =>
+    (* The token does not belong to any collection: we do not have to do anything
+       because in this case the brand commission fee is zero and nothing bad happens *)
+  end;
 
   (* The currency is ZIL if the payment_token_address is zero address *)
   is_native_zil = builtin eq payment_token_address zero_address;
@@ -490,24 +491,19 @@ procedure HandleFulfillOrder(
     };
     
     msgs = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
+    send msgs;
+    
+    (* Paying out a commission if there is one *)
+    SendZilIfNotZero brand_recipient brand_commission_fee;
+    msg_to_collection_contract = {
+      _tag: "TokenSaleCallback";
+      _recipient: collection_contract;  (* TODO: get this address from somewhere *)
+      _amount: zero_uint128;
+      token_address: token_address;
+      token_id: token_id
+    };
+    msgs = one_msg msg_to_collection_contract;
     send msgs
-
-    (* Paying out a commission if there is one*)
-    match brand_commission_fee with
-    | True => (* how is a 0 value interpreted by scilla? *)
-      msg_to_brand_recipient = {
-        _tag: "AddFunds";
-        _recipient: brand_recipient;
-        _amount: brand_commission_fee
-      };
-
-    msg = one_msg msg_to_brand_recipient
-    send msg
-
-    | None => 
-    (* No Operation *)
-
-    end
 
   | False =>
     (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
@@ -525,8 +521,8 @@ procedure HandleFulfillOrder(
     match brand_commission_fee with
 
     | True => (* how is a 0 value interpreted by scilla? *)
-      ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee;
-      
+      ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee
+
     | None =>
       (* No Operation *)
     end
@@ -552,7 +548,7 @@ procedure HandleFulfillOrder(
     royalty_amount: royalty_amount;
     service_fee: svc_fee;
     brand_recipient: brand_recipient;
-    brand_commission_fee: brand_commission_fee;
+    brand_commission_fee: brand_commission_fee
   };
   event e
 end
