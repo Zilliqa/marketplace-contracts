@@ -129,7 +129,12 @@ let make_error =
 
 contract FixedPriceOrderbook
 (
-  initial_contract_owner: ByStr20
+  initial_contract_owner: ByStr20,
+  collection_contract: ByStr20 with contract
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128) 
+  end 
 )
 
 (* 
@@ -143,6 +148,9 @@ contract FixedPriceOrderbook
 (* Allowlist Contract Address *)
 (* Defaults to `zero_address` *)
 field allowlist_address: ByStr20 = zero_address
+
+(* Collection Contract Address *)
+field collection_address: ByStr20 = collection_contract
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -423,8 +431,9 @@ procedure HandleFulfillOrder(
     field token_owners: Map Uint256 ByStr20
   end,
   collection_address: ByStr20 with contract
-    field token_collection: Map Uint256 Uint32,
-    field collection_owning_brand: Map Uint32 ByStr20
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128)
   end,
   token_id: Uint256,
   payment_token_address: ByStr20,
@@ -445,7 +454,7 @@ procedure HandleFulfillOrder(
 
   opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
   brand_commission_fee =
-    let brand_commission_bps = option_uint128 opt_brand_commission_bps in
+    let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
     portion sale_price brand_commission_bps;
 
   profit = builtin sub sale_price royalty_amount;
@@ -457,16 +466,6 @@ procedure HandleFulfillOrder(
 
   svc_fee_recipient <- service_fee_recipient;
   RequireAllowedUser svc_fee_recipient;
-
-  maybe_collection_id <- & collection_address.token_collection[token_address][token_id];
-  match maybe_collection_id with
-  | Some collection_id =>
-    brand_recipient <- & collection_address.collection_owning_brand[collection_id];
-    RequireAllowedUser brand_recipient (* How do we manage this in the case where the brand is removed from whitelist or never there *)
-  | None =>
-    (* The token does not belong to any collection: we do not have to do anything
-       because in this case the brand commission fee is zero and nothing bad happens *)
-  end;
 
   (* The currency is ZIL if the payment_token_address is zero address *)
   is_native_zil = builtin eq payment_token_address zero_address;
@@ -494,16 +493,18 @@ procedure HandleFulfillOrder(
     send msgs;
     
     (* Paying out a commission if there is one *)
-    SendZilIfNotZero brand_recipient brand_commission_fee;
-    msg_to_collection_contract = {
-      _tag: "TokenSaleCallback";
-      _recipient: collection_contract;  (* TODO: get this address from somewhere *)
-      _amount: zero_uint128;
-      token_address: token_address;
-      token_id: token_id
-    };
-    msgs = one_msg msg_to_collection_contract;
-    send msgs
+    maybe_collection_id <- & collection_address.token_collection[token_address][token_id];
+    match maybe_collection_id with
+    | Some collection_id =>
+      opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+      brand_recipient = option_address zero_address opt_brand_recipient;
+      
+      SendZilIfNotZero brand_recipient brand_commission_fee
+      (* RequireAllowedUser brand_recipient *)  (* How do we manage this in the case where the brand is removed from whitelist or never there *)
+    | None =>
+      (* The token does not belong to any collection: we do not have to do anything
+        because in this case the brand commission fee is zero and nothing bad happens *)
+    end
 
   | False =>
     (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
@@ -515,19 +516,27 @@ procedure HandleFulfillOrder(
     ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
 
     (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-    ZRC2TransferFrom payment_token_address buyer seller seller_profit;
+    ZRC2TransferFrom payment_token_address buyer seller seller_profit
 
-    (* Paying out a commission if there is one*)
-    match brand_commission_fee with
-
-    | True => (* how is a 0 value interpreted by scilla? *)
-      ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee
-
-    | None =>
-      (* No Operation *)
-    end
+    (* Paying out a commission if there is one *)
+    (* is_zero = builtin eq brand_commission_fee zero_uint128; *)
+    (*   match is_zero with *)
+    (*   | True => (* No Operation *) *)
+    (*   | False =>  *)
+    (*     ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee *)
+    (*   end *)
 
   end;
+
+  msg_to_collection_contract = {
+    _tag: "TokenSaleCallback";
+    _recipient: collection_contract;  (* TODO: get this address from somewhere *)
+    _amount: zero_uint128;
+    token_address: token_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_collection_contract;
+  send msgs;
 
   (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
   ZRC6TransferFrom token_address buy_dest token_id;
@@ -546,9 +555,7 @@ procedure HandleFulfillOrder(
     payment_tokens_recipient: seller;
     royalty_recipient: royalty_recipient;
     royalty_amount: royalty_amount;
-    service_fee: svc_fee;
-    brand_recipient: brand_recipient;
-    brand_commission_fee: brand_commission_fee
+    service_fee: svc_fee
   };
   event e
 end
@@ -773,7 +780,7 @@ transition FulfillOrder(
         accept
       end;
       
-      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
+      HandleFulfillOrder token_address collection_address token_id payment_token_address sale_price buyer seller side dest;
       
       (* Remove all sell orders. *)
       (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
@@ -800,7 +807,7 @@ transition FulfillOrder(
       (* Sender must not be the buyer *)
       RequireNotSelf buyer;
       
-      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
+      HandleFulfillOrder token_address collection_address token_id payment_token_address sale_price buyer seller side buyer;
 
       (* Remove all sell orders *)
       delete sell_orders[token_address][token_id];
