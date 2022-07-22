@@ -15,6 +15,8 @@ let zero = Uint256 0
 let one = Uint256 1
 let empty_string = ""
 
+let max_commission_fee_bps = Uint128 250
+
 (* Error exception *)
 type Error =
   | TokenAlreadyInCollection
@@ -22,6 +24,7 @@ type Error =
   | TokenDoesNotExistInCollection
   | SenderIsNotTokenOwner
   | AddToCollectionRequestNeverIssued
+  | CommissionFeeTooHigh
 
 let make_error =
   fun (result: Error) =>
@@ -32,6 +35,7 @@ let make_error =
       | TokenDoesNotExistInCollection                => Int32 -3
       | SenderIsNotTokenOwner                        => Int32 -4
       | AddToCollectionRequestNeverIssued            => Int32 -5
+      | CommissionFeeTooHigh                         => Int32 -6
       end
     in
     { _exception: "Error"; code: result_code }
@@ -130,6 +134,19 @@ procedure RequireBrandOwner(
     end
 end
 
+(* We allow a max upper boundary of 250 basis points (2.5%) *)
+(* Any more than that will result in a failed transaction *)
+procedure RequireValidBPS(val_bps: Uint128)
+    is_lte_max = uint128_le val_bps max_commission_fee_bps;
+    match is_lte_max with
+        | True => (* No Operation *)
+        | False =>
+        error = CommissionFeeTooHigh;
+        Throw error
+    end
+end
+
+
 (* DEPRECEATED *)
 transition SetTokenToCollection(
     token_address: ByStr20 with contract 
@@ -144,8 +161,8 @@ transition SetTokenToCollection(
 
     match maybe_collection_id with 
     | Some collection_id => 
-        (* A token can ONLY belong to ONE collection - OnlyOneCollectionAtATime *)
-        error = OnlyOneCollectionAtATime;
+        (* A token can ONLY belong to ONE collection - TokenAlreadyInCollection *)
+        error = TokenAlreadyInCollection;
         Throw error
     | None =>
         token_collection[token_address][token_id] := collection_id 
@@ -199,11 +216,11 @@ transition RequestTokenToCollection(
     )
     RequireBrandOwner _sender;
     RequireTokenNotInCollection token_address token_id;
-    (* Should we add a max upper range for commission_fee here? *)
+    RequireValidBPS commission_fee;
 
     (* When the same brand uses this function a second time, maybe we just overwrite? *)
     request = Requested collection_id commission_fee;
-    requests[token_address][token_id][_sender] := request
+    requests[token_address][token_id][_sender] := request;
 
     e = {
         _eventname : "RequestTokenToCollection";
@@ -211,7 +228,7 @@ transition RequestTokenToCollection(
         token_id: token_id;
         collection_id: collection_id;
         commission_fee: commission_fee
-      };
+    };
     event e
 end
 
@@ -223,27 +240,26 @@ transition AcceptCollectionRequest(
     token_id: Uint256, 
     brand_address: ByStr20
     )
-
     RequireTokenOwner token_address token_id;
 
-    maybe_request <- requests[token_address][token_id][brand_address]
+    maybe_request <- requests[token_address][token_id][brand_address];
 
     match maybe_request with 
     | Some (Requested collection_id commission_fee) =>
         token_collection[token_address][token_id] := collection_id; 
         token_brand_fee[token_address][token_id] := commission_fee;
-        delete requests[token_address][token_id]
+        delete requests[token_address][token_id];
 
         e = {
             _eventname : "AddToCollectionRequestAccepted";
             token_address: token_address;
             token_id: token_id;
-            brand_address: brand_address;
+            brand_address: brand_address
           };
         event e
 
     | None => 
-        error = AddToCollectionRequestNeverIssued
+        error = AddToCollectionRequestNeverIssued;
         Throw error
     end
 end
@@ -252,24 +268,21 @@ transition TokenSaleCallback(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
     end,
-    token_id: Uint256)
-
-  (* TODO: Precondition 1: we are called by fixed_price or auction contracts *)
-  
-  (* TODO: Register the first sale if it never happened *)
-
-end
-
-    delete 
-transition DeleteCommissionFeeAfterFirstSale(
-    token_address: ByStr20 with contract 
-        field token_owners: Map Uint256 ByStr20 
-    end,
-    token_id: Uint256, 
-    brand_address: ByStr20
+    token_id: Uint256
     )
 
-    delete 
+    (* TODO: Precondition 1: we are called by fixed_price or auction contracts *)
     
+    (* TODO: Register the first sale if it never happened *)
+    maybe_commission_fee <- token_brand_fee[token_address][token_id];
+    
+    match maybe_commission_fee with
+      | Some maybe_commission_fee => 
+      delete token_brand_fee[token_address][token_id]
+      | None => 
+      (* No Operation *)
+    end
+end
+
 
 (* allowlist required before create collection *)
