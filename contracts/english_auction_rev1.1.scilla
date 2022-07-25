@@ -155,7 +155,7 @@ contract EnglishAuctionOrderbook
 )
 
 (* Allowlist Contract Address *)
-(* Defaults to `initial_contract_owner` *)
+(* Defaults to `zero_address` *)
 field allowlist_address: ByStr20 = zero_address
 
 (* Contract Owner *)
