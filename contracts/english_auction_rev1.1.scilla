@@ -521,7 +521,7 @@ procedure BidWithNativeZILs(
   | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
     (* We have the existing bid. We track the max only. *)
     RequireGrtOrEqToMinBid cur_amount;
-    (* marketplace pays back the old bider the current amount *)
+    (* marketplace pays back the old bidder the current amount *)
     (* Use zero address for native ZILs *)
     AddToPaymentTokenBalance old_buyer zero_address cur_amount;
 
@@ -586,7 +586,7 @@ procedure BidWithZRC2(
         (* We have the existing bid. We track the max only. *)
         
         RequireGrtOrEqToMinBid cur_amount;
-        (* marketplace pays back the old bider the current amount *)
+        (* marketplace pays back the old bidder the current amount *)
         AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
 
         (* Update the buy order with new buyer *)
@@ -634,7 +634,7 @@ procedure CancelAuction(
     | Some (BuyOrder buyer cur_amount buy_dest _) =>  
       (* When auction has been cancelled, the buyer can withdraw *)
       (* the current bid amount of the payment tokens. *)
-      (* marketplace pays back the old bider the current amount *)
+      (* marketplace pays back the old bidder the current amount *)
       AddToPaymentTokenBalance buyer payment_token_address cur_amount;
       delete buy_orders[token_address][token_id]
     end
