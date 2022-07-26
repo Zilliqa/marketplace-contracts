@@ -147,7 +147,7 @@ contract EnglishAuctionOrderbook
 )
 
 (* Allowlist Contract Address *)
-(* Defaults to `initial_contract_owner` *)
+(* Defaults to `zero_address` *)
 field allowlist_address: ByStr20 = zero_address
 
 (* Contract Owner *)
@@ -931,9 +931,16 @@ transition End(
         (* Calculate service fee *)
         service_fee = portion sale_price svc_fee_bps;
 
+        (* Calculate commission fee *)
+        opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
+        brand_commission_fee =
+          let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
+          portion sale_price brand_commission_bps;
+
         (* Calculate seller profit *)
         profit = builtin sub sale_price royalty_amount;
-        seller_profit = builtin sub profit service_fee;
+        profit_after_commission = builtin sub profit brand_commission_fee;
+        seller_profit = builtin sub profit_after_commission service_fee;
 
         (* royalties for the royalty recipient *)
         AddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
@@ -946,6 +953,20 @@ transition End(
 
         (* payment tokens for the seller *)
         AddToPaymentTokenBalance seller payment_token_address seller_profit;
+
+        (* Paying out a commission if there is one *)
+        maybe_collection_id <- & collection_address.token_collection[token_address][token_id];
+        match maybe_collection_id with
+        | Some collection_id =>
+          opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+          brand_recipient = option_address zero_address opt_brand_recipient;
+          
+          AddToPaymentTokenBalance brand_recipient brand_commission_fee
+          (* RequireAllowedUser brand_recipient *)  (* How do we manage this in the case where the brand is removed from whitelist or never there *)
+        | None =>
+          (* The token does not belong to any collection: we do not have to do anything
+            because in this case the brand commission fee is zero and nothing bad happens *)
+        end
 
         (* Cleanup orders *)
         delete sell_orders[token_address][token_id];
