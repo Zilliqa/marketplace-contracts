@@ -13,6 +13,7 @@ let false = False
 let true = True
 let zero = Uint256 0
 let one = Uint256 1
+let uint32_one = Uint32 1
 let empty_string = ""
 
 let max_commission_fee_bps = Uint128 250
@@ -25,7 +26,9 @@ type Error =
   | SenderIsNotTokenOwner
   | AddToCollectionRequestNeverIssued
   | CommissionFeeTooHigh
-  | RequireRequestDoesNotExist
+  | RequestDoesNotExist
+  | SenderIsNotBrandOwner
+  | CollectionIdDoesNotExist
 
 let make_error =
   fun (result: Error) =>
@@ -37,7 +40,9 @@ let make_error =
       | SenderIsNotTokenOwner                        => Int32 -4
       | AddToCollectionRequestNeverIssued            => Int32 -5
       | CommissionFeeTooHigh                         => Int32 -6
-      | RequireRequestDoesNotExist                   => Int32 -7
+      | RequestDoesNotExist                          => Int32 -7
+      | SenderIsNotBrandOwner                        => Int32 -8
+      | CollectionIdDoesNotExist                     => Int32 -9
       end
     in
     { _exception: "Error"; code: result_code }
@@ -45,7 +50,6 @@ let make_error =
 
 
 type TokenState = 
-    (* | Requested of Uint32 Uint128 (* collection_id, brand_commission_fee *)
     | Requested of Uint32 (* collection_id *)
 
 contract Collections
@@ -55,7 +59,7 @@ contract Collections
 
 (* Mapping from collection_id to a brand_owner (address) *)
 field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
-field collection_owning_brand_size: Uint32 = 0
+field collection_owning_brand_size: Uint32 = Uint32 0
 
 (* Mapping from token ID to a collection *)
 field token_collection: Map ByStr20 (Map Uint256 Uint32) = Emp ByStr20 (Map Uint256 Uint32)
@@ -117,12 +121,9 @@ procedure RequireTokenNotInCollection(
 end
 
 procedure RequireBrandOwner(
-    token_address: ByStr20 with contract 
-        field token_owners: Map Uint256 ByStr20 
-    end,
-    token_id: Uint256
+    collection_id: Uint32
     )
-    owner <- & token_address.token_owners[token_id];
+    owner <- collection_owning_brand[collection_id];
 
     match owner with
         | Some owner =>
@@ -130,11 +131,11 @@ procedure RequireBrandOwner(
             match owner_is_sender with
             | True => (* No operation *)
             | False =>
-                error = SenderIsNotTokenOwner;
+                error = SenderIsNotBrandOwner;
                 Throw error
             end
         | None =>
-        error = TokenIdDoesNotExist;
+        error = CollectionIdDoesNotExist;
         Throw error
     end
 end
@@ -158,25 +159,26 @@ transition CreateCollection(
     commission_fee: Uint128
     )
     RequireValidBPS commission_fee;
-    RequireValidBrand; (* Placeholder for requiring only whitelisted brands *)
+    (* Placeholder for requiring only whitelisted brands *)
+    (* RequireValidBrand; *)
     
     size <- collection_owning_brand_size;
     collection_id = builtin add size uint32_one;
     collection_owning_brand_size := collection_id;
 
     collection_owning_brand[collection_id] := _sender;
-    collection_commission_fee[collection_id] := commission_fee
+    collection_commission_fee[collection_id] := commission_fee;
 
     e = {
         _eventname : "CollectionCreated";
-        collection_id: new_size;
+        collection_id: collection_id;
         brand_owner: _sender;
         commission_fee: commission_fee
     };
     event e
 end
 
-
+(* Used by a brand owner to delete an NFT from a collection they own *)
 transition RemoveTokenFromCollection(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
@@ -184,8 +186,7 @@ transition RemoveTokenFromCollection(
     token_id: Uint256, 
     collection_id: Uint32
     )
-    (* RequireTokenOwner token_address token_id; *)
-    RequireBrandOwner token_address token_id;
+    RequireBrandOwner collection_id;
 
     maybe_collection_id <- token_collection[token_address][token_id];
     
@@ -203,22 +204,34 @@ transition RemoveTokenFromCollection(
     | None =>
         error = TokenDoesNotExistInCollection;
         Throw error
-    end 
+    end;
+
+    (* Deleting the corresponding record in has_had_first_sale if exist *)
+    is_sale_record <- exists has_had_first_sale[token_address][token_id];
+
+    match is_sale_record with 
+    | True  =>
+      delete has_had_first_sale[token_address][token_id]
+    | False => (* No operation *)
+    end
 end
 
+
+(* Used by a brand owner to request an NFT to their collection *)
 transition RequestTokenToCollection(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
     end,
     token_id: Uint256, 
-    collection_id: Uint32,
+    collection_id: Uint32
     )
-    RequireBrandOwner token_address token_id;
+    RequireBrandOwner collection_id;
     RequireTokenNotInCollection token_address token_id;
 
     (* When the same brand uses this function a second time, maybe we just overwrite? *)
-    request = Requested collection_id commission_fee;
+    request = Requested collection_id;
     requests[token_address][token_id][_sender] := request;
+    commission_fee <- collection_commission_fee[collection_id];
 
     e = {
         _eventname : "RequestTokenToCollection";
@@ -236,18 +249,26 @@ transition DeleteRequestTokenToCollection(
         field token_owners: Map Uint256 ByStr20 
     end,
     token_id: Uint256, 
-    collection_id: Uint32,
+    collection_id: Uint32
     )
-    RequireBrandOwner token_address token_id;
+    RequireBrandOwner collection_id;
     
-    maybe_request <- requests[token_address][token_id][_sender]
+    maybe_request <- requests[token_address][token_id][_sender];
     
     match maybe_request with
       | Some maybe_request => 
-      delete requests[token_address][token_id][_sender]
+      delete requests[token_address][token_id][_sender];
+
+      e = {
+        _eventname : "RequesTokenCollectionDeleted";
+        token_address: token_address;
+        token_id: token_id;
+        collection_id: collection_id
+      };
+      event e
 
       | None => 
-      error = RequireRequestDoesNotExist;
+      error = RequestDoesNotExist;
       Throw error
     end
 end
@@ -265,7 +286,7 @@ transition AcceptCollectionRequest(
     maybe_request <- requests[token_address][token_id][brand_address];
 
     match maybe_request with 
-    | Some (Requested collection_id commission_fee) =>
+    | Some (Requested collection_id) =>
         token_collection[token_address][token_id] := collection_id; 
         delete requests[token_address][token_id];
 
@@ -273,7 +294,8 @@ transition AcceptCollectionRequest(
             _eventname : "AddToCollectionRequestAccepted";
             token_address: token_address;
             token_id: token_id;
-            brand_address: brand_address
+            brand_address: brand_address;
+            collection_id: collection_id
           };
         event e
 
@@ -293,12 +315,12 @@ transition TokenSaleCallback(
     (* TODO: Precondition 1: we are called by fixed_price or auction contracts *)
     
     (* TODO: Register the first sale if it never happened *)
-    maybe_first_sale <- has_had_first_sale[token_address][token_id];
+    is_first_sale <- exists has_had_first_sale[token_address][token_id];
 
-    match maybe_first_sale with
+    match is_first_sale with
       | True => (* No Operation *)
       | False => 
-      has_had_first_sale[token_address][token_id] := True
+        has_had_first_sale[token_address][token_id] := True
     end
 end
 
