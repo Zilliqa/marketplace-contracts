@@ -437,7 +437,8 @@ procedure HandleFulfillOrder(
   collection_address: ByStr20 with contract
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
     field collection_owning_brand: Map Uint32 ByStr20,
-    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128)
+    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
+    field has_had_first_sale: Map Uint32 Uint128
   end,
   token_id: Uint256,
   payment_token_address: ByStr20,
@@ -456,11 +457,45 @@ procedure HandleFulfillOrder(
   fee_bps <- service_fee_bps;
   svc_fee = portion sale_price fee_bps;
 
+  (* To know if we should pay a commission we need to do the following: *)
+  (* A) Check if in collection: *)
+    (* False: commission_fee = 0 *)
+    (* True: check if has_had_first_sale *)
+      (* True: commission_fee: 0 *)
+      (* False: opt_brand_commission_bps = get_commission_fee() *)
+    (* Calculate commission_fee from bps value *)
+
+  (* Check if the NFT belongs in a collection *)
+  maybe_in_collection <- & collection_address.token_collection[token_address][token_id]
+  match maybe_in_collection with 
+  | Some maybe_in_collection =>
+    (* If it is, we check if a commission should be paid (only on 1st sale) *)
+    maybe_has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id]
+    match maybe_has_had_first_sale with
+      (* Sale registered, no commission fee payout *)
+      | True =>
+        brand_commission_fee = 0
+      | False =>
+        (* No sale registered, meaning a commission fee will be paid out *)
+        collection_id <- maybe_in_collection
+        brand_commission_bps <- & collection_address.collection_commission_fee[collection_id]
+        brand_commission_fee = portion sale_price brand_commission_bps
+
+        (* Fetching the brand recipient to pay commission to *)
+        opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+        brand_recipient = option_address zero_address opt_brand_recipient;
+    end
+  | None =>
+    brand_commission_fee = 0
+  end
+
+  is_commission_fee = builtin eq brand_commission_fee zero_uint128;
+
   (* Calculating the optional Brand Commission Fee *)
-  opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
-  brand_commission_fee =
-    let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
-    portion sale_price brand_commission_bps;
+  (* opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id]; *)
+  (* brand_commission_fee = *)
+  (*   let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in *)
+  (*   portion sale_price brand_commission_bps; *)
 
   profit = builtin sub sale_price royalty_amount;
   profit_after_commission = builtin sub profit brand_commission_fee;
@@ -498,17 +533,10 @@ procedure HandleFulfillOrder(
     send msgs;
     
     (* Paying out a commission if there is one *)
-    maybe_collection_id <- & collection_address.token_collection[token_address][token_id];
-    match maybe_collection_id with
-    | Some collection_id =>
-      opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
-      brand_recipient = option_address zero_address opt_brand_recipient;
-      
+    match is_commission_fee with
+    | Some is_commission_fee =>
       SendZilIfNotZero brand_recipient brand_commission_fee
-      (* RequireAllowedUser brand_recipient *)  (* How do we manage this in the case where the brand is removed from whitelist or never there *)
-    | None =>
-      (* The token does not belong to any collection: we do not have to do anything
-        because in this case the brand commission fee is zero and nothing bad happens *)
+    | None => (* No operation *)
     end
 
   | False =>
@@ -524,12 +552,11 @@ procedure HandleFulfillOrder(
     ZRC2TransferFrom payment_token_address buyer seller seller_profit
 
     (* Paying out a commission if there is one *)
-    (* is_zero = builtin eq brand_commission_fee zero_uint128; *)
-    (*   match is_zero with *)
-    (*   | True => (* No Operation *) *)
-    (*   | False =>  *)
-    (*     ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee *)
-    (*   end *)
+    match is_commission_fee with
+      | True => (* No Operation *)
+      | False => 
+        ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee 
+    end
   end;
 
   msg_to_collection_contract = {
