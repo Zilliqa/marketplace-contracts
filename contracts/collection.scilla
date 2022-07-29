@@ -194,7 +194,7 @@ transition RemoveTokenFromCollection(
     | Some maybe_collection_id => 
         delete token_collection[token_address][token_id];
         e = {
-            _eventname : "RemoveTokenFromCollection";
+            _eventname : "RemovedTokenFromCollection";
             token_address: token_address;
             token_id: token_id;
             collection_id: collection_id
@@ -260,7 +260,7 @@ transition DeleteRequestTokenToCollection(
       delete requests[token_address][token_id][_sender];
 
       e = {
-        _eventname : "RequesTokenCollectionDeleted";
+        _eventname : "RequestTokenToCollectionDeleted";
         token_address: token_address;
         token_id: token_id;
         collection_id: collection_id
@@ -294,7 +294,7 @@ transition AcceptCollectionRequest(
             _eventname : "AddToCollectionRequestAccepted";
             token_address: token_address;
             token_id: token_id;
-            brand_address: brand_address;
+            brand_owner: brand_address;
             collection_id: collection_id
           };
         event e
@@ -305,22 +305,35 @@ transition AcceptCollectionRequest(
     end
 end
 
+(* Called by either fixed_price or auction contracts after an NFT sale *)
+(* to detect if a commission_fee should be paid. Only applicable on the 1st sale of an NFT in a collection *)
 transition TokenSaleCallback(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
     end,
-    token_id: Uint256
+    token_id: Uint256,
+    collection_id: Uint32,
+    commission_fee: Uint128
     )
 
     (* TODO: Precondition 1: we are called by fixed_price or auction contracts *)
     
-    (* TODO: Register the first sale if it never happened *)
+    (* Register the first sale if it never happened *)
     is_first_sale <- exists has_had_first_sale[token_address][token_id];
 
     match is_first_sale with
       | True => (* No Operation *)
       | False => 
         has_had_first_sale[token_address][token_id] := True
+
+        e = {
+            _eventname : "CommissionFeePaid";
+            token_address: token_address;
+            token_id: token_id;
+            collection_id: collection_id;
+            commission_fee: commission_fee
+          };
+        event e
     end
 end
 
