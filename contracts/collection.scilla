@@ -61,10 +61,10 @@ contract Collections
 field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
 field collection_owning_brand_size: Uint32 = Uint32 0
 
-(* Mapping from token ID to a collection *)
+(* Mapping from token_id to a collection *)
 field token_collection: Map ByStr20 (Map Uint256 Uint32) = Emp ByStr20 (Map Uint256 Uint32)
 
-(* Mapping from token_address to token_id:brand_address *)
+(* Mapping from token_address to token_id:brand_owner (address) *)
 field requests: Map ByStr20 (Map Uint256 (Map ByStr20 TokenState)) = Emp ByStr20 (Map Uint256 (Map ByStr20 TokenState))
 
 (* Mapping from collection_id to collection_fee *)
@@ -178,7 +178,7 @@ transition CreateCollection(
     event e
 end
 
-(* Used by a brand owner to delete an NFT from a collection they own *)
+(* Used by a brand_owner to delete an NFT from a collection they own *)
 transition RemoveTokenFromCollection(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
@@ -217,7 +217,7 @@ transition RemoveTokenFromCollection(
 end
 
 
-(* Used by a brand owner to request an NFT to their collection *)
+(* Used by a brand_owner to request an NFT to their collection *)
 transition RequestTokenToCollection(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
@@ -228,7 +228,7 @@ transition RequestTokenToCollection(
     RequireBrandOwner collection_id;
     RequireTokenNotInCollection token_address token_id;
 
-    (* When the same brand uses this function a second time, maybe we just overwrite? *)
+    (* When the same brand_owner uses this function a second time we just overwrite *)
     request = Requested collection_id;
     requests[token_address][token_id][_sender] := request;
     commission_fee <- collection_commission_fee[collection_id];
@@ -243,7 +243,7 @@ transition RequestTokenToCollection(
     event e
 end
 
-(* Lets a brand owner delete a request if one exist. *)
+(* Lets a brand_owner delete a request if one exist. *)
 transition DeleteRequestTokenToCollection(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
@@ -273,7 +273,7 @@ transition DeleteRequestTokenToCollection(
     end
 end
 
-(* Used by a NFT owner to accept a request to have one of their tokens added to a collection *)
+(* Used by a NFT owner to accept a request to have one of their NFTs added to a collection *)
 transition AcceptCollectionRequest(
     token_address: ByStr20 with contract 
         field token_owners: Map Uint256 ByStr20 
@@ -305,7 +305,7 @@ transition AcceptCollectionRequest(
     end
 end
 
-(* Called by either fixed_price or auction contracts after an NFT sale *)
+(* Called by either fixed_price or auction contracts during an NFT sale *)
 (* to detect if a commission_fee should be paid. Only applicable on the 1st sale of an NFT in a collection *)
 transition TokenSaleCallback(
     token_address: ByStr20 with contract 
