@@ -9,6 +9,7 @@ import BoolUtils IntUtils
 library FixedPriceOrderbook
 
 let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint32 = Uint32 0
 let zero_uint128 = Uint128 0
 let false = False
 let true = True
@@ -58,6 +59,7 @@ let option_value =
     end
 
 let option_address = @option_value ByStr20
+let option_uint32 = @option_value Uint32
 let option_uint128 = @option_value Uint128
 
 (* maker, expiration block number *)
@@ -438,7 +440,8 @@ procedure HandleFulfillOrder(
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
     field collection_owning_brand: Map Uint32 ByStr20,
     field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
-    field has_had_first_sale: Map Uint32 Uint128
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
   end,
   token_id: Uint256,
   payment_token_address: ByStr20,
@@ -456,6 +459,8 @@ procedure HandleFulfillOrder(
   (* Calculating the Service Fee *)
   fee_bps <- service_fee_bps;
   svc_fee = portion sale_price fee_bps;
+  collection_id = zero_uint32;
+  brand_commission_fee = zero_uint128;
 
   (* To know if we should pay a commission we need to do the following: *)
   (* A) Check if in collection: *)
@@ -466,36 +471,44 @@ procedure HandleFulfillOrder(
     (* Calculate commission_fee from bps value *)
 
   (* Check if the NFT belongs in a collection *)
-  maybe_in_collection <- & collection_address.token_collection[token_address][token_id]
+  maybe_in_collection <- & collection_address.token_collection[token_address][token_id];
   match maybe_in_collection with 
   | Some maybe_in_collection =>
     (* If it is, we check if a commission should be paid (only on 1st sale) *)
-    maybe_has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id]
+    maybe_has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id];
     match maybe_has_had_first_sale with
       (* Sale registered, no commission fee payout *)
-      | True =>
-        brand_commission_fee = 0
-      | False =>
+      | Some maybe_has_had_first_sale =>
+        (* brand_commission_fee := 0 *)
+        (* No operation *)
+      | None =>
         (* No sale registered, meaning a commission fee will be paid out *)
-        collection_id <- maybe_in_collection
-        brand_commission_bps <- & collection_address.collection_commission_fee[collection_id]
-        brand_commission_fee = portion sale_price brand_commission_bps
+        opt_collection_id <- & collection_address.token_collection[token_address][token_id];
+        collection_id = option_uint32 zero_uint32 opt_collection_id;
+        opt_brand_commission_bps <- & collection_address.collection_commission_fee[collection_id];
+        (* brand_commission_fee = portion sale_price brand_commission_bps *) 
+        
+        brand_commission_fee = 
+          let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
+          portion sale_price brand_commission_bps
 
-        (* Fetching the brand recipient to pay commission to *)
-        opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
-        brand_recipient = option_address zero_address opt_brand_recipient;
     end
   | None =>
-    brand_commission_fee = 0
-  end
+    (* brand_commission_fee := 0 *)
+  end;
 
   is_commission_fee = builtin eq brand_commission_fee zero_uint128;
 
   (* Calculating the optional Brand Commission Fee *)
-  (* opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id]; *)
-  (* brand_commission_fee = *)
-  (*   let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in *)
-  (*   portion sale_price brand_commission_bps; *)
+  (* opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
+  brand_commission_fee = 
+    let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
+    portion sale_price brand_commission_bps;
+  *)
+
+  (* Fetching the brand recipient to pay commission to *)
+  opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+  brand_recipient = option_address zero_address opt_brand_recipient;
 
   profit = builtin sub sale_price royalty_amount;
   profit_after_commission = builtin sub profit brand_commission_fee;
@@ -549,7 +562,7 @@ procedure HandleFulfillOrder(
     ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
 
     (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-    ZRC2TransferFrom payment_token_address buyer seller seller_profit
+    ZRC2TransferFrom payment_token_address buyer seller seller_profit;
 
     (* Paying out a commission if there is one *)
     match is_commission_fee with
@@ -564,7 +577,9 @@ procedure HandleFulfillOrder(
     _recipient: collection_contract;  (* TODO: get this address from somewhere *)
     _amount: zero_uint128;
     token_address: token_address;
-    token_id: token_id
+    token_id: token_id;
+    commission_fee: commission_fee;
+    brand_recipient: brand_recipient
   };
   msgs = one_msg msg_to_collection_contract;
   send msgs;

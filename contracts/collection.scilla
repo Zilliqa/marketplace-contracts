@@ -324,7 +324,7 @@ transition TokenSaleCallback(
     match is_first_sale with
       | True => (* No Operation *)
       | False => 
-        has_had_first_sale[token_address][token_id] := True
+        has_had_first_sale[token_address][token_id] := true;
 
         e = {
             _eventname : "CommissionFeePaid";
