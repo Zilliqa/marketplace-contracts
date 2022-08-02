@@ -41,6 +41,18 @@ let portion =
     let result = builtin div amount x in
     result
 
+(* Computes the commission_fee if there is one. If not, it returns Uint128 0 *)
+let commission_fee = 
+  fun(sale_price: Uint128) =>
+  fun(commission_fee_bps: Uint128) =>
+  fun(maybe_has_had_first_sale: Bool) =>
+    match maybe_has_had_first_sale with
+      | Some => zero_uint128
+      | None => 
+      let brand_commission_fee = option_uint128 zero_uint128 opt_brand_commission_bps in
+        portion sale_price brand_commission_bps
+    end
+
 let option_value =
   tfun 'A =>
   fun (default: 'A) =>
@@ -924,6 +936,7 @@ transition End(
         (* 2. the seller can withdraw the payment tokens. *)
         (* 3. the royalty recipient can withdraw the royalty amount. *)
         (* 4. the service fee recipient can withdraw the service fee. *)
+        (* 5. the brand recipient can withdraw the commission fee, if any *)
 
         (* Calculate royalty amount *)
         royalty_amount = portion sale_price royalty_fee_bps;
@@ -932,10 +945,41 @@ transition End(
         service_fee = portion sale_price svc_fee_bps;
 
         (* Calculate commission fee *)
-        opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
-        brand_commission_fee =
-          let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
-          portion sale_price brand_commission_bps;
+        opt_collection_id <- & collection_address.token_collection[token_address][token_id];
+        collection_id = option_uint32 zero_uint32 opt_collection_id;
+        
+        commission_fee_bps <- collection_address.collection_commission_fee[collection_id];
+        has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id];
+        
+        brand_commission_fee = sale_price commission_fee_bps has_had_first_sale
+
+        (* Check if the NFT belongs in a collection *)
+        maybe_in_collection <- & collection_address.token_collection[token_address][token_id];
+        match maybe_in_collection with 
+        | Some maybe_in_collection =>
+          (* If it is, we check if a commission should be paid (only on 1st sale) *)
+          maybe_has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id];
+          match maybe_has_had_first_sale with
+            (* Sale registered, no commission fee payout *)
+            | Some maybe_has_had_first_sale =>
+              brand_commission_fee := 0
+            | None =>
+              (* No sale registered, meaning a commission fee will be paid out *)
+              collection_id <- maybe_in_collection
+              brand_commission_bps <- & collection_address.collection_commission_fee[collection_id]
+              brand_commission_fee = portion sale_price brand_commission_bps
+
+          end
+        | None =>
+          brand_commission_fee := 0
+        end
+
+        (* should this be reversed? bcs rn it turns false if brand_commission_fee is greater than 0 *)
+        is_commission_fee = builtin eq brand_commission_fee zero_uint128;
+        
+        (* Fetching the brand recipient to pay commission to *)
+        opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+        brand_recipient = option_address zero_address opt_brand_recipient;
 
         (* Calculate seller profit *)
         profit = builtin sub sale_price royalty_amount;
@@ -955,17 +999,23 @@ transition End(
         AddToPaymentTokenBalance seller payment_token_address seller_profit;
 
         (* Paying out a commission if there is one *)
-        maybe_collection_id <- & collection_address.token_collection[token_address][token_id];
-        match maybe_collection_id with
-        | Some collection_id =>
-          opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
-          brand_recipient = option_address zero_address opt_brand_recipient;
-          
-          AddToPaymentTokenBalance brand_recipient brand_commission_fee
-          (* RequireAllowedUser brand_recipient *)  (* How do we manage this in the case where the brand is removed from whitelist or never there *)
-        | None =>
-          (* The token does not belong to any collection: we do not have to do anything
-            because in this case the brand commission fee is zero and nothing bad happens *)
+        match is_commission_fee with
+          | Some isx_commission_fee =>
+            AddToPaymentTokenBalance brand_recipient brand_commission_fee
+
+            msg_to_collection_contract = {
+              _tag: "TokenSaleCallback";
+              _recipient: collection_contract;  (* TODO: get this address from somewhere *)
+              _amount: zero_uint128;
+              token_address: token_address;
+              token_id: token_id;
+              commission_fee: brand_commission_fee;
+              brand_recipient: brand_recipient
+            };
+            msgs = one_msg msg_to_collection_contract;
+            send msgs;
+
+          | None => (* No operation *)
         end
 
         (* Cleanup orders *)
