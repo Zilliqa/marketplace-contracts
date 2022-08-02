@@ -473,12 +473,15 @@ procedure HandleFulfillOrder(
 
   (* Calculating the optional commission fee *)
   collections_contract <- collection_address;
+  
   opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
   collection_id = option_uint32 zero_uint32 opt_collection_id;
   commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
   has_had_first_sale <- & collections_contract.has_had_first_sale[token_address][token_id];
   
   brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
+
+  (* should this be reversed? bcs rn it turns false if brand_commission_fee is greater than 0 *)
   is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
 
   (* Fetching the brand recipient to pay commission to *)
