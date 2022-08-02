@@ -9,6 +9,7 @@ import BoolUtils IntUtils
 library EnglishAuctionOrderbook
 
 let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint32 = Uint32 0
 let zero_uint128 = Uint128 0
 let one_uint128 = Uint128 1
 let false = False
@@ -41,18 +42,6 @@ let portion =
     let result = builtin div amount x in
     result
 
-(* Computes the commission_fee if there is one. If not, it returns Uint128 0 *)
-let commission_fee = 
-  fun(sale_price: Uint128) =>
-  fun(commission_fee_bps: Uint128) =>
-  fun(maybe_has_had_first_sale: Bool) =>
-    match maybe_has_had_first_sale with
-      | Some => zero_uint128
-      | None => 
-      let brand_commission_fee = option_uint128 zero_uint128 opt_brand_commission_bps in
-        portion sale_price brand_commission_bps
-    end
-
 let option_value =
   tfun 'A =>
   fun (default: 'A) =>
@@ -63,6 +52,21 @@ let option_value =
     end
 
 let option_address = @option_value ByStr20
+let option_uint32 = @option_value Uint32
+let option_uint128 = @option_value Uint128
+
+(* Computes the commission_fee if there is one. If not, it returns Uint128 0 *)
+let compute_commission_fee = 
+  fun(sale_price: Uint128) =>
+  fun(opt_commission_fee_bps: Option Uint128) =>
+  fun(maybe_has_had_first_sale: Option Bool) =>
+    match maybe_has_had_first_sale with
+      | Some maybe_has_had_first_sale => 
+        zero_uint128
+      | None => 
+        let brand_commission_fee = option_uint128 zero_uint128 opt_commission_fee_bps in
+          portion sale_price brand_commission_fee
+    end
 
 type SellOrder = 
 | SellOrder of ByStr20 (* maker *)
@@ -155,7 +159,13 @@ let make_error =
 
 contract EnglishAuctionOrderbook
 (
-  initial_contract_owner: ByStr20
+  initial_contract_owner: ByStr20,
+  collection_contract: ByStr20 with contract
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
 )
 
 (* Allowlist Contract Address *)
@@ -169,6 +179,14 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Contract ownership recipient *)
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Collection Contract Address *)
+field collection_address: ByStr20 with contract
+  field token_collection: Map ByStr20 (Map Uint256 Uint32),
+  field collection_owning_brand: Map Uint32 ByStr20,
+  field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+  field collection_commission_fee: Map Uint32 Uint128
+end = collection_contract
 
 (* Emergency stop mechanism *)
 (* Defaults to False *)
@@ -945,40 +963,19 @@ transition End(
         service_fee = portion sale_price svc_fee_bps;
 
         (* Calculate commission fee *)
-        opt_collection_id <- & collection_address.token_collection[token_address][token_id];
+        collections_contract <- collection_address;
+        opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
         collection_id = option_uint32 zero_uint32 opt_collection_id;
         
-        commission_fee_bps <- collection_address.collection_commission_fee[collection_id];
-        has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id];
+        commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+        has_had_first_sale <- & collections_contract.has_had_first_sale[token_address][token_id];
         
-        brand_commission_fee = sale_price commission_fee_bps has_had_first_sale
+        brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
 
-        (* Check if the NFT belongs in a collection *)
-        maybe_in_collection <- & collection_address.token_collection[token_address][token_id];
-        match maybe_in_collection with 
-        | Some maybe_in_collection =>
-          (* If it is, we check if a commission should be paid (only on 1st sale) *)
-          maybe_has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id];
-          match maybe_has_had_first_sale with
-            (* Sale registered, no commission fee payout *)
-            | Some maybe_has_had_first_sale =>
-              brand_commission_fee := 0
-            | None =>
-              (* No sale registered, meaning a commission fee will be paid out *)
-              collection_id <- maybe_in_collection
-              brand_commission_bps <- & collection_address.collection_commission_fee[collection_id]
-              brand_commission_fee = portion sale_price brand_commission_bps
-
-          end
-        | None =>
-          brand_commission_fee := 0
-        end
-
-        (* should this be reversed? bcs rn it turns false if brand_commission_fee is greater than 0 *)
-        is_commission_fee = builtin eq brand_commission_fee zero_uint128;
+        is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
         
         (* Fetching the brand recipient to pay commission to *)
-        opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+        opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
         brand_recipient = option_address zero_address opt_brand_recipient;
 
         (* Calculate seller profit *)
@@ -1000,8 +997,8 @@ transition End(
 
         (* Paying out a commission if there is one *)
         match is_commission_fee with
-          | Some isx_commission_fee =>
-            AddToPaymentTokenBalance brand_recipient brand_commission_fee
+          | True =>
+            AddToPaymentTokenBalance brand_recipient payment_token_address brand_commission_fee;
 
             msg_to_collection_contract = {
               _tag: "TokenSaleCallback";
@@ -1013,10 +1010,10 @@ transition End(
               brand_recipient: brand_recipient
             };
             msgs = one_msg msg_to_collection_contract;
-            send msgs;
+            send msgs
 
-          | None => (* No operation *)
-        end
+          | False => (* No operation *)
+        end;
 
         (* Cleanup orders *)
         delete sell_orders[token_address][token_id];
