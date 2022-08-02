@@ -62,6 +62,19 @@ let option_address = @option_value ByStr20
 let option_uint32 = @option_value Uint32
 let option_uint128 = @option_value Uint128
 
+(* Computes the commission_fee if there is one. If not, it returns Uint128 0 *)
+let compute_commission_fee = 
+  fun(sale_price: Uint128) =>
+  fun(opt_commission_fee_bps: Option Uint128) =>
+  fun(maybe_has_had_first_sale: Option Bool) =>
+    match maybe_has_had_first_sale with
+      | Some maybe_has_had_first_sale => 
+        zero_uint128
+      | None => 
+        let brand_commission_fee = option_uint128 zero_uint128 opt_commission_fee_bps in
+          portion sale_price brand_commission_fee
+    end
+
 (* maker, expiration block number *)
 type Order = 
 | Order of ByStr20 BNum
@@ -135,8 +148,10 @@ contract FixedPriceOrderbook
   collection_contract: ByStr20 with contract
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
     field collection_owning_brand: Map Uint32 ByStr20,
-    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128) 
-  end 
+    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
 )
 
 (* 
@@ -155,7 +170,9 @@ field allowlist_address: ByStr20 = zero_address
 field collection_address: ByStr20 with contract
   field token_collection: Map ByStr20 (Map Uint256 Uint32),
   field collection_owning_brand: Map Uint32 ByStr20,
-  field token_brand_fee: Map ByStr20 (Map Uint256 Uint128) 
+  field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
+  field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+  field collection_commission_fee: Map Uint32 Uint128
 end = collection_contract
 
 (* Contract Owner *)
@@ -436,13 +453,6 @@ procedure HandleFulfillOrder(
     field spenders: Map Uint256 ByStr20, 
     field token_owners: Map Uint256 ByStr20
   end,
-  collection_address: ByStr20 with contract
-    field token_collection: Map ByStr20 (Map Uint256 Uint32),
-    field collection_owning_brand: Map Uint32 ByStr20,
-    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
-    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
-    field collection_commission_fee: Map Uint32 Uint128
-  end,
   token_id: Uint256,
   payment_token_address: ByStr20,
   sale_price: Uint128,
@@ -460,54 +470,19 @@ procedure HandleFulfillOrder(
   fee_bps <- service_fee_bps;
   svc_fee = portion sale_price fee_bps;
   collection_id = zero_uint32;
-  brand_commission_fee = zero_uint128;
 
-  (* To know if we should pay a commission we need to do the following: *)
-  (* A) Check if in collection: *)
-    (* False: commission_fee = 0 *)
-    (* True: check if has_had_first_sale *)
-      (* True: commission_fee: 0 *)
-      (* False: opt_brand_commission_bps = get_commission_fee() *)
-    (* Calculate commission_fee from bps value *)
-
-  (* Check if the NFT belongs in a collection *)
-  maybe_in_collection <- & collection_address.token_collection[token_address][token_id];
-  match maybe_in_collection with 
-  | Some maybe_in_collection =>
-    (* If it is, we check if a commission should be paid (only on 1st sale) *)
-    maybe_has_had_first_sale <- & collection_address.has_had_first_sale[token_address][token_id];
-    match maybe_has_had_first_sale with
-      (* Sale registered, no commission fee payout *)
-      | Some maybe_has_had_first_sale =>
-        (* brand_commission_fee := 0 *)
-        (* No operation *)
-      | None =>
-        (* No sale registered, meaning a commission fee will be paid out *)
-        opt_collection_id <- & collection_address.token_collection[token_address][token_id];
-        collection_id = option_uint32 zero_uint32 opt_collection_id;
-        opt_brand_commission_bps <- & collection_address.collection_commission_fee[collection_id];
-        (* brand_commission_fee = portion sale_price brand_commission_bps *) 
-        
-        brand_commission_fee = 
-          let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
-          portion sale_price brand_commission_bps
-
-    end
-  | None =>
-    (* brand_commission_fee := 0 *)
-  end;
-
-  is_commission_fee = builtin eq brand_commission_fee zero_uint128;
-
-  (* Calculating the optional Brand Commission Fee *)
-  (* opt_brand_commission_bps <- & collection_address.token_brand_fee[token_address][token_id];
-  brand_commission_fee = 
-    let brand_commission_bps = option_uint128 zero_uint128 opt_brand_commission_bps in
-    portion sale_price brand_commission_bps;
-  *)
+  (* Calculating the optional commission fee *)
+  collections_contract <- collection_address;
+  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+  collection_id = option_uint32 zero_uint32 opt_collection_id;
+  commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+  has_had_first_sale <- & collections_contract.has_had_first_sale[token_address][token_id];
+  
+  brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
+  is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
 
   (* Fetching the brand recipient to pay commission to *)
-  opt_brand_recipient <- & collection_address.collection_owning_brand[collection_id];
+  opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
   brand_recipient = option_address zero_address opt_brand_recipient;
 
   profit = builtin sub sale_price royalty_amount;
@@ -547,9 +522,9 @@ procedure HandleFulfillOrder(
     
     (* Paying out a commission if there is one *)
     match is_commission_fee with
-    | Some is_commission_fee =>
+    | True =>
       SendZilIfNotZero brand_recipient brand_commission_fee
-    | None => (* No operation *)
+    | False => (* No operation *)
     end
 
   | False =>
@@ -578,7 +553,7 @@ procedure HandleFulfillOrder(
     _amount: zero_uint128;
     token_address: token_address;
     token_id: token_id;
-    commission_fee: commission_fee;
+    commission_fee: brand_commission_fee;
     brand_recipient: brand_recipient
   };
   msgs = one_msg msg_to_collection_contract;
@@ -825,8 +800,8 @@ transition FulfillOrder(
         (* ZILs must be accepted only if a sell order is fulfilled *)
         accept
       end;
-      collection_address_val <- collection_address;
-      HandleFulfillOrder token_address collection_address_val token_id payment_token_address sale_price buyer seller side dest;
+
+      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
       
       (* Remove all sell orders. *)
       (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
@@ -852,8 +827,8 @@ transition FulfillOrder(
       RequireNotExpired expiration_bnum;
       (* Sender must not be the buyer *)
       RequireNotSelf buyer;
-      collection_address_val <- collection_address;
-      HandleFulfillOrder token_address collection_address_val token_id payment_token_address sale_price buyer seller side buyer;
+      
+      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
 
       (* Remove all sell orders *)
       delete sell_orders[token_address][token_id];
