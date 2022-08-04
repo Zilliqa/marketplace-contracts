@@ -52,6 +52,14 @@ let option_value =
 
 let option_address = @option_value ByStr20
 
+let is_in_range = 
+  fun(amount: Uint128) =>
+  fun(min: Uint128) => 
+  fun(max: Uint128) =>
+    let is_gte_min = uint128_ge amount min in
+    let is_lte_max = uint128_le amount max in
+    andb is_gte_min is_lte_max
+
 type SellOrder = 
 | SellOrder of ByStr20 (* maker *)
                BNum    (* expiration_blocknumber *)
@@ -147,7 +155,7 @@ contract EnglishAuctionOrderbook
 )
 
 (* Allowlist Contract Address *)
-(* Defaults to `initial_contract_owner` *)
+(* Defaults to `zero_address` *)
 field allowlist_address: ByStr20 = zero_address
 
 (* Contract Owner *)
@@ -230,7 +238,6 @@ procedure RequireAllowedUser(address: ByStr20)
 end
 
 procedure RequireValidDestination(to: ByStr20)
-  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
   is_zero_address = builtin eq to zero_address;
   match is_zero_address with
   | False =>
@@ -251,10 +258,7 @@ end
 procedure RequireValidRoyaltyFeeBPS(val_bps: Uint128)
   (* max: 25% (arbitrary number) *)
   max = Uint128 2500;
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max;
-  
-  is_valid = andb is_gte_min is_lte_max;
+  is_valid = is_in_range val_bps min_bps max;
   match is_valid with 
     | True => 
     | False =>
@@ -266,10 +270,7 @@ end
 procedure RequireValidServiceFeeBPS(val_bps: Uint128)
   (* max: 10% (arbitrary number) *)
   max = Uint128 1000;
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max;
-  
-  is_valid = andb is_gte_min is_lte_max;
+  is_valid = is_in_range val_bps min_bps max;
   match is_valid with 
     | True => 
     | False =>
@@ -279,10 +280,7 @@ procedure RequireValidServiceFeeBPS(val_bps: Uint128)
 end
 
 procedure RequireValidBidIncrementBPS(val_bps: Uint128)
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max_bps;
-  
-  is_valid = andb is_gte_min is_lte_max;
+  is_valid = is_in_range val_bps min_bps max_bps;
   match is_valid with 
     | True => 
     | False =>
@@ -327,8 +325,6 @@ procedure RequireAccessToCancel(seller_address: ByStr20)
 end
 
 procedure RequireNotPaused()
-  (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | False =>
@@ -340,13 +336,11 @@ procedure RequireNotPaused()
 end
 
 procedure RequirePaused()
-  (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | True =>
   | False =>
-    (* Contract is paused *)
+    (* Contract is not paused *)
     error = NotPausedError;
     Throw error
   end
@@ -479,6 +473,23 @@ procedure ZRC6TransferFrom(token_address: ByStr20, to: ByStr20, token_id: Uint25
   send msgs
 end
 
+procedure RequireGrtOrEqToMinBid(cur_amount: Uint128) 
+  (* Minimum Bid = Current Bid + Bid Increment *)
+  (* Calculate Minimum Bid *)
+  bid_inc_bps <- bid_increment_bps;
+  bid_increment = portion cur_amount bid_inc_bps;
+  min_bid = builtin add cur_amount bid_increment;
+  is_less_than_min_bid = builtin lt _amount min_bid;
+
+  match is_less_than_min_bid with
+  | True => 
+    error = LessThanMinBidError;
+    Throw error
+  | False => 
+    (* noop *)  
+  end
+end 
+
 procedure BidWithNativeZILs(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -509,28 +520,15 @@ procedure BidWithNativeZILs(
     end
   | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
     (* We have the existing bid. We track the max only. *)
-    
-    (* Minimum Bid = Current Bid + Bid Increment *)
-    (* Calculate Minimum Bid *)
-    bid_inc_bps <- bid_increment_bps;
-    bid_increment = portion cur_amount bid_inc_bps;
-    min_bid = builtin add cur_amount bid_increment;
+    RequireGrtOrEqToMinBid cur_amount;
+    (* marketplace pays back the old bidder the current amount *)
+    (* Use zero address for native ZILs *)
+    AddToPaymentTokenBalance old_buyer zero_address cur_amount;
 
-    is_less_than_min_bid = builtin lt amount min_bid;
-    match is_less_than_min_bid with
-    | True => 
-      error = LessThanMinBidError;
-      Throw error
-    | False =>      
-      (* markekplace pays back the old bider the current amount *)
-      (* Use zero address for native ZILs *)
-      AddToPaymentTokenBalance old_buyer zero_address cur_amount;
-
-      (* Update the buy order with new buyer *)
-      new_bid_count = builtin add bid_count one_uint128;
-      new_order = BuyOrder _sender amount dest new_bid_count;
-      buy_orders[token_address][token_id] := new_order
-    end
+    (* Update the buy order with new buyer *)
+    new_bid_count = builtin add bid_count one_uint128;
+    new_order = BuyOrder _sender amount dest new_bid_count;
+    buy_orders[token_address][token_id] := new_order
   end
 end
 
@@ -587,26 +585,14 @@ procedure BidWithZRC2(
       | Some (BuyOrder old_buyer cur_amount cur_dest bid_count) =>
         (* We have the existing bid. We track the max only. *)
         
-        (* Minimum Bid = Current Bid + Bid Increment *)
-        (* Calculate Minimum Bid *)
-        bid_inc_bps <- bid_increment_bps;
-        bid_increment = portion cur_amount bid_inc_bps;
-        min_bid = builtin add cur_amount bid_increment;
-        
-        is_less_than_min_bid = builtin lt amount min_bid;
-        match is_less_than_min_bid with
-        | True => 
-          error = LessThanMinBidError;
-          Throw error
-        | False =>      
-          (* markekplace pays back the old bider the current amount *)
-          AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
+        RequireGrtOrEqToMinBid cur_amount;
+        (* marketplace pays back the old bidder the current amount *)
+        AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
 
-          (* Update the buy order with new buyer *)
-          new_bid_count = builtin add bid_count one_uint128;
-          new_order = BuyOrder _sender amount dest new_bid_count;
-          buy_orders[token_address][token_id] := new_order
-        end
+        (* Update the buy order with new buyer *)
+        new_bid_count = builtin add bid_count one_uint128;
+        new_order = BuyOrder _sender amount dest new_bid_count;
+        buy_orders[token_address][token_id] := new_order
       end
     end
   end
@@ -648,7 +634,7 @@ procedure CancelAuction(
     | Some (BuyOrder buyer cur_amount buy_dest _) =>  
       (* When auction has been cancelled, the buyer can withdraw *)
       (* the current bid amount of the payment tokens. *)
-      (* markekplace pays back the old bider the current amount *)
+      (* marketplace pays back the old bidder the current amount *)
       AddToPaymentTokenBalance buyer payment_token_address cur_amount;
       delete buy_orders[token_address][token_id]
     end
@@ -743,6 +729,7 @@ transition Bid(
   RequireNotPaused;
   RequireAllowedUser _sender;
   RequireAllowedUser dest;
+  RequireValidDestination dest;
   
   (* Check the sell order does exist *)
   maybe_sell_order <- sell_orders[token_address][token_id];
@@ -1126,7 +1113,21 @@ transition DisallowPaymentTokenAddress(
 end
 
 (* @multi-sig *)
-transition SetAllowlist(address: ByStr20)
+transition ClearAllowList()
+  RequireContractOwner;
+  allowlist_address := zero_address;
+
+  e = { 
+    _eventname: "ClearAllowList"
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetAllowlist(address: ByStr20 with 
+                                              contract field allowed_addresses : Map ByStr20 Bool
+                                          end
+)
   RequireContractOwner;
   allowlist_address := address;
   
