@@ -282,6 +282,7 @@ transition AcceptCollectionRequest(
     brand_address: ByStr20
     )
     RequireTokenOwner token_address token_id;
+    RequireTokenNotInCollection token_address token_id;
 
     maybe_request <- requests[token_address][token_id][brand_address];
 
