@@ -16,8 +16,6 @@ let one = Uint256 1
 let uint32_one = Uint32 1
 let empty_string = ""
 
-let max_commission_fee_bps = Uint128 250
-
 (* Error exception *)
 type Error =
   | TokenAlreadyInCollection
@@ -29,6 +27,8 @@ type Error =
   | RequestDoesNotExist
   | SenderIsNotBrandOwner
   | CollectionIdDoesNotExist
+  | NotContractOwner
+  | InvalidMaxFeeBPS
 
 let make_error =
   fun (result: Error) =>
@@ -43,6 +43,8 @@ let make_error =
       | RequestDoesNotExist                          => Int32 -7
       | SenderIsNotBrandOwner                        => Int32 -8
       | CollectionIdDoesNotExist                     => Int32 -9
+      | NotContractOwner                             => Int32 -10
+      | InvalidMaxFeeBPS                             => Int32 -11
       end
     in
     { _exception: "Error"; code: result_code }
@@ -56,6 +58,10 @@ contract Collections
 (
   initial_contract_owner: ByStr20
 )
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
 
 (* Mapping from collection_id to a brand_owner (address) *)
 field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
@@ -73,11 +79,24 @@ field collection_commission_fee: Map Uint32 Uint128 = Emp Uint32 Uint128
 (* Mapping for knowing if an NFT has been sold or not *)
 field has_had_first_sale: Map ByStr20 (Map Uint256 Bool) = Emp ByStr20 (Map Uint256 Bool)
 
+(* Can be updated by `contract_owner` with the transition `SetMaxCommissionFeeBPS` *)
+field max_commission_fee_bps: Uint128 = Uint128 250
 
 (* Emit Errors *)
 procedure Throw(error: Error)
   e = make_error error;
   throw e
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwner;
+    Throw error
+  end
 end
 
 procedure RequireTokenOwner(
@@ -140,16 +159,31 @@ procedure RequireBrandOwner(
     end
 end
 
-(* We allow a max upper boundary of 250 basis points (2.5%) *)
-(* Any more than that will result in a failed transaction *)
+(* We set a max upper boundary with the field `max_commission_fee_bps` *)
+(* This is by default 250 (2.5%), but can be updated by contract owner *)
+(* with the transition `SetMaxCommissionFeeBPS` *)
 procedure RequireValidBPS(val_bps: Uint128)
-    is_lte_max = uint128_le val_bps max_commission_fee_bps;
+    max_fee_bps <- max_commission_fee_bps;
+    is_lte_max = uint128_le val_bps max_fee_bps;
     match is_lte_max with
         | True => (* No Operation *)
         | False =>
         error = CommissionFeeTooHigh;
         Throw error
     end
+end
+
+procedure RequireValidMaxBPS(val_bps: Uint128)
+  (* max: 25% (arbitrary number) *)
+  max = Uint128 2500;
+  is_lte_max = uint128_le val_bps max;
+  
+  match is_lte_max with 
+    | True => 
+    | False =>
+      error = InvalidMaxFeeBPS;
+      Throw error
+  end
 end
 
 
@@ -338,5 +372,24 @@ transition TokenSaleCallback(
     end
 end
 
+(* Sets `max_commission_fee_bps` *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwner` *)
+(* - `new_max_commission_fee_bps` must be in the range of 0 and 2500. Otherwise, it must throw `InvalidMaxFeeBPS` *)
+transition SetMaxCommissionFeeBPS(new_max_commission_fee_bps: Uint128)
+  RequireContractOwner;
+  RequireValidMaxBPS new_max_commission_fee_bps;
+
+  (* Can we run into an issue where the combined fees (royalty, service & commission) result in gt 100%? *)
+  old_commission_fee_bps <- max_commission_fee_bps;
+  max_commission_fee_bps := new_max_commission_fee_bps;
+  
+  e = { 
+    _eventname: "UpdatedMaxCommissionFeeBps";
+    old_max_commission_fee_bps: old_commission_fee_bps;
+    new_max_commission_fee_bps: new_max_commission_fee_bps
+  };
+  event e
+end
 
 (* allowlist required before create collection *)
