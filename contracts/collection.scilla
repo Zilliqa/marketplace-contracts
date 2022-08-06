@@ -31,6 +31,8 @@ type Error =
   | InvalidMaxFeeBPS
   | NotContractOwnershipRecipient
   | SelfError
+  | PausedError
+  | NotPausedError
 
 let make_error =
   fun (result: Error) =>
@@ -49,6 +51,8 @@ let make_error =
       | InvalidMaxFeeBPS                             => Int32 -11
       | NotContractOwnershipRecipient                => Int32 -12
       | SelfError                                    => Int32 -13
+      | PausedError                                  => Int32 -14
+      | NotPausedError                               => Int32 -15
       end
     in
     { _exception: "Error"; code: result_code }
@@ -70,6 +74,10 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Contract ownership recipient *)
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
 
 (* Mapping from collection_id to a brand_owner (address) *)
 field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
@@ -204,6 +212,32 @@ procedure RequireValidMaxBPS(val_bps: Uint128)
   end
 end
 
+procedure RequireNotPaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
 
 (* Lets anyone create an empty collection with an id assigned by the smart contract *)
 (* @dev should integrate with allowlist to only allow whitelisted addresses *)
@@ -211,6 +245,7 @@ transition CreateCollection(
     commission_fee: Uint128
     )
     RequireValidBPS commission_fee;
+    RequireNotPaused;
     (* Placeholder for requiring only whitelisted brands *)
     (* RequireValidBrand; *)
     
@@ -239,6 +274,7 @@ transition RemoveTokenFromCollection(
     collection_id: Uint32
     )
     RequireBrandOwner collection_id;
+    RequireNotPaused;
 
     maybe_collection_id <- token_collection[token_address][token_id];
     
@@ -279,6 +315,7 @@ transition RequestTokenToCollection(
     )
     RequireBrandOwner collection_id;
     RequireTokenNotInCollection token_address token_id;
+    RequireNotPaused;
 
     (* When the same brand_owner uses this function a second time we just overwrite *)
     request = Requested collection_id;
@@ -304,6 +341,7 @@ transition DeleteRequestTokenToCollection(
     collection_id: Uint32
     )
     RequireBrandOwner collection_id;
+    RequireNotPaused;
     
     maybe_request <- requests[token_address][token_id][_sender];
     
@@ -335,6 +373,7 @@ transition AcceptCollectionRequest(
     )
     RequireTokenOwner token_address token_id;
     RequireTokenNotInCollection token_address token_id;
+    RequireNotPaused;
 
     maybe_request <- requests[token_address][token_id][brand_address];
 
@@ -447,6 +486,34 @@ transition AcceptContractOwnership()
     };
     event e
   end
+end
+
+(* @multi-sig *)
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Unpauses the contract. *)
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
 end
 
 (* allowlist required before create collection *)
