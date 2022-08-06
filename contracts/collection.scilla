@@ -29,6 +29,8 @@ type Error =
   | CollectionIdDoesNotExist
   | NotContractOwner
   | InvalidMaxFeeBPS
+  | NotContractOwnershipRecipient
+  | SelfError
 
 let make_error =
   fun (result: Error) =>
@@ -45,6 +47,8 @@ let make_error =
       | CollectionIdDoesNotExist                     => Int32 -9
       | NotContractOwner                             => Int32 -10
       | InvalidMaxFeeBPS                             => Int32 -11
+      | NotContractOwnershipRecipient                => Int32 -12
+      | SelfError                                    => Int32 -13
       end
     in
     { _exception: "Error"; code: result_code }
@@ -62,6 +66,10 @@ contract Collections
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
 field contract_owner: ByStr20 = initial_contract_owner
+
+(* Contract ownership recipient *)
+(* Defaults to `zero_address` *)
+field contract_ownership_recipient: ByStr20 = zero_address
 
 (* Mapping from collection_id to a brand_owner (address) *)
 field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
@@ -95,6 +103,16 @@ procedure RequireContractOwner()
   | True => 
   | False =>
     error = NotContractOwner;
+    Throw error
+  end
+end
+
+procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
+  is_self = builtin eq address_a address_b;
+  match is_self with
+  | False =>
+  | True =>
+    error = SelfError;
     Throw error
   end
 end
@@ -390,6 +408,45 @@ transition SetMaxCommissionFeeBPS(new_max_commission_fee_bps: Uint128)
     new_max_commission_fee_bps: new_max_commission_fee_bps
   };
   event e
+end
+
+(* @multi-sig *)
+(* Sets `to` as the contract ownership recipient. *)
+(* To reset `contract_ownership_recipient`, use `zero_address`. *)
+(* i.e., `0x0000000000000000000000000000000000000000` *)
+transition SetContractOwnershipRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireNotSelf to _sender;
+
+  contract_ownership_recipient := to;
+
+  e = {
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `contract_ownership_recipient` as the contract owner. *)
+transition AcceptContractOwnership()
+  recipient <- contract_ownership_recipient;
+
+  is_recipient = builtin eq _sender recipient;
+  match is_recipient with
+  | False =>
+    error = NotContractOwnershipRecipient;
+    Throw error
+  | True =>
+    contract_owner := _sender;
+    contract_ownership_recipient := zero_address;
+
+    e = {
+      _eventname: "AcceptContractOwnership";
+      contract_owner: _sender
+    };
+    event e
+  end
 end
 
 (* allowlist required before create collection *)
