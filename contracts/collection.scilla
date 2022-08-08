@@ -33,6 +33,7 @@ type Error =
   | SelfError
   | PausedError
   | NotPausedError
+  | NotAllowedUserError
 
 let make_error =
   fun (result: Error) =>
@@ -53,6 +54,7 @@ let make_error =
       | SelfError                                    => Int32 -13
       | PausedError                                  => Int32 -14
       | NotPausedError                               => Int32 -15
+      | NotAllowedUserError                          => Int32 -16
       end
     in
     { _exception: "Error"; code: result_code }
@@ -74,6 +76,10 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Contract ownership recipient *)
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Allowlist Contract Address *)
+(* Defaults to `zero_address` *)
+field allowlist_address: ByStr20 = zero_address
 
 (* Emergency stop mechanism *)
 (* Defaults to False *)
@@ -238,16 +244,40 @@ procedure RequirePaused()
   end
 end
 
+procedure RequireAllowedUser(address: ByStr20)
+  allowlist <- allowlist_address;
+  is_zero_address = builtin eq zero_address allowlist;
+  match is_zero_address with
+  | True =>
+    (* Noop *)
+    (* This contract doesn't use allowlist *)
+  | False =>
+    maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
+    match maybe_allowlist_contract_address with 
+    | None => 
+    | Some contract_address =>
+      maybe_allowed_address <- & contract_address.allowed_addresses[address];
+      match maybe_allowed_address with
+      | Some _ =>
+        (* Noop *)
+        (* The address is allowed *)
+      | None =>
+        error = NotAllowedUserError;
+        Throw error
+      end
+    end
+  end
+end
+
 
 (* Lets anyone create an empty collection with an id assigned by the smart contract *)
 (* @dev should integrate with allowlist to only allow whitelisted addresses *)
 transition CreateCollection(
     commission_fee: Uint128
     )
+    RequireAllowedUser _sender;
     RequireValidBPS commission_fee;
     RequireNotPaused;
-    (* Placeholder for requiring only whitelisted brands *)
-    (* RequireValidBrand; *)
     
     size <- collection_owning_brand_size;
     collection_id = builtin add size uint32_one;
@@ -273,6 +303,7 @@ transition RemoveTokenFromCollection(
     token_id: Uint256, 
     collection_id: Uint32
     )
+    RequireAllowedUser _sender;
     RequireBrandOwner collection_id;
     RequireNotPaused;
 
@@ -373,6 +404,7 @@ transition AcceptCollectionRequest(
     )
     RequireTokenOwner token_address token_id;
     RequireTokenNotInCollection token_address token_id;
+    RequireAllowedUser _sender;
     RequireNotPaused;
 
     maybe_request <- requests[token_address][token_id][brand_address];
@@ -513,6 +545,29 @@ transition Unpause()
   e = {
     _eventname: "Unpause";
     is_paused: false
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetAllowlist(address: ByStr20)
+  RequireContractOwner;
+  allowlist_address := address;
+  
+  e = { 
+    _eventname: "SetAllowlist";
+    address: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition ClearAllowList()
+  RequireContractOwner;
+  allowlist_address := zero_address;
+
+  e = { 
+    _eventname: "ClearAllowList"
   };
   event e
 end
