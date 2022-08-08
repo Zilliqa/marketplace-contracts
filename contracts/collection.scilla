@@ -429,6 +429,7 @@ transition TokenSaleCallback(
     end
 end
 
+(* @multi-sig *)
 (* Sets `max_commission_fee_bps` *)
 (* @Requirements: *)
 (* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwner` *)
