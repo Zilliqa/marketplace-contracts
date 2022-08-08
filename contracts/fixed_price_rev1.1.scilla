@@ -148,7 +148,6 @@ contract FixedPriceOrderbook
   collection_contract: ByStr20 with contract
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
     field collection_owning_brand: Map Uint32 ByStr20,
-    field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
     field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
     field collection_commission_fee: Map Uint32 Uint128
   end
@@ -170,7 +169,6 @@ field allowlist_address: ByStr20 = zero_address
 field collection_address: ByStr20 with contract
   field token_collection: Map ByStr20 (Map Uint256 Uint32),
   field collection_owning_brand: Map Uint32 ByStr20,
-  field token_brand_fee: Map ByStr20 (Map Uint256 Uint128),
   field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
   field collection_commission_fee: Map Uint32 Uint128
 end = collection_contract
@@ -969,15 +967,35 @@ transition ClearAllowList()
 end
 
 (* @multi-sig *)
-transition SetAllowlist(address: ByStr20 with contract field 
-                                            allowed_addresses : Map ByStr20 Bool 
-                                          end
+transition SetAllowlist(
+  address: ByStr20 with contract field 
+    allowed_addresses : Map ByStr20 Bool 
+  end
   )
   RequireContractOwner;
   allowlist_address := address;
   
   e = { 
     _eventname: "SetAllowlist";
+    address: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition UpdateCollectionContract(
+  address: ByStr20 with contract 
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
+  )
+  RequireContractOwner;
+  collection_address := address;
+  
+  e = { 
+    _eventname: "UpdateCollectionContract";
     address: address
   };
   event e
