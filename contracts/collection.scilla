@@ -56,6 +56,7 @@ type Error =
   | PausedError
   | NotPausedError
   | NotAllowedUserError
+  | TokenListedForSale
 
 let make_error =
   fun (result: Error) =>
@@ -77,6 +78,7 @@ let make_error =
       | PausedError                                  => Int32 -14
       | NotPausedError                               => Int32 -15
       | NotAllowedUserError                          => Int32 -16
+      | TokenListedForSale                           => Int32 -17
       end
     in
     { _exception: "Error"; code: result_code }
@@ -98,6 +100,10 @@ field contract_ownership_recipient: ByStr20 = zero_address
 (* Allowlist Contract Address *)
 (* Defaults to `zero_address` *)
 field allowlist_address: ByStr20 = zero_address
+
+(* Allowlist Contract Address *)
+(* Defaults to `zero_address` *)
+field fixed_price_address: ByStr20 = zero_address
 
 (* Emergency stop mechanism *)
 (* Defaults to False *)
@@ -147,6 +153,30 @@ procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
     error = SelfError;
     Throw error
   end
+end
+
+procedure RequireNotListed(
+    token_address: ByStr20 with contract 
+        field spenders: Map Uint256 ByStr20
+    end,
+    token_id: Uint256
+    )
+    fixed_price_contract <- fixed_price_address;
+
+    is_zero_address = builtin eq fixed_price_contract zero_address;
+    match is_zero_address with 
+    | True => (* No operation *)
+    | False =>
+        maybe_spender <- & token_address.spenders[token_id];
+        spender = option_address zero_address maybe_spender;
+        is_spender = builtin eq fixed_price_contract spender;
+        match is_spender with
+        | True => 
+            error = TokenListedForSale;
+            Throw error
+        | False => (* No Operation *) 
+        end
+    end
 end
 
 procedure RequireTokenOwner(
@@ -293,6 +323,7 @@ procedure DoRequestTokenToCollection(request: CollectionItemParam)
     | CollectionItemParam token_address token_id collection_id =>
       RequireBrandOwner collection_id;
       RequireTokenNotInCollection token_address token_id;
+      RequireNotListed token_address token_id;
       RequireNotPaused;
 
       (* When the same brand_owner uses this function a second time we just overwrite *)
@@ -345,6 +376,7 @@ procedure DoAcceptCollectionRequest(request: CollectionItemParam)
     | CollectionItemParam token_address token_id collection_id =>
       RequireTokenOwner token_address token_id;
       RequireTokenNotInCollection token_address token_id;
+      RequireNotListed token_address token_id;
       RequireAllowedUser _sender;
       RequireNotPaused;
 
@@ -593,7 +625,7 @@ transition SetAllowlist(address: ByStr20)
   allowlist_address := address;
   
   e = { 
-    _eventname: "SetAllowlist";
+    _eventname: "AllowlistUpdated";
     address: address
   };
   event e
@@ -606,6 +638,29 @@ transition ClearAllowList()
 
   e = { 
     _eventname: "ClearAllowList"
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetFixedPrice(address: ByStr20)
+  RequireContractOwner;
+  fixed_price_address := address;
+  
+  e = { 
+    _eventname: "FixedPriceUpdated";
+    address: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition ClearFixedPrice()
+  RequireContractOwner;
+  fixed_price_address := zero_address;
+
+  e = { 
+    _eventname: "FixedPriceCleared"
   };
   event e
 end
