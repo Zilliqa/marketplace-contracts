@@ -16,6 +16,28 @@ let one = Uint256 1
 let uint32_one = Uint32 1
 let empty_string = ""
 
+let option_value =
+  tfun 'A =>
+  fun (default: 'A) =>
+  fun (maybe_val: Option 'A) =>
+    match maybe_val with
+    | Some v => v
+    | None => default
+    end
+
+let option_address = @option_value ByStr20
+
+type TokenState = 
+    | Requested of Uint32 (* collection_id *)
+
+(* for batch transitions *)
+(* token_address, token_id, collection_id *)
+type CollectionItemParam = 
+    | CollectionItemParam of ByStr20 with contract
+    field spenders: Map Uint256 ByStr20,
+    field token_owners: Map Uint256 ByStr20
+    end Uint256 Uint32
+
 (* Error exception *)
 type Error =
   | TokenAlreadyInCollection
@@ -59,10 +81,6 @@ let make_error =
     in
     { _exception: "Error"; code: result_code }
 
-
-
-type TokenState = 
-    | Requested of Uint32 (* collection_id *)
 
 contract Collections
 (
@@ -269,6 +287,128 @@ procedure RequireAllowedUser(address: ByStr20)
   end
 end
 
+(* Used by a brand_owner to request an NFT to their collection *)
+procedure DoRequestTokenToCollection(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+      RequireBrandOwner collection_id;
+      RequireTokenNotInCollection token_address token_id;
+      RequireNotPaused;
+
+      (* When the same brand_owner uses this function a second time we just overwrite *)
+      request = Requested collection_id;
+      requests[token_address][token_id][_sender] := request;
+      commission_fee <- collection_commission_fee[collection_id];
+
+      e = {
+          _eventname : "RequestTokenToCollection";
+          token_address: token_address;
+          token_id: token_id;
+          collection_id: collection_id;
+          commission_fee: commission_fee
+      };
+      event e
+    end
+end
+
+(* Lets a brand_owner delete a request if one exist. *)
+procedure DoDeleteRequestTokenToCollection(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+        RequireBrandOwner collection_id;
+        RequireNotPaused;
+    
+        maybe_request <- requests[token_address][token_id][_sender];
+        
+        match maybe_request with
+        | Some (Requested collection_id) => 
+        delete requests[token_address][token_id][_sender];
+
+        e = {
+            _eventname : "RequestTokenToCollectionDeleted";
+            token_address: token_address;
+            token_id: token_id;
+            collection_id: collection_id
+        };
+        event e
+
+        | None => 
+        error = RequestDoesNotExist;
+        Throw error
+        end
+    end
+end
+
+(* Used by a NFT owner to accept a request to have one of their NFTs added to a collection *)
+procedure DoAcceptCollectionRequest(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+      RequireTokenOwner token_address token_id;
+      RequireTokenNotInCollection token_address token_id;
+      RequireAllowedUser _sender;
+      RequireNotPaused;
+
+      opt_brand_address <- collection_owning_brand[collection_id];
+      brand_address = option_address zero_address opt_brand_address;
+      maybe_request <- requests[token_address][token_id][brand_address];
+
+      match maybe_request with 
+      | Some (Requested collection_id) =>
+          token_collection[token_address][token_id] := collection_id; 
+          delete requests[token_address][token_id];
+  
+          e = {
+              _eventname : "AddToCollectionRequestAccepted";
+              token_address: token_address;
+              token_id: token_id;
+              brand_owner: brand_address;
+              collection_id: collection_id
+            };
+          event e
+
+      | None => 
+          error = AddToCollectionRequestNeverIssued;
+          Throw error
+      end
+  end
+end
+
+(* Used by a brand_owner to delete an NFT from a collection they own *)
+procedure DoRemoveTokenFromCollection(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+      RequireAllowedUser _sender;
+      RequireBrandOwner collection_id;
+      RequireNotPaused;
+
+      maybe_collection_id <- token_collection[token_address][token_id];
+      
+      match maybe_collection_id with 
+      | Some maybe_collection_id => 
+          delete token_collection[token_address][token_id];
+          e = {
+              _eventname : "RemovedTokenFromCollection";
+              token_address: token_address;
+              token_id: token_id;
+              collection_id: collection_id
+          };
+          event e
+          
+      | None =>
+          error = TokenDoesNotExistInCollection;
+          Throw error
+      end;
+
+      (* Deleting the corresponding record in has_had_first_sale if exist *)
+      is_sale_record <- exists has_had_first_sale[token_address][token_id];
+
+      match is_sale_record with 
+      | True  =>
+      delete has_had_first_sale[token_address][token_id]
+      | False => (* No operation *)
+      end
+  end
+end
 
 (* Lets anyone create an empty collection with an id assigned by the smart contract *)
 (* @dev should integrate with allowlist to only allow whitelisted addresses *)
@@ -295,138 +435,36 @@ transition CreateCollection(
     event e
 end
 
-(* Used by a brand_owner to delete an NFT from a collection they own *)
-transition RemoveTokenFromCollection(
-    token_address: ByStr20 with contract 
-        field token_owners: Map Uint256 ByStr20 
-    end,
-    token_id: Uint256, 
-    collection_id: Uint32
-    )
-    RequireAllowedUser _sender;
-    RequireBrandOwner collection_id;
-    RequireNotPaused;
-
-    maybe_collection_id <- token_collection[token_address][token_id];
-    
-    match maybe_collection_id with 
-    | Some maybe_collection_id => 
-        delete token_collection[token_address][token_id];
-        e = {
-            _eventname : "RemovedTokenFromCollection";
-            token_address: token_address;
-            token_id: token_id;
-            collection_id: collection_id
-          };
-        event e
-        
-    | None =>
-        error = TokenDoesNotExistInCollection;
-        Throw error
-    end;
-
-    (* Deleting the corresponding record in has_had_first_sale if exist *)
-    is_sale_record <- exists has_had_first_sale[token_address][token_id];
-
-    match is_sale_record with 
-    | True  =>
-      delete has_had_first_sale[token_address][token_id]
-    | False => (* No operation *)
-    end
+transition RequestTokenToCollection(request_list: CollectionItemParam)
+    DoRequestTokenToCollection request_list
 end
 
-
-(* Used by a brand_owner to request an NFT to their collection *)
-transition RequestTokenToCollection(
-    token_address: ByStr20 with contract 
-        field token_owners: Map Uint256 ByStr20 
-    end,
-    token_id: Uint256, 
-    collection_id: Uint32
-    )
-    RequireBrandOwner collection_id;
-    RequireTokenNotInCollection token_address token_id;
-    RequireNotPaused;
-
-    (* When the same brand_owner uses this function a second time we just overwrite *)
-    request = Requested collection_id;
-    requests[token_address][token_id][_sender] := request;
-    commission_fee <- collection_commission_fee[collection_id];
-
-    e = {
-        _eventname : "RequestTokenToCollection";
-        token_address: token_address;
-        token_id: token_id;
-        collection_id: collection_id;
-        commission_fee: commission_fee
-    };
-    event e
+transition BatchRequestTokenToCollection(request_list: List CollectionItemParam)
+    forall request_list DoRequestTokenToCollection
 end
 
-(* Lets a brand_owner delete a request if one exist. *)
-transition DeleteRequestTokenToCollection(
-    token_address: ByStr20 with contract 
-        field token_owners: Map Uint256 ByStr20 
-    end,
-    token_id: Uint256, 
-    collection_id: Uint32
-    )
-    RequireBrandOwner collection_id;
-    RequireNotPaused;
-    
-    maybe_request <- requests[token_address][token_id][_sender];
-    
-    match maybe_request with
-      | Some maybe_request => 
-      delete requests[token_address][token_id][_sender];
-
-      e = {
-        _eventname : "RequestTokenToCollectionDeleted";
-        token_address: token_address;
-        token_id: token_id;
-        collection_id: collection_id
-      };
-      event e
-
-      | None => 
-      error = RequestDoesNotExist;
-      Throw error
-    end
+transition DeleteRequestTokenToCollection(request: CollectionItemParam)
+    DoDeleteRequestTokenToCollection request
 end
 
-(* Used by a NFT owner to accept a request to have one of their NFTs added to a collection *)
-transition AcceptCollectionRequest(
-    token_address: ByStr20 with contract 
-        field token_owners: Map Uint256 ByStr20 
-    end,
-    token_id: Uint256, 
-    brand_address: ByStr20
-    )
-    RequireTokenOwner token_address token_id;
-    RequireTokenNotInCollection token_address token_id;
-    RequireAllowedUser _sender;
-    RequireNotPaused;
+transition BatchDeleteRequestTokenToCollection(request_list: List CollectionItemParam)
+    forall request_list DoDeleteRequestTokenToCollection
+end
 
-    maybe_request <- requests[token_address][token_id][brand_address];
+transition AcceptCollectionRequest(request: CollectionItemParam)
+    DoAcceptCollectionRequest request
+end
 
-    match maybe_request with 
-    | Some (Requested collection_id) =>
-        token_collection[token_address][token_id] := collection_id; 
-        delete requests[token_address][token_id];
+transition BatchAcceptCollectionRequest(request_list: List CollectionItemParam)
+    forall request_list DoAcceptCollectionRequest
+end
 
-        e = {
-            _eventname : "AddToCollectionRequestAccepted";
-            token_address: token_address;
-            token_id: token_id;
-            brand_owner: brand_address;
-            collection_id: collection_id
-          };
-        event e
+transition RemoveTokenFromCollection(token: CollectionItemParam)
+    DoRemoveTokenFromCollection token
+end
 
-    | None => 
-        error = AddToCollectionRequestNeverIssued;
-        Throw error
-    end
+transition BatchRemoveTokenFromCollection(token_list: List CollectionItemParam)
+    forall token_list DoRemoveTokenFromCollection
 end
 
 (* Called by either fixed_price or auction contracts during an NFT sale *)
@@ -571,5 +609,3 @@ transition ClearAllowList()
   };
   event e
 end
-
-(* allowlist required before create collection *)
