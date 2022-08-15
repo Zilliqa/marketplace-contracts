@@ -6,6 +6,7 @@
 [english auction]: contracts/english_auction.scilla
 [fixed price rev 1.1]: contracts/fixed_price_rev1.1.scilla
 [english auction rev 1.1]: contracts/english_auction_rev1.1.scilla
+[collection]: contracts/collection.scilla
 
 <div align="center">
   <h1>
@@ -29,7 +30,8 @@
 | [English Auction]  | This contract is for the English auction sale, i.e. sell to the highest bidder at the end. <br/> It depends on [ZRC-6] and [ZRC-2].                                                                                       |
 | [English Auction Rev 1.1] | This contract is a revision to Auction contract. It allows users to sell in batches. |
 | [Allowlist]        | For the access control, this contract can be used optionally by the [Fixed Price] and [English Auction] contract. To use this contract, run `SetAllowlist` transition in the [Fixed Price] or [English Auction] contract. |
-| [Multi-Sig Wallet] | This auto-generated contract is a multi-sig wallet for the above contracts.                                                                                                                                               |
+| [Multi-Sig Wallet] | This auto-generated contract is a multi-sig wallet for the above contracts.            
+| [Collection] | This contract is responsible for managing the user entity brand, collections owned by brands and payouts of commission fees to brands  |
 
 ## Contract Testing
 
@@ -69,10 +71,22 @@ token_uri: https://api.creature.com
 4. Click on **Call transition** and wait for it to complete. You have minted one NFT to your wallet!
 5. Repeat Step 3 again to mint another one.
 
-### Deploy Fixed Price
+### Deploy Collection
 1. On the IDE, under the **FILES** section, click on the "plus" icon. This would create an empty contract. 
 2. Copy and paste the [Fixed Price Rev 1.1] code into the empty contract.
 3. Click on **Deploy**; remember to connect your ZilPay wallet and ensure that your are on Testnet. Enter your own wallet address as the `initial_contract_owner`.
+4. Once deployed, you should see it under the **Contracts** section.
+
+### Deploy Fixed Price
+1. On the IDE, under the **FILES** section, click on the "plus" icon. This would create an empty contract. 
+2. Copy and paste the [Fixed Price Rev 1.1] code into the empty contract.
+3. Click on **Deploy**; remember to connect your ZilPay wallet and ensure that your are on Testnet. Enter your own wallet address as the `initial_contract_owner` and the address for the collection contract.
+4. Once deployed, you should see it under the **Contracts** section.
+
+### Deploy English Auction
+1. On the IDE, under the **FILES** section, click on the "plus" icon. This would create an empty contract. 
+2. Copy and paste the [Fixed Price Rev 1.1] code into the empty contract.
+3. Click on **Deploy**; remember to connect your ZilPay wallet and ensure that your are on Testnet. Enter your own wallet address as the `initial_contract_owner` and the address for the collection contract.
 4. Once deployed, you should see it under the **Contracts** section.
 
 ### Give perimission to sell
