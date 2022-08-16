@@ -998,8 +998,8 @@ Stores information about collection items.
 | `contract_owner`               | `ByStr20`                                                      | Contract admin, defaults to `initial_contract_owner` |
 | `allowlist_address`            | `ByStr20`                                                      | Indicate if the contract has a list of permitted users defined by `allowlist_contract`.  The allowlist contract is used to define which wallet addresses can interact with collections, either as a brand or as an NFT owner. Defaults to `zero_address` to indicate that anyone can interact with it. |
 | `contract_ownership_recipient` | `ByStr20`                                                      | Temporary holding field for contract ownership recipient, defaults to `zero_address`. |
+| `marketplace_addresses`               | `Map ByStr20 Bool`                                                      | Used to control which adddresses can call the transition `TokenSaleCallback` |
 | `is_paused`                    | `Bool`                                                         | `True` if the contract is paused. Otherwise, `False`. `is_paused` defaults to `False`.          
-| `fixed_price_address`               | `ByStr20`                                                 | Fixed Price contract, defaults to `zero_address`. We want to prevent an NFT to be requested/added to a collection if its currently listed for sale. We run a check against the Fixed Price contract to enforce this |
 | `collection_owning_brand`                  | `Map Uint32 ByStr20`  | Stores a map of collection_ids to brand_owners. Mapping of `Uint32` -> `ByStr20` |
 | `collection_owning_brand_size`                  | `Uint32`  | Stores a count of the number of collections created. Used to automatically assign collection_ids by the contract |
 | `token_collection`                  | `Map ByStr20 (Map Uint256 Uint32)`  | Stores a map of token_address -> token_id -> collection_id. |
@@ -1027,6 +1027,7 @@ Stores information about collection items.
 | `PausedError`                       | `Int32` | `-13` | Emit when the contract is paused.                                                         |
 | `NotPausedError`                    | `Int32` | `-14` | Emit when the contract is not paused.                                                     |
 | `NotAllowedUserError`               | `Int32` | `-15` | Emit when the user is not on the allowedlist.                                             |
+| `OnlyRegisteredMarketplaceCanCall`  | `Int32` | `-16` | Emit when the sender is not on the `marketplace_addresses` map                            |
 
 
 ### E1. Transitions
@@ -1050,6 +1051,8 @@ Stores information about collection items.
 | 15  | `Unpause()`                                                                                                                                                              |
 | 16  | `SetAllowlist(address: ByStr20)`                                                                                                                                         |
 | 17  | `ClearAllowList()`                                                                                                                                                       |
+| 18  | `RegisterMarketplaceAddress()`                                                                                                                                           |
+| 19  | `DeregisterMarketplaceAddress()`                                                                                                                                         |
 
 
 #### 1. `CreateCollection`
@@ -1481,5 +1484,55 @@ Updates the `allowlist_address` to `zero_address` to remove wallets restriction.
 ```
 {
     eventname: "ClearAllowlist";
+}
+```
+
+#### 18. `RegisterMarketplaceAddress`
+
+Lets contract_owner add a marketplace contract address. Both fixed_price and english_auction addresses are used here. 
+The purpose is to control which adddresses can call the transition `TokenSaleCallback`. 
+If unrestricted, sophisticated NFT owners can call it to avoid paying the `commission_fee`
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New marketplace address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "RegisteredMarketplaceAddress";
+    address: address
+}
+```
+
+#### 19. `DeregisterMarketplaceAddress`
+
+Lets contract_owner remove a marketplace contract address. Both fixed_price and english_auction addresses are used here. 
+The purpose is to control which adddresses can call the transition `TokenSaleCallback`. 
+If unrestricted, sophisticated NFT owners can call it to avoid paying the `commission_fee`
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | marketplace address to delist |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "DeregisterMarketplaceAddress";
+    address: address
 }
 ```
