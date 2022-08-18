@@ -95,6 +95,14 @@ type Transaction =
   | PauseTransaction of ByStr20
   | UnpauseTransaction of ByStr20
   | SetServiceFeeBPSTransaction of ByStr20 Uint128
+  | SetBidIncrementBPSTransaction of ByStr20 Uint128
+  | SetServiceFeeRecipientTransaction of ByStr20 ByStr20
+  | AllowPaymentTokenAddressTransaction of ByStr20 ByStr20
+  | DisallowPaymentTokenAddressTransaction of ByStr20 ByStr20
+  | UpdateCollectionContractTransaction of ByStr20 ByStr20
+  | SetContractOwnershipRecipientTransaction of ByStr20 ByStr20
+  | AcceptContractOwnershipTransaction of ByStr20
+  | CancelOrderTransaction of ByStr20 ByStr20 Uint128 ByStr20 Uint128 Uint32
 
 type Error =
   | NotAllowedToSignError
@@ -325,6 +333,161 @@ procedure ExecuteSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps:
   end
 end
 
+procedure ExecuteSetBidIncrementBPSTransaction(contract_address: ByStr20, increment_bps: Uint128)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      increment_bps: increment_bps;
+      _tag: "SetBidIncrementBPS";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteSetServiceFeeRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      to: new_recipient;
+      _tag: "SetServiceFeeRecipient";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteAllowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      address: payment_token;
+      _tag: "AllowPaymentTokenAddress";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteDisallowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      address: payment_token;
+      _tag: "DisallowPaymentTokenAddress";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteUpdateCollectionContractTransaction(contract_address: ByStr20, new_collection_contract: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      address: new_collection_contract;
+      _tag: "UpdateCollectionContract";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteSetContractOwnershipRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      address: new_recipient;
+      _tag: "SetContractOwnershipRecipient";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteAcceptContractOwnershipTransaction(contract_address: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      _tag: "AcceptContractOwnership";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint128, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price;
+      side: side;
+      _tag: "CancelOrder";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
 transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: String)
   zero_uint128 = Uint128 0;
   is_zero = builtin eq amount zero_uint128;
@@ -355,6 +518,46 @@ end
 
 transition SubmitSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps: Uint128)
   tx = SetServiceFeeBPSTransaction contract_address fee_bps;
+  SubmitTransaction tx
+end
+
+transition SubmitSetBidIncrementBPSTransaction(contract_address: ByStr20, increment_bps: Uint128)
+  tx = SetBidIncrementBPSTransaction contract_address increment_bps;
+  SubmitTransaction tx
+end
+
+transition SubmitSetServiceFeeRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
+  tx = SetServiceFeeRecipientTransaction contract_address new_recipient;
+  SubmitTransaction tx
+end
+
+transition SubmitAllowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
+  tx = AllowPaymentTokenAddressTransaction contract_address payment_token;
+  SubmitTransaction tx
+end
+
+transition SubmitDisallowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
+  tx = DisallowPaymentTokenAddressTransaction contract_address payment_token;
+  SubmitTransaction tx
+end
+
+transition SubmitUpdateCollectionContractTransaction(contract_address: ByStr20, new_collection_contract: ByStr20)
+  tx = UpdateCollectionContractTransaction contract_address new_collection_contract;
+  SubmitTransaction tx
+end
+
+transition SubmitSetContractOwnershipRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
+  tx = SetContractOwnershipRecipientTransaction contract_address new_recipient;
+  SubmitTransaction tx
+end
+
+transition SubmitAcceptContractOwnershipTransaction(contract_address: ByStr20)
+  tx = AcceptContractOwnershipTransaction contract_address;
+  SubmitTransaction tx
+end
+
+transition SubmitCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint128, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
+  tx = CancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side;
   SubmitTransaction tx
 end
 
@@ -440,6 +643,22 @@ transition ExecuteTransaction(transaction_id: Uint32)
           ExecuteUnpauseTransaction contract_address
         | SetServiceFeeBPSTransaction contract_address fee_bps =>
           ExecuteSetServiceFeeBPSTransaction contract_address fee_bps
+        | SetBidIncrementBPSTransaction contract_address increment_bps =>
+          ExecuteSetBidIncrementBPSTransaction contract_address increment_bps
+        | SetServiceFeeRecipientTransaction contract_address new_recipient =>
+          ExecuteSetServiceFeeRecipientTransaction contract_address new_recipient
+        | AllowPaymentTokenAddressTransaction contract_address payment_token =>
+          ExecuteAllowPaymentTokenAddressTransaction contract_address payment_token
+        | DisallowPaymentTokenAddressTransaction contract_address payment_token =>
+          ExecuteDisallowPaymentTokenAddressTransaction contract_address payment_token
+        | UpdateCollectionContractTransaction contract_address new_collection_contract =>
+          ExecuteUpdateCollectionContractTransaction contract_address new_collection_contract
+        | SetContractOwnershipRecipientTransaction contract_address new_recipient =>
+          ExecuteSetContractOwnershipRecipientTransaction contract_address new_recipient
+        | AcceptContractOwnershipTransaction contract_address =>
+          ExecuteAcceptContractOwnershipTransaction contract_address
+        | CancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side =>
+          ExecuteCancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side
         end;
         (* Remove transaction and signatures. *)
         (* Note: The transaction may have failed, but without a callback *)
