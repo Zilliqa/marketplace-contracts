@@ -22,12 +22,10 @@ type MultiSigTransition =
   | SetServiceFeeRecipient of (ByStr20)
   | AllowPaymentTokenAddress of (ByStr20)
   | DisallowPaymentTokenAddress of (ByStr20)
-  | SetAllowlist of (ByStr20)
   | UpdateCollectionContract of (ByStr20)
   | SetContractOwnershipRecipient of (ByStr20)
   | AcceptContractOwnership
   | CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
-  | ClearAllowList
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
   | Pause => {
@@ -56,10 +54,6 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
       address: address;
       _tag: "DisallowPaymentTokenAddress"; _amount: Uint128 0; _recipient: r
     }
-  | SetAllowlist address => {
-      address: address;
-      _tag: "SetAllowlist"; _amount: Uint128 0; _recipient: r
-    }
   | UpdateCollectionContract address => {
       address: address;
       _tag: "UpdateCollectionContract"; _amount: Uint128 0; _recipient: r
@@ -78,9 +72,6 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
       sale_price: sale_price;
       side: side;
       _tag: "CancelOrder"; _amount: Uint128 0; _recipient: r
-    }
-  | ClearAllowList => {
-      _tag: "ClearAllowList"; _amount: Uint128 0; _recipient: r
     }
   end in one_msg msg
 (* --- gen end --- *)
