@@ -15,24 +15,45 @@ let one_msg =
 
 (* --- gen start --- *)
 type MultiSigTransition = 
+  | SetMaxCommissionFeeBPS of (Uint128)
+  | SetContractOwnershipRecipient of (ByStr20)
+  | AcceptContractOwnership
   | Pause
   | Unpause
+  | SetAllowlist of (ByStr20)
+  | ClearAllowList
   | SetServiceFeeBPS of (Uint128)
   | SetBidIncrementBPS of (Uint128)
   | SetServiceFeeRecipient of (ByStr20)
   | AllowPaymentTokenAddress of (ByStr20)
   | DisallowPaymentTokenAddress of (ByStr20)
   | UpdateCollectionContract of (ByStr20)
-  | SetContractOwnershipRecipient of (ByStr20)
-  | AcceptContractOwnership
   | CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
+  | SetMaxCommissionFeeBPS new_max_commission_fee_bps => {
+      new_max_commission_fee_bps: new_max_commission_fee_bps;
+      _tag: "SetMaxCommissionFeeBPS"; _amount: Uint128 0; _recipient: r
+    }
+  | SetContractOwnershipRecipient to => {
+      to: to;
+      _tag: "SetContractOwnershipRecipient"; _amount: Uint128 0; _recipient: r
+    }
+  | AcceptContractOwnership => {
+      _tag: "AcceptContractOwnership"; _amount: Uint128 0; _recipient: r
+    }
   | Pause => {
       _tag: "Pause"; _amount: Uint128 0; _recipient: r
     }
   | Unpause => {
       _tag: "Unpause"; _amount: Uint128 0; _recipient: r
+    }
+  | SetAllowlist address => {
+      address: address;
+      _tag: "SetAllowlist"; _amount: Uint128 0; _recipient: r
+    }
+  | ClearAllowList => {
+      _tag: "ClearAllowList"; _amount: Uint128 0; _recipient: r
     }
   | SetServiceFeeBPS fee_bps => {
       fee_bps: fee_bps;
@@ -58,13 +79,6 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
       address: address;
       _tag: "UpdateCollectionContract"; _amount: Uint128 0; _recipient: r
     }
-  | SetContractOwnershipRecipient to => {
-      to: to;
-      _tag: "SetContractOwnershipRecipient"; _amount: Uint128 0; _recipient: r
-    }
-  | AcceptContractOwnership => {
-      _tag: "AcceptContractOwnership"; _amount: Uint128 0; _recipient: r
-    }
   | CancelOrder token_address token_id payment_token_address sale_price side => {
       token_address: token_address;
       token_id: token_id;
@@ -85,6 +99,9 @@ type Transaction =
   | CustomTransaction of ByStr20 MultiSigTransition
   | PauseTransaction of ByStr20
   | UnpauseTransaction of ByStr20
+  | SetAllowlistTransaction of ByStr20 ByStr20
+  | ClearAllowListTransaction of ByStr20
+  | SetMaxCommissionFeeBPSTransaction of ByStr20 Uint128
   | SetServiceFeeBPSTransaction of ByStr20 Uint128
   | SetBidIncrementBPSTransaction of ByStr20 Uint128
   | SetServiceFeeRecipientTransaction of ByStr20 ByStr20
@@ -479,6 +496,62 @@ procedure ExecuteCancelOrderTransaction(contract_address: ByStr20, token_address
   end
 end
 
+procedure ExecuteSetAllowlistTransaction(contract_address: ByStr20, new_allowlist: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      address: new_allowlist;
+      _tag: "SetAllowlist";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteClearAllowListTransaction(contract_address: ByStr20)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      _tag: "ClearAllowList";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
+procedure ExecuteSetMaxCommissionFeeBPSTransaction(contract_address: ByStr20, new_max_commission_fee_bps: Uint128)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      new_max_commission_fee_bps: new_max_commission_fee_bps;
+      _tag: "SetMaxCommissionFeeBPS";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
 transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: String)
   zero_uint128 = Uint128 0;
   is_zero = builtin eq amount zero_uint128;
@@ -549,6 +622,21 @@ end
 
 transition SubmitCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint128, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
   tx = CancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side;
+  SubmitTransaction tx
+end
+
+transition SubmitSetAllowlistTransaction(contract_address: ByStr20, new_allowlist: ByStr20)
+  tx = SetAllowlistTransaction contract_address new_allowlist;
+  SubmitTransaction tx
+end
+
+transition SubmitClearAllowListTransaction(contract_address: ByStr20)
+  tx = ClearAllowListTransaction contract_address;
+  SubmitTransaction tx
+end
+
+transition SubmitSetMaxCommissionFeeBPSTransaction(contract_address: ByStr20, new_max_commission_fee_bps: Uint128)
+  tx = SetMaxCommissionFeeBPSTransaction contract_address new_max_commission_fee_bps;
   SubmitTransaction tx
 end
 
@@ -650,6 +738,12 @@ transition ExecuteTransaction(transaction_id: Uint32)
           ExecuteAcceptContractOwnershipTransaction contract_address
         | CancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side =>
           ExecuteCancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side
+        | SetAllowlistTransaction contract_address new_allowlist =>
+          ExecuteSetAllowlistTransaction contract_address new_allowlist
+        | ClearAllowListTransaction contract_address =>
+          ExecuteClearAllowListTransaction contract_address
+        | SetMaxCommissionFeeBPSTransaction contract_address new_max_commission_fee_bps =>
+          ExecuteSetMaxCommissionFeeBPSTransaction contract_address new_max_commission_fee_bps
         end;
         (* Remove transaction and signatures. *)
         (* Note: The transaction may have failed, but without a callback *)
