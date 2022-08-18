@@ -94,6 +94,7 @@ type Transaction =
   | CustomTransaction of ByStr20 MultiSigTransition
   | PauseTransaction of ByStr20
   | UnpauseTransaction of ByStr20
+  | SetServiceFeeBPSTransaction of ByStr20 Uint128
 
 type Error =
   | NotAllowedToSignError
@@ -305,6 +306,25 @@ procedure ExecuteUnpauseTransaction(contract_address: ByStr20)
   end
 end
 
+procedure ExecuteSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps: Uint128)
+  (* Only owners may execute *)
+  is_owner <- exists owners[_sender];
+  match is_owner with
+  | False =>
+    err = NotAllowedToExecuteError;
+    Throw err
+  | True =>
+    msg = {
+      fee_bps: fee_bps;
+      _tag: "SetServiceFeeBPS";
+      _amount: Uint128 0;
+      _recipient: contract_address
+    };
+    msgs = one_msg msg;
+    send msgs
+  end
+end
+
 transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: String)
   zero_uint128 = Uint128 0;
   is_zero = builtin eq amount zero_uint128;
@@ -330,6 +350,11 @@ end
 
 transition SubmitUnpauseTransaction(contract_address: ByStr20)
   tx = UnpauseTransaction contract_address;
+  SubmitTransaction tx
+end
+
+transition SubmitSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps: Uint128)
+  tx = SetServiceFeeBPSTransaction contract_address fee_bps;
   SubmitTransaction tx
 end
 
@@ -413,6 +438,8 @@ transition ExecuteTransaction(transaction_id: Uint32)
           ExecutePauseTransaction contract_address
         | UnpauseTransaction contract_address =>
           ExecuteUnpauseTransaction contract_address
+        | SetServiceFeeBPSTransaction contract_address fee_bps =>
+          ExecuteSetServiceFeeBPSTransaction contract_address fee_bps
         end;
         (* Remove transaction and signatures. *)
         (* Note: The transaction may have failed, but without a callback *)
