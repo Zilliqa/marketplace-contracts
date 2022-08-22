@@ -40,14 +40,19 @@ fun (msg3: Message) =>
 let portion = 
   fun(amount: Uint128) =>
   fun(bps: Uint128) => 
-    (* To avoid integer overflow, use division only. *)
-    (* amount / ( 10000 / bps ) *)
-    (* bps ranges from 1 to 10000. *)
-    let max_bps = Uint128 10000 in
-    let x = builtin div max_bps bps in
-    (* x ranges from 1 to 10000. *)
-    let result = builtin div amount x in
-    result
+    let is_zero = builtin eq bps zero_uint128 in
+    match is_zero with
+      | False =>
+      (* To avoid integer overflow, use division only. *)
+      (* amount / ( 10000 / bps ) *)
+      (* bps ranges from 1 to 10000. *)
+      let max_bps = Uint128 10000 in
+      let x = builtin div max_bps bps in
+      (* x ranges from 1 to 10000. *)
+      builtin div amount x
+      | True =>
+      zero_uint128
+    end
 
 let option_value =
   tfun 'A =>
@@ -522,7 +527,20 @@ procedure HandleFulfillOrder(
     (* Paying out a commission if there is one *)
     match is_commission_fee with
     | True =>
-      SendZilIfNotZero brand_recipient brand_commission_fee
+      SendZilIfNotZero brand_recipient brand_commission_fee;
+
+      msg_to_collection_contract = {
+        _tag: "TokenSaleCallback";
+        _recipient: collections_contract; 
+        _amount: zero_uint128;
+        token_address: token_address;
+        token_id: token_id;
+        collection_id: collection_id;
+        commission_fee: brand_commission_fee
+      };
+      msgs = one_msg msg_to_collection_contract;
+      send msgs
+
     | False => (* No operation *)
     end
 
@@ -540,23 +558,24 @@ procedure HandleFulfillOrder(
 
     (* Paying out a commission if there is one *)
     match is_commission_fee with
-      | True => (* No Operation *)
-      | False => 
-        ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee 
+      | False => (* No Operation *)
+      | True => 
+        ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee;
+
+        msg_to_collection_contract = {
+          _tag: "TokenSaleCallback";
+          _recipient: collections_contract; 
+          _amount: zero_uint128;
+          token_address: token_address;
+          token_id: token_id;
+          collection_id: collection_id;
+          commission_fee: brand_commission_fee
+        };
+        msgs = one_msg msg_to_collection_contract;
+        send msgs
     end
   end;
 
-  msg_to_collection_contract = {
-    _tag: "TokenSaleCallback";
-    _recipient: collections_contract; 
-    _amount: zero_uint128;
-    token_address: token_address;
-    token_id: token_id;
-    commission_fee: brand_commission_fee;
-    brand_recipient: brand_recipient
-  };
-  msgs = one_msg msg_to_collection_contract;
-  send msgs;
 
   (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
   ZRC6TransferFrom token_address buy_dest token_id;

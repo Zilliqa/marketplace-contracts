@@ -10,8 +10,9 @@ const readFile = util.promisify(fs.readFile)
 async function deployFixedPriceContract(
   deployerPrivateKey,
   {
-    initialOwnerAddress = null
-  }
+    initialOwnerAddress = null,
+    collectionContract = null
+  },
 ) {
   // Check for key
   if (!deployerPrivateKey || deployerPrivateKey === '') {
@@ -36,6 +37,11 @@ async function deployFixedPriceContract(
       vname: 'initial_contract_owner',
       type: 'ByStr20',
       value: initialOwnerAddress
+    },
+    {
+      vname: 'initial_collection_contract',
+      type: 'ByStr20',
+      value: collectionContract
     }
   ]
 

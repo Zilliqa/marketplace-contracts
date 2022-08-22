@@ -96,12 +96,13 @@ async function callContract(
   console.info(
     `Calling: ${transition}, insertRecipientAsSender : ${insertRecipientAsSender}, insertDeadlineBlock: ${insertDeadlineBlock}`
   )
+
   return await contract.call(
     transition,
     args,
     {
       version: TESTNET_VERSION,
-      amount: units.toQa(zilsToSend, units.Units.Zil),
+      amount: new BN(zilsToSend),
       gasPrice: new BN(minGasPrice.result),
       gasLimit: Long.fromNumber(25000)
     },
@@ -400,7 +401,7 @@ async function setupBalancesOnAccounts(accounts) {
     await sendZil(
       accounts.contractOwner.privateKey,
       accounts.nftBuyer.address,
-      80000,
+      40000,
       Long.fromNumber(50)
     )
   }
@@ -499,6 +500,11 @@ async function setupBalancesOnAccounts(accounts) {
 }
 
 async function clearBalancesOnAccounts(accounts) {
+
+  let contractOwner = await getBalance(
+    accounts.contractOwner.address
+  )
+  console.log('big boss balance', contractOwner)
   
   let nftSellerBalance = await getBalance(
     accounts.nftSeller.address
