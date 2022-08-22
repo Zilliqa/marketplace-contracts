@@ -97,20 +97,6 @@ let one_uint32 = Uint32 1
 type Transaction =
   | NativeTransaction of ByStr20 Uint128 String
   | CustomTransaction of ByStr20 MultiSigTransition
-  | PauseTransaction of ByStr20
-  | UnpauseTransaction of ByStr20
-  | SetAllowlistTransaction of ByStr20 ByStr20
-  | ClearAllowListTransaction of ByStr20
-  | SetMaxCommissionFeeBPSTransaction of ByStr20 Uint128
-  | SetServiceFeeBPSTransaction of ByStr20 Uint128
-  | SetBidIncrementBPSTransaction of ByStr20 Uint128
-  | SetServiceFeeRecipientTransaction of ByStr20 ByStr20
-  | AllowPaymentTokenAddressTransaction of ByStr20 ByStr20
-  | DisallowPaymentTokenAddressTransaction of ByStr20 ByStr20
-  | UpdateCollectionContractTransaction of ByStr20 ByStr20
-  | SetContractOwnershipRecipientTransaction of ByStr20 ByStr20
-  | AcceptContractOwnershipTransaction of ByStr20
-  | CancelOrderTransaction of ByStr20 ByStr20 Uint128 ByStr20 Uint128 Uint32
 
 type Error =
   | NotAllowedToSignError
@@ -286,272 +272,6 @@ procedure ExecuteCustomTransaction(contract_address: ByStr20, transaction: Multi
   end
 end
 
-procedure ExecutePauseTransaction(contract_address: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      _tag: "Pause";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteUnpauseTransaction(contract_address: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      _tag: "Unpause";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps: Uint128)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      fee_bps: fee_bps;
-      _tag: "SetServiceFeeBPS";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteSetBidIncrementBPSTransaction(contract_address: ByStr20, increment_bps: Uint128)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      increment_bps: increment_bps;
-      _tag: "SetBidIncrementBPS";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteSetServiceFeeRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      to: new_recipient;
-      _tag: "SetServiceFeeRecipient";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteAllowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      address: payment_token;
-      _tag: "AllowPaymentTokenAddress";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteDisallowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      address: payment_token;
-      _tag: "DisallowPaymentTokenAddress";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteUpdateCollectionContractTransaction(contract_address: ByStr20, new_collection_contract: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      address: new_collection_contract;
-      _tag: "UpdateCollectionContract";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteSetContractOwnershipRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      address: new_recipient;
-      _tag: "SetContractOwnershipRecipient";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteAcceptContractOwnershipTransaction(contract_address: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      _tag: "AcceptContractOwnership";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint128, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      sale_price: sale_price;
-      side: side;
-      _tag: "CancelOrder";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteSetAllowlistTransaction(contract_address: ByStr20, new_allowlist: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      address: new_allowlist;
-      _tag: "SetAllowlist";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteClearAllowListTransaction(contract_address: ByStr20)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      _tag: "ClearAllowList";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
-procedure ExecuteSetMaxCommissionFeeBPSTransaction(contract_address: ByStr20, new_max_commission_fee_bps: Uint128)
-  (* Only owners may execute *)
-  is_owner <- exists owners[_sender];
-  match is_owner with
-  | False =>
-    err = NotAllowedToExecuteError;
-    Throw err
-  | True =>
-    msg = {
-      new_max_commission_fee_bps: new_max_commission_fee_bps;
-      _tag: "SetMaxCommissionFeeBPS";
-      _amount: Uint128 0;
-      _recipient: contract_address
-    };
-    msgs = one_msg msg;
-    send msgs
-  end
-end
-
 transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: String)
   zero_uint128 = Uint128 0;
   is_zero = builtin eq amount zero_uint128;
@@ -571,72 +291,86 @@ transition SubmitCustomTransaction(contract_address: ByStr20, transaction: Multi
 end
 
 transition SubmitPauseTransaction(contract_address: ByStr20)
-  tx = PauseTransaction contract_address;
+  transaction = Pause;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitUnpauseTransaction(contract_address: ByStr20)
-  tx = UnpauseTransaction contract_address;
+  transaction = Unpause;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps: Uint128)
-  tx = SetServiceFeeBPSTransaction contract_address fee_bps;
+  transaction = SetMaxCommissionFeeBPS fee_bps;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitSetBidIncrementBPSTransaction(contract_address: ByStr20, increment_bps: Uint128)
-  tx = SetBidIncrementBPSTransaction contract_address increment_bps;
+  transaction = SetBidIncrementBPS increment_bps;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitSetServiceFeeRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
-  tx = SetServiceFeeRecipientTransaction contract_address new_recipient;
+  transaction = SetServiceFeeRecipient new_recipient;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitAllowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
-  tx = AllowPaymentTokenAddressTransaction contract_address payment_token;
+  transaction = AllowPaymentTokenAddress payment_token;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitDisallowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
-  tx = DisallowPaymentTokenAddressTransaction contract_address payment_token;
+  transaction = DisallowPaymentTokenAddress payment_token;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitUpdateCollectionContractTransaction(contract_address: ByStr20, new_collection_contract: ByStr20)
-  tx = UpdateCollectionContractTransaction contract_address new_collection_contract;
+  transaction = UpdateCollectionContract new_collection_contract;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitSetContractOwnershipRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
-  tx = SetContractOwnershipRecipientTransaction contract_address new_recipient;
+  transaction = SetContractOwnershipRecipient new_recipient;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitAcceptContractOwnershipTransaction(contract_address: ByStr20)
-  tx = AcceptContractOwnershipTransaction contract_address;
+  transaction = AcceptContractOwnership;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
-transition SubmitCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint128, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
-  tx = CancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side;
+transition SubmitCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
+  transaction = CancelOrder token_address token_id payment_token_address sale_price side;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitSetAllowlistTransaction(contract_address: ByStr20, new_allowlist: ByStr20)
-  tx = SetAllowlistTransaction contract_address new_allowlist;
+  transaction = SetAllowlist new_allowlist;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitClearAllowListTransaction(contract_address: ByStr20)
-  tx = ClearAllowListTransaction contract_address;
+  transaction = ClearAllowList;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
 transition SubmitSetMaxCommissionFeeBPSTransaction(contract_address: ByStr20, new_max_commission_fee_bps: Uint128)
-  tx = SetMaxCommissionFeeBPSTransaction contract_address new_max_commission_fee_bps;
+  transaction = SetMaxCommissionFeeBPS new_max_commission_fee_bps;
+  tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
 
@@ -716,34 +450,6 @@ transition ExecuteTransaction(transaction_id: Uint32)
           ExecuteNativeTransaction recipient amount tag
         | CustomTransaction contract_address transaction =>
           ExecuteCustomTransaction contract_address transaction
-        | PauseTransaction contract_address =>
-          ExecutePauseTransaction contract_address
-        | UnpauseTransaction contract_address =>
-          ExecuteUnpauseTransaction contract_address
-        | SetServiceFeeBPSTransaction contract_address fee_bps =>
-          ExecuteSetServiceFeeBPSTransaction contract_address fee_bps
-        | SetBidIncrementBPSTransaction contract_address increment_bps =>
-          ExecuteSetBidIncrementBPSTransaction contract_address increment_bps
-        | SetServiceFeeRecipientTransaction contract_address new_recipient =>
-          ExecuteSetServiceFeeRecipientTransaction contract_address new_recipient
-        | AllowPaymentTokenAddressTransaction contract_address payment_token =>
-          ExecuteAllowPaymentTokenAddressTransaction contract_address payment_token
-        | DisallowPaymentTokenAddressTransaction contract_address payment_token =>
-          ExecuteDisallowPaymentTokenAddressTransaction contract_address payment_token
-        | UpdateCollectionContractTransaction contract_address new_collection_contract =>
-          ExecuteUpdateCollectionContractTransaction contract_address new_collection_contract
-        | SetContractOwnershipRecipientTransaction contract_address new_recipient =>
-          ExecuteSetContractOwnershipRecipientTransaction contract_address new_recipient
-        | AcceptContractOwnershipTransaction contract_address =>
-          ExecuteAcceptContractOwnershipTransaction contract_address
-        | CancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side =>
-          ExecuteCancelOrderTransaction contract_address token_address token_id payment_token_address sale_price side
-        | SetAllowlistTransaction contract_address new_allowlist =>
-          ExecuteSetAllowlistTransaction contract_address new_allowlist
-        | ClearAllowListTransaction contract_address =>
-          ExecuteClearAllowListTransaction contract_address
-        | SetMaxCommissionFeeBPSTransaction contract_address new_max_commission_fee_bps =>
-          ExecuteSetMaxCommissionFeeBPSTransaction contract_address new_max_commission_fee_bps
         end;
         (* Remove transaction and signatures. *)
         (* Note: The transaction may have failed, but without a callback *)
