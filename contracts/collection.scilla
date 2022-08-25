@@ -4,17 +4,14 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils IntUtils PairUtils
+import IntUtils
 library Collections
 
 (* Global variables *)
 let zero_address = 0x0000000000000000000000000000000000000000
 let false = False
 let true = True
-let zero = Uint256 0
-let one = Uint256 1
 let uint32_one = Uint32 1
-let empty_string = ""
 
 let option_value =
   tfun 'A =>
@@ -241,7 +238,7 @@ end
 
 procedure RequireNotPaused()
   (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  (* https://consensys.github.io/smart-contract-best-practices/general-philosophy/prepare-for-failure/ *)
   paused <- is_paused;
   match paused with
   | False =>
@@ -254,7 +251,7 @@ end
 
 procedure RequirePaused()
   (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
+  (* https://consensys.github.io/smart-contract-best-practices/general-philosophy/prepare-for-failure/ *)
   paused <- is_paused;
   match paused with
   | True =>
@@ -306,11 +303,10 @@ procedure DoRequestTokenToCollection(request: CollectionItemParam)
     | CollectionItemParam token_address token_id collection_id =>
       RequireBrandOwner collection_id;
       RequireTokenNotInCollection token_address token_id;
-      RequireNotPaused;
 
       (* When the same brand_owner uses this function a second time we just overwrite *)
-      request = Requested collection_id;
-      requests[token_address][token_id][_sender] := request;
+      requested = Requested collection_id;
+      requests[token_address][token_id][_sender] := requested;
       commission_fee <- collection_commission_fee[collection_id];
 
       e = {
@@ -329,7 +325,6 @@ procedure DoDeleteRequestTokenToCollection(request: CollectionItemParam)
     match request with
     | CollectionItemParam token_address token_id collection_id =>
         RequireBrandOwner collection_id;
-        RequireNotPaused;
     
         maybe_request <- requests[token_address][token_id][_sender];
         
@@ -358,8 +353,6 @@ procedure DoAcceptCollectionRequest(request: CollectionItemParam)
     | CollectionItemParam token_address token_id collection_id =>
       RequireTokenOwner token_address token_id;
       RequireTokenNotInCollection token_address token_id;
-      RequireAllowedUser _sender;
-      RequireNotPaused;
 
       opt_brand_address <- collection_owning_brand[collection_id];
       brand_address = option_address zero_address opt_brand_address;
@@ -390,14 +383,12 @@ end
 procedure DoRemoveTokenFromCollection(request: CollectionItemParam)
     match request with
     | CollectionItemParam token_address token_id collection_id =>
-      RequireAllowedUser _sender;
       RequireBrandOwner collection_id;
-      RequireNotPaused;
 
-      maybe_collection_id <- token_collection[token_address][token_id];
+      maybe_collection_id <- exists token_collection[token_address][token_id];
       
       match maybe_collection_id with 
-      | Some maybe_collection_id => 
+      | True => 
           delete token_collection[token_address][token_id];
           e = {
               _eventname : "TokenRemovedFromCollection";
@@ -407,7 +398,7 @@ procedure DoRemoveTokenFromCollection(request: CollectionItemParam)
           };
           event e
           
-      | None =>
+      | False =>
           error = TokenDoesNotExistInCollection;
           Throw error
       end;
@@ -423,7 +414,7 @@ procedure DoRemoveTokenFromCollection(request: CollectionItemParam)
   end
 end
 
-(* Lets anyone create an empty collection with an id assigned by the smart contract *)
+(* Lets anyone (subjected to the allowlist) create an empty collection with an id assigned by the smart contract *)
 transition CreateCollection(
     commission_fee: Uint128
     )
@@ -448,34 +439,46 @@ transition CreateCollection(
 end
 
 transition RequestTokenToCollection(request: CollectionItemParam)
+    RequireNotPaused;
     DoRequestTokenToCollection request
 end
 
 transition BatchRequestTokenToCollection(request_list: List CollectionItemParam)
+    RequireNotPaused;
     forall request_list DoRequestTokenToCollection
 end
 
 transition DeleteRequestTokenToCollection(request: CollectionItemParam)
+    RequireNotPaused;
     DoDeleteRequestTokenToCollection request
 end
 
 transition BatchDeleteRequestTokenToCollection(request_list: List CollectionItemParam)
+    RequireNotPaused;
     forall request_list DoDeleteRequestTokenToCollection
 end
 
 transition AcceptCollectionRequest(request: CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
     DoAcceptCollectionRequest request
 end
 
 transition BatchAcceptCollectionRequest(request_list: List CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
     forall request_list DoAcceptCollectionRequest
 end
 
 transition RemoveTokenFromCollection(token: CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
     DoRemoveTokenFromCollection token
 end
 
 transition BatchRemoveTokenFromCollection(token_list: List CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
     forall token_list DoRemoveTokenFromCollection
 end
 
@@ -489,6 +492,7 @@ transition TokenSaleCallback(
     collection_id: Uint32,
     commission_fee: Uint128
     )
+    RequireNotPaused;
 
     (* Precondition: we are called by a registered fixed_price or auction contracts *)
     RequireMarketplaceAddressOnly;
@@ -623,6 +627,7 @@ transition ClearAllowList()
   event e
 end
 
+(* @multi-sig *)
 (* Lets contract_owner add a marketplace contract address. *)
 (* We need to control which adddresses can call the transition `TokenSaleCallback` *)
 transition RegisterMarketplaceAddress(address: ByStr20)
@@ -636,6 +641,7 @@ transition RegisterMarketplaceAddress(address: ByStr20)
     event e
 end
 
+(* @multi-sig *)
 (* Lets contract_owner remove a marketplace contract address. *)
 (* We need to control which adddresses can call the transition `TokenSaleCallback` *)
 transition DeregisterMarketplaceAddress(address: ByStr20)
