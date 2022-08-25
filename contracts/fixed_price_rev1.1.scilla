@@ -696,8 +696,6 @@ end
 procedure DoSetOrder(order: OrderParam)
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
-    RequireNotPaused;
-    RequireAllowedUser _sender;
     RequireNotExpired expiration_bnum;
     RequireAllowedPaymentToken payment_token_address;
     RequireThisToBeSpender token_address token_id;
@@ -773,11 +771,17 @@ end
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
 transition SetOrder(order: OrderParam)
+  RequireNotPaused;
+  RequireAllowedUser _sender;
+
   DoSetOrder order
 end
 
 (* Batch set order *)
 transition SetBatchOrder(order_list: List OrderParam)
+  RequireNotPaused;
+  RequireAllowedUser _sender;
+  
   forall order_list DoSetOrder
 end
 
