@@ -16,6 +16,7 @@ let true = True
 
 let min_bps = Uint128 1
 let max_bps = Uint128 10000
+let max_bps256 = Uint256 10000
 
 let sell_side = Uint32 0
 
@@ -37,22 +38,33 @@ fun (msg3: Message) =>
   let msgs_tmp = two_msgs msg2 msg3 in
   Cons {Message} msg1 msgs_tmp
 
+let uint128_to_uint256 : Uint128 -> Uint256 =
+  fun (x : Uint128) =>
+    let ox256 = builtin to_uint256 x in
+      match ox256 with
+      | None =>
+        (* this never happens, hence we throw a division by zero exception just in case *)
+        let zero = Uint256 0 in
+        builtin div zero zero
+      | Some x256 => x256
+      end
+
 let portion = 
   fun(amount: Uint128) =>
   fun(bps: Uint128) => 
-    let is_zero = builtin eq bps zero_uint128 in
-    match is_zero with
-      | False =>
-      (* To avoid integer overflow, use division only. *)
-      (* amount / ( 10000 / bps ) *)
-      (* bps ranges from 1 to 10000. *)
-      let max_bps = Uint128 10000 in
-      let x = builtin div max_bps bps in
-      (* x ranges from 1 to 10000. *)
-      builtin div amount x
-      | True =>
+    let max_bps256 = uint128_to_uint256 max_bps in
+    let amount256 = uint128_to_uint256 amount in
+    let bps256 = uint128_to_uint256 bps in
+    let x256 = builtin mul amount256 bps256 in
+    let res256 = builtin div x256 max_bps256 in
+    let ores128 = builtin to_uint128 res256 in
+    match ores128 with
+    | None =>
       zero_uint128
+    | Some res128 =>
+      res128
     end
+  
 
 let option_value =
   tfun 'A =>
@@ -472,7 +484,6 @@ procedure HandleFulfillOrder(
   (* Calculating the Service Fee *)
   fee_bps <- service_fee_bps;
   svc_fee = portion sale_price fee_bps;
-  collection_id = zero_uint32;
 
   (* Calculating the optional commission fee *)
   collections_contract <- collection_address;
