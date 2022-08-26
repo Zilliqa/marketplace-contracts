@@ -30,22 +30,32 @@ let get_bal =
     | Some bal => bal
     end
       
-let portion = 
-  fun(amount: Uint128) =>
-  fun(bps: Uint128) => 
-    let is_zero = builtin eq bps zero_uint128 in
-    match is_zero with
-      | False =>
-      (* To avoid integer overflow, use division only. *)
-      (* amount / ( 10000 / bps ) *)
-      (* bps ranges from 1 to 10000. *)
-      let max_bps = Uint128 10000 in
-      let x = builtin div max_bps bps in
-      (* x ranges from 1 to 10000. *)
-      builtin div amount x
-      | True =>
-      zero_uint128
-    end
+    let uint128_to_uint256 : Uint128 -> Uint256 =
+    fun (x : Uint128) =>
+      let ox256 = builtin to_uint256 x in
+        match ox256 with
+        | None =>
+          (* this never happens, hence we throw a division by zero exception just in case *)
+          let zero = Uint256 0 in
+          builtin div zero zero
+        | Some x256 => x256
+        end
+  
+  let portion = 
+    fun(amount: Uint128) =>
+    fun(bps: Uint128) => 
+      let max_bps256 = uint128_to_uint256 max_bps in
+      let amount256 = uint128_to_uint256 amount in
+      let bps256 = uint128_to_uint256 bps in
+      let x256 = builtin mul amount256 bps256 in
+      let res256 = builtin div x256 max_bps256 in
+      let ores128 = builtin to_uint128 res256 in
+      match ores128 with
+      | None =>
+        zero_uint128
+      | Some res128 =>
+        res128
+      end
 
 let option_value =
   tfun 'A =>
@@ -124,6 +134,7 @@ type Error =
   | InvalidBidIncrementBPSError
   | InvalidRoyaltyFeeBPSError
   | InvalidServiceFeeBPSError
+  | TotalFeesTooHigh
 
 let make_error =
   fun (result : Error) =>
@@ -154,6 +165,7 @@ let make_error =
       | InvalidBidIncrementBPSError         => Int32 -24
       | InvalidRoyaltyFeeBPSError           => Int32 -25
       | InvalidServiceFeeBPSError           => Int32 -26
+      | TotalFeesTooHigh                    => Int32 -27
       end
     in
     { _exception : "Error"; code : result_code }
@@ -265,7 +277,6 @@ procedure RequireAllowedUser(address: ByStr20)
 end
 
 procedure RequireValidDestination(to: ByStr20)
-  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
   is_zero_address = builtin eq to zero_address;
   match is_zero_address with
   | False =>
@@ -326,6 +337,40 @@ procedure RequireValidBidIncrementBPS(val_bps: Uint128)
   end
 end
 
+(* Checks that total fees is <100% *)
+procedure RequireValidTotalFees(
+  token_address: ByStr20 with contract 
+    field royalty_fee_bps: Uint128
+  end,
+  token_id: Uint256
+  )
+  (* royalty_fee_bps *)
+  royalty_fee_bps <- & token_address.royalty_fee_bps;
+
+  (* service_fee_bps *)
+  svc_fee_bps <- service_fee_bps;
+
+  (* commission_fee_bps *)
+  collections_contract <- collection_address;
+  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+  collection_id = option_uint32 zero_uint32 opt_collection_id;
+  opt_commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+  commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
+
+  royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
+  total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
+
+  hundred_percent = Uint128 100000;
+  is_lte_max = uint128_lt total_fee_bps hundred_percent;
+
+  match is_lte_max with 
+    | True => 
+    | False =>
+      error = TotalFeesTooHigh;
+      Throw error
+  end
+end
+
 procedure RequireContractOwner()
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
@@ -363,7 +408,6 @@ end
 
 procedure RequireNotPaused()
   (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | False =>
@@ -376,7 +420,6 @@ end
 
 procedure RequirePaused()
   (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | True =>
@@ -693,10 +736,10 @@ end
 procedure DoStart(order: OrderParam)
   match order with
   | OrderParam token_address token_id payment_token_address start_amount expiration_bnum =>
-    RequireNotPaused;
-    RequireAllowedUser _sender;
     RequireNotExpired expiration_bnum;
     RequireAllowedPaymentToken payment_token_address;
+
+    RequireValidTotalFees token_address token_id;
 
     has_sell_order <- exists sell_orders[token_address][token_id];
     match has_sell_order with 
@@ -754,11 +797,17 @@ transition Start(order: OrderParam)
   (* 
     - Seller can start an auction for an asset only if the asset has no ongoing auction. 
   *)
+  RequireNotPaused;
+  RequireAllowedUser _sender;
+
   DoStart order
 end
 
 (* batch starting auctions *)
 transition BatchStart(order_list: List OrderParam)
+  RequireNotPaused;
+  RequireAllowedUser _sender;
+
   forall order_list DoStart
 end
 

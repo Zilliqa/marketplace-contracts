@@ -599,7 +599,7 @@ describe('Native ZIL', () => {
       String(2),
       zero_address,
       String(1000),
-      String(globalBNum + 2)
+      String(globalBNum + 1)
     )
 
     const startTx = await callContract(
