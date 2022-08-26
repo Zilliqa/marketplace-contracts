@@ -4,18 +4,11 @@ scilla_version 0
 (***************************************************)
 (*               Associated library                *)
 (***************************************************)
-import BoolUtils IntUtils
-
 library Allowlist
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let false = False
 let true = True
-
-let one_msg = 
-  fun (msg : Message) => 
-    let nil_msg = Nil {Message} in
-    Cons {Message} msg nil_msg
 
 (* Error exceptions *)
 type Error =
