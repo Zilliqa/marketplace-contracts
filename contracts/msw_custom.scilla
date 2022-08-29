@@ -22,6 +22,8 @@ type MultiSigTransition =
   | Unpause
   | SetAllowlist of (ByStr20)
   | ClearAllowList
+  | RegisterMarketplaceAddress of (ByStr20)
+  | DeregisterMarketplaceAddress of (ByStr20)
   | SetServiceFeeBPS of (Uint128)
   | SetBidIncrementBPS of (Uint128)
   | SetServiceFeeRecipient of (ByStr20)
@@ -54,6 +56,14 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
     }
   | ClearAllowList => {
       _tag: "ClearAllowList"; _amount: Uint128 0; _recipient: r
+    }
+  | RegisterMarketplaceAddress address => {
+      address: address;
+      _tag: "RegisterMarketplaceAddress"; _amount: Uint128 0; _recipient: r
+    }
+  | DeregisterMarketplaceAddress address => {
+      address: address;
+      _tag: "DeregisterMarketplaceAddress"; _amount: Uint128 0; _recipient: r
     }
   | SetServiceFeeBPS fee_bps => {
       fee_bps: fee_bps;
@@ -370,6 +380,18 @@ end
 
 transition SubmitSetMaxCommissionFeeBPSTransaction(contract_address: ByStr20, new_max_commission_fee_bps: Uint128)
   transaction = SetMaxCommissionFeeBPS new_max_commission_fee_bps;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitRegisterMarketplaceAddressTransaction(contract_address: ByStr20)
+  transaction = RegisterMarketplaceAddress contract_address;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitDeregisterMarketplaceAddressTransaction(contract_address: ByStr20)
+  transaction = DeregisterMarketplaceAddress contract_address;
   tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
