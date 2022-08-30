@@ -82,11 +82,11 @@ let option_uint128 = @option_value Uint128
 let compute_commission_fee = 
   fun(sale_price: Uint128) =>
   fun(opt_commission_fee_bps: Option Uint128) =>
-  fun(maybe_has_had_first_sale: Option Bool) =>
+  fun(maybe_has_had_first_sale: Bool) =>
     match maybe_has_had_first_sale with
-      | Some maybe_has_had_first_sale => 
+      | True => 
         zero_uint128
-      | None => 
+      | False => 
         let brand_commission_fee = option_uint128 zero_uint128 opt_commission_fee_bps in
           portion sale_price brand_commission_fee
     end
@@ -524,7 +524,7 @@ procedure HandleFulfillOrder(
   opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
   collection_id = option_uint32 zero_uint32 opt_collection_id;
   commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-  has_had_first_sale <- & collections_contract.has_had_first_sale[token_address][token_id];
+  has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
   
   brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
   is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
