@@ -31,7 +31,7 @@ async function deployFungibleToken(
   // const code = (await readFile(process.env.CONTRACTS_DIR + '/' + 'FungibleToken.scilla')).toString()
 
   const code = (
-    await readFile(process.env.CONTRACTS_DIR + '/' + 'wrapped_zil.scilla')
+    await readFile(process.env.TEST_CONTRACTS_DIR + '/' + 'wrapped_zil.scilla')
   ).toString()
 
   const init = [
