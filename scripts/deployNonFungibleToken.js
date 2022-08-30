@@ -30,7 +30,7 @@ async function deployNonFungibleToken(
   // const code = (await readFile(process.env.CONTRACTS_DIR + '/' + 'FungibleToken.scilla')).toString()
 
   const code = (
-    await readFile(process.env.CONTRACTS_DIR + '/' + 'zrc6.scilla')
+    await readFile(process.env.TEST_CONTRACTS_DIR + '/' + 'zrc6.scilla')
   ).toString()
 /*
   initial_contract_owner: ByStr20,

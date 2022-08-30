@@ -24,7 +24,7 @@ async function deployFixedPriceContract(
 
   // Load code and contract initialization variables
   const code = (
-    await readFile(process.env.CONTRACTS_DIR + '/' + 'fixed_price_rev1.1.scilla')
+    await readFile(process.env.CONTRACTS_DIR + '/' + 'fixed_price.scilla')
   ).toString()
   const init = [
     // this parameter is mandatory for all init arrays
