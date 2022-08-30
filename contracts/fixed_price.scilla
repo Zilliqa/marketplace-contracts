@@ -127,6 +127,7 @@ type Error =
   | NotContractOwnershipRecipientError
   | NotAllowedUserError
   | TotalFeesTooHigh
+  | InvalidRoyaltyFeeBPSError
   
 let make_error =
   fun (result : Error) =>
@@ -152,6 +153,7 @@ let make_error =
       | NotContractOwnershipRecipientError => Int32 -18
       | NotAllowedUserError                => Int32 -19
       | TotalFeesTooHigh                   => Int32 -20
+      | InvalidRoyaltyFeeBPSError          => Int32 -21
       end
     in
     { _exception : "Error"; code : result_code }
@@ -286,6 +288,21 @@ procedure RequireValidBPS(val_bps: Uint128)
     | True => 
     | False =>
       error = InvalidBPSError;
+      Throw error
+  end
+end
+
+procedure RequireValidRoyaltyFeeBPS(val_bps: Uint128)
+  (* max: 25% (arbitrary number) *)
+  max = Uint128 2500;
+  is_gte_min = uint128_ge val_bps min_bps;
+  is_lte_max = uint128_le val_bps max;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidRoyaltyFeeBPSError;
       Throw error
   end
 end
@@ -512,6 +529,7 @@ procedure HandleFulfillOrder(
   
   (* Assume this marketplace support royalty *)
   royalty_fee_bps <- & token_address.royalty_fee_bps;
+  RequireValidRoyaltyFeeBPS royalty_fee_bps;
   royalty_amount = portion sale_price royalty_fee_bps;
 
   (* Calculating the Service Fee *)
