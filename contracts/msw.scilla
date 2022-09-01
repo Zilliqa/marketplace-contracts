@@ -15,34 +15,27 @@ let one_msg =
 
 (* --- gen start --- *)
 type MultiSigTransition = 
-  | Pause
-  | Unpause
-  | Allow of (List (ByStr20))
-  | Disallow of (List (ByStr20))
+  | SetMaxCommissionFeeBPS of (Uint128)
   | SetContractOwnershipRecipient of (ByStr20)
   | AcceptContractOwnership
+  | Pause
+  | Unpause
+  | SetAllowlist of (ByStr20)
+  | ClearAllowList
+  | RegisterMarketplaceAddress of (ByStr20)
+  | DeregisterMarketplaceAddress of (ByStr20)
   | SetServiceFeeBPS of (Uint128)
   | SetBidIncrementBPS of (Uint128)
   | SetServiceFeeRecipient of (ByStr20)
   | AllowPaymentTokenAddress of (ByStr20)
   | DisallowPaymentTokenAddress of (ByStr20)
-  | SetAllowlist of (ByStr20)
+  | UpdateCollectionContract of (ByStr20)
   | CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
-  | Pause => {
-      _tag: "Pause"; _amount: Uint128 0; _recipient: r
-    }
-  | Unpause => {
-      _tag: "Unpause"; _amount: Uint128 0; _recipient: r
-    }
-  | Allow address_list => {
-      address_list: address_list;
-      _tag: "Allow"; _amount: Uint128 0; _recipient: r
-    }
-  | Disallow address_list => {
-      address_list: address_list;
-      _tag: "Disallow"; _amount: Uint128 0; _recipient: r
+  | SetMaxCommissionFeeBPS new_max_commission_fee_bps => {
+      new_max_commission_fee_bps: new_max_commission_fee_bps;
+      _tag: "SetMaxCommissionFeeBPS"; _amount: Uint128 0; _recipient: r
     }
   | SetContractOwnershipRecipient to => {
       to: to;
@@ -50,6 +43,27 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
     }
   | AcceptContractOwnership => {
       _tag: "AcceptContractOwnership"; _amount: Uint128 0; _recipient: r
+    }
+  | Pause => {
+      _tag: "Pause"; _amount: Uint128 0; _recipient: r
+    }
+  | Unpause => {
+      _tag: "Unpause"; _amount: Uint128 0; _recipient: r
+    }
+  | SetAllowlist address => {
+      address: address;
+      _tag: "SetAllowlist"; _amount: Uint128 0; _recipient: r
+    }
+  | ClearAllowList => {
+      _tag: "ClearAllowList"; _amount: Uint128 0; _recipient: r
+    }
+  | RegisterMarketplaceAddress address => {
+      address: address;
+      _tag: "RegisterMarketplaceAddress"; _amount: Uint128 0; _recipient: r
+    }
+  | DeregisterMarketplaceAddress address => {
+      address: address;
+      _tag: "DeregisterMarketplaceAddress"; _amount: Uint128 0; _recipient: r
     }
   | SetServiceFeeBPS fee_bps => {
       fee_bps: fee_bps;
@@ -71,9 +85,9 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
       address: address;
       _tag: "DisallowPaymentTokenAddress"; _amount: Uint128 0; _recipient: r
     }
-  | SetAllowlist address => {
+  | UpdateCollectionContract address => {
       address: address;
-      _tag: "SetAllowlist"; _amount: Uint128 0; _recipient: r
+      _tag: "UpdateCollectionContract"; _amount: Uint128 0; _recipient: r
     }
   | CancelOrder token_address token_id payment_token_address sale_price side => {
       token_address: token_address;
@@ -282,6 +296,102 @@ transition SubmitNativeTransaction(recipient: ByStr20, amount: Uint128, tag: Str
 end
 
 transition SubmitCustomTransaction(contract_address: ByStr20, transaction: MultiSigTransition)
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitPauseTransaction(contract_address: ByStr20)
+  transaction = Pause;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitUnpauseTransaction(contract_address: ByStr20)
+  transaction = Unpause;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitSetServiceFeeBPSTransaction(contract_address: ByStr20, fee_bps: Uint128)
+  transaction = SetMaxCommissionFeeBPS fee_bps;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitSetBidIncrementBPSTransaction(contract_address: ByStr20, increment_bps: Uint128)
+  transaction = SetBidIncrementBPS increment_bps;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitSetServiceFeeRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
+  transaction = SetServiceFeeRecipient new_recipient;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitAllowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
+  transaction = AllowPaymentTokenAddress payment_token;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitDisallowPaymentTokenAddressTransaction(contract_address: ByStr20, payment_token: ByStr20)
+  transaction = DisallowPaymentTokenAddress payment_token;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitUpdateCollectionContractTransaction(contract_address: ByStr20, new_collection_contract: ByStr20)
+  transaction = UpdateCollectionContract new_collection_contract;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitSetContractOwnershipRecipientTransaction(contract_address: ByStr20, new_recipient: ByStr20)
+  transaction = SetContractOwnershipRecipient new_recipient;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitAcceptContractOwnershipTransaction(contract_address: ByStr20)
+  transaction = AcceptContractOwnership;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitCancelOrderTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)
+  transaction = CancelOrder token_address token_id payment_token_address sale_price side;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitSetAllowlistTransaction(contract_address: ByStr20, new_allowlist: ByStr20)
+  transaction = SetAllowlist new_allowlist;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitClearAllowListTransaction(contract_address: ByStr20)
+  transaction = ClearAllowList;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitSetMaxCommissionFeeBPSTransaction(contract_address: ByStr20, new_max_commission_fee_bps: Uint128)
+  transaction = SetMaxCommissionFeeBPS new_max_commission_fee_bps;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitRegisterMarketplaceAddressTransaction(contract_address: ByStr20)
+  transaction = RegisterMarketplaceAddress contract_address;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitDeregisterMarketplaceAddressTransaction(contract_address: ByStr20)
+  transaction = DeregisterMarketplaceAddress contract_address;
   tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
