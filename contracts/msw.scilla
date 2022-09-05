@@ -31,6 +31,7 @@ type MultiSigTransition =
   | DisallowPaymentTokenAddress of (ByStr20)
   | UpdateCollectionContract of (ByStr20)
   | CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
+  | Cancel of (ByStr20) (Uint256)
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
   | SetMaxCommissionFeeBPS new_max_commission_fee_bps => {
@@ -97,6 +98,11 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
       side: side;
       _tag: "CancelOrder"; _amount: Uint128 0; _recipient: r
     }
+  | Cancel token_address token_id => {
+    token_address: token_address;
+    token_id: token_id;
+    _tag: "Cancel"; _amount: Uint128 0; _recipient: r
+  }
   end in one_msg msg
 (* --- gen end --- *)
 
@@ -392,6 +398,12 @@ end
 
 transition SubmitDeregisterMarketplaceAddressTransaction(contract_address: ByStr20)
   transaction = DeregisterMarketplaceAddress contract_address;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitCancelTransaction(contract_address: ByStr20, token_address: ByStr20, token_id: Uint256)
+  transaction = Cancel token_address token_id;
   tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
