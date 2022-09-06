@@ -886,6 +886,7 @@ transition Bid(
   end
 end
 
+(* @multi-sig *)
 (* Cancels an auction *)
 transition Cancel(
   token_address: ByStr20 with contract 
