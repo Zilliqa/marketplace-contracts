@@ -25,5 +25,9 @@
         "d96e9eb5b782a80ea153c937fa83e5948485fbfc8b7e7c069d7b914dbc350aba"
       ]
     }
+  },
+  "dependencies": {
+    "bignumber.js": "^9.1.0",
+    "dotenv": "^16.0.2"
   }
 }
