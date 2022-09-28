@@ -389,6 +389,7 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -7))])'
       },
+      { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from RequestTokenToCollection' }
     ])
   })
@@ -424,6 +425,7 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -8))])'
       },
+      { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from RequestTokenToCollection' }
     ])
   })
@@ -471,8 +473,6 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -13))])'
       },
-      { line: 1, message: 'Raised from RequireTokenNotInCollection' },
-      { line: 1, message: 'Raised from RequireBrandOwner' },
       { line: 1, message: 'Raised from RequestTokenToCollection' }
     ])
   })
@@ -576,6 +576,7 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -7))])'
       },
+      { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from DeleteRequestTokenToCollection' }
     ])
   })
@@ -644,7 +645,6 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -13))])'
       },
-      { line: 1, message: 'Raised from RequireBrandOwner' },
       { line: 1, message: 'Raised from DeleteRequestTokenToCollection' }
     ])
   })
@@ -705,6 +705,7 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -8))])'
       },
+      { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from DeleteRequestTokenToCollection' }
     ])
 
@@ -762,6 +763,8 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -4))])'
       },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from AcceptCollectionRequest' }
     ])
   })
@@ -831,9 +834,6 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -13))])'
       },
-      { line: 1, message: 'Raised from RequireAllowedUser' },
-      { line: 1, message: 'Raised from RequireTokenNotInCollection' },
-      { line: 1, message: 'Raised from RequireTokenOwner' },
       { line: 1, message: 'Raised from AcceptCollectionRequest' }
     ])
   })
@@ -1021,6 +1021,7 @@ describe('User Transitions', () => {
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -7))])'
       },
       { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from RemoveTokenFromCollection' }
     ])
   })
@@ -1103,8 +1104,6 @@ describe('User Transitions', () => {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -13))])'
       },
-      { line: 1, message: 'Raised from RequireBrandOwner' },
-      { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RemoveTokenFromCollection' }
     ])
   })
