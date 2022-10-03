@@ -213,6 +213,7 @@ end
 transition SendZilIfNotZero (recipient: ByStr20, amount: Uint128)
   RequireOperator;
   SendZilIfNotZero_ recipient amount
+  accept
 end
 
 (* empty callbacks *)

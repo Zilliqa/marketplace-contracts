@@ -641,19 +641,63 @@ procedure HandleFulfillOrder(
     (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
 
     (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
-    ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;
+    (* ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;*)
+    msg_to_zrc2_royalty_fee = {
+      _tag: "ZRC2TransferFrom";
+      _recipient: transfer_proxy;
+      _amount: Uint128 0;
+      token_address: payment_token_address;
+      from: buyer;
+      to: royalty_recipient;
+      amount: royalty_amount
+    };
+    msgs1 = one_msg msg_to_zrc2_royalty_fee;
+    send msgs1;
 
     (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
-    ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
+    (* ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee; *)
+    msg_to_zrc2_svc_fee = {
+      _tag: "ZRC2TransferFrom";
+      _recipient: transfer_proxy;
+      _amount: Uint128 0;
+      token_address: payment_token_address;
+      from: buyer;
+      to: svc_fee_recipient;
+      amount: svc_fee
+    };
+    msgs2 = one_msg msg_to_zrc2_svc_fee;
+    send msgs2;
 
     (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-    ZRC2TransferFrom payment_token_address buyer seller seller_profit;
+    (* ZRC2TransferFrom payment_token_address buyer seller seller_profit; *)
+    msg_to_zrc2_seller_profit = {
+      _tag: "ZRC2TransferFrom";
+      _recipient: transfer_proxy;
+      _amount: Uint128 0;
+      token_address: payment_token_address;
+      from: buyer;
+      to: seller;
+      amount: seller_profit
+    };
+    msgs3 = one_msg msg_to_zrc2_seller_profit;
+    send msgs3;
 
     (* Paying out a commission if there is one *)
     match is_commission_fee with
       | False => (* No Operation *)
       | True => 
-        ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee;
+      (* ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee; *)
+        msg_to_brand_commission = {
+          _tag: "ZRC2TransferFrom";
+          _recipient: transfer_proxy;
+          _amount: Uint128 0;
+          token_address: payment_token_address;
+          from: buyer;
+          to: brand_recipient;
+          amount: brand_commission_fee
+        };
+        msgs4 = one_msg msg_to_brand_commission;
+        send msgs4;
 
         msg_to_collection_contract = {
           _tag: "TokenSaleCallback";
@@ -664,14 +708,24 @@ procedure HandleFulfillOrder(
           collection_id: collection_id;
           commission_fee: brand_commission_fee
         };
-        msgs = one_msg msg_to_collection_contract;
-        send msgs
+        msgs5 = one_msg msg_to_collection_contract;
+        send msgs5
     end
   end;
 
 
   (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
-  ZRC6TransferFrom token_address buy_dest token_id;
+  (* ZRC6TransferFrom token_address buy_dest token_id; *)
+  msg_to_brand_commission = {
+    _tag: "ZRC6TransferFrom";
+    _recipient: transfer_proxy;
+    _amount: Uint128 0;
+    token_address: token_address;
+    to: buy_dest;
+    token_id: token_id
+  };
+  msgs6 = one_msg msg_to_brand_commission;
+  send msgs6;
 
   e = {
     _eventname : "FulfillOrder";
@@ -768,14 +822,12 @@ procedure Cancel(
               msgs = one_msg msg_to_send_zrc2;
               send msgs
             | True =>
-              msg_to_send_zil = {
-                _tag: "SendZilIfNotZero";
-                _recipient: transfer_proxy;
-                _amount: Uint128 0;
-                recipient: maker;
-                amount: sale_price
+              msg = {
+                _tag: "AddFunds";
+                _recipient: maker;
+                _amount: sale_price
               };
-              msgs = one_msg msg_to_send_zil;
+              msgs = one_msg msg;
               send msgs
           end;
           
@@ -902,12 +954,17 @@ end
 procedure DoSetOrder(order: OrderParam)
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
-    RequireNotExpired expiration_bnum;
-    RequireAllowedPaymentToken payment_token_address;
-    RequireThisToBeSpender token_address token_id;
-    RequireValidTotalFees token_address token_id;
-
-    is_sell_order = builtin eq side sell_side;
+  RequireNotExpired expiration_bnum;
+  RequireAllowedPaymentToken payment_token_address;
+  RequireThisToBeSpender token_address token_id;
+  RequireValidTotalFees token_address token_id;
+  
+  is_valid_ <- &state as ByStr20 with contract field sell_side: Uint32 end;
+  
+  match is_valid_ with
+  | Some some_value =>
+    sell_side_ <- &some_value.sell_side;
+    is_sell_order = builtin eq side sell_side_;
     match is_sell_order with 
     | True => 
       (* Side: Sell *)
@@ -915,8 +972,23 @@ procedure DoSetOrder(order: OrderParam)
       RequireSenderToBeTokenOwner token_address token_id;
       
       (* set new sell order *)
-      new_order = Order _sender expiration_bnum;
-      sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
+      (* new_order = Order _sender expiration_bnum;*)
+      (* sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;*)
+      
+      msg_to_set_sellorder = {
+        _tag: "SetOrder";
+        _recipient: state;
+        _amount: Uint128 0;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        sender: _sender;
+        expiration_bnum: expiration_bnum
+      };
+      msgs = one_msg msg_to_set_sellorder;
+      send msgs;
       
       e = {
         _eventname : "SetOrder";
@@ -943,11 +1015,29 @@ procedure DoSetOrder(order: OrderParam)
           (* create a buy order *)
           match is_native_zil with 
           | False =>
+            msg_to_send_zrc2 = {
+              _tag: "ZRC2TransferFrom";
+              _recipient: transfer_proxy;
+              _amount: Uint128 0;
+              token_address: payment_token_address;
+              from: _sender;
+              to: transfer_proxy;
+              amount: sale_price
+            };
+            msgs = one_msg msg_to_send_zrc2;
+            send msgs
           | True => 
             (* _amount must be equal to sale_price *)
             RequireEqualZILAmount sale_price;
             (* ZILs must be accepted only if a buy order is newly created *)
-            accept
+            (* accept*)
+            msg = {
+              _tag: "AddFunds";
+              _recipient: transfer_proxy;
+              _amount: sale_price
+            };
+            msgs = one_msg msg;
+            send msgs
           end
         | Some (Order buyer _) => 
           (* update the buy order *)
@@ -955,9 +1045,23 @@ procedure DoSetOrder(order: OrderParam)
       end;
 
       (* set new buy order *)
-      new_order = Order _sender expiration_bnum;
-
-      buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
+      (* new_order = Order _sender expiration_bnum;*)
+      (* buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order;*)
+      
+      msg_to_set_buyorder = {
+        _tag: "SetOrder";
+        _recipient: state;
+        _amount: Uint128 0;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        sender: _sender;
+        expiration_bnum: expiration_bnum
+      };
+      msgs = one_msg msg_to_set_buyorder;
+      send msgs;
 
       e = {
         _eventname : "SetOrder";
@@ -971,16 +1075,35 @@ procedure DoSetOrder(order: OrderParam)
       };
       event e
     end
+  | None => 
+      error = InvalidSellSideError;
+      Throw error
+    end
   end
 end
 
 (* Sets sell and buy orders. *)
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
-transition SetOrder(order: OrderParam)
+transition SetOrder(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256,
+  payment_token_address:ByStr20,
+  sale_price: Uint128,
+  side: Uint32,
+  expiration_bnum: BNum
+)
   RequireNotPaused;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
   RequireAllowedUser _sender;
-
+  order = OrderParam token_address token_id payment_token_address sale_price side expiration_bnum;
   DoSetOrder order
 end
 
@@ -1009,75 +1132,143 @@ transition FulfillOrder(
   dest: ByStr20
   )
   RequireNotPaused;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
   RequireAllowedUser _sender;
   RequireAllowedUser dest;
   RequireValidDestination dest;
-
-  is_sell_order = builtin eq side sell_side;
-  match is_sell_order with 
-  | True => 
-    (* Side: Sell *)
-    (* - Buyers can fulfill sell orders. *)
-    buyer = _sender;
-    maybe_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
-
-    match maybe_sell_order with
-    | None => 
-      error = SellOrderNotFoundError;
-      Throw error
-    | Some (Order seller expiration_bnum) =>  
-      RequireNotExpired expiration_bnum;
-      (* Sender must not be the seller *)
-      RequireNotSelf seller;
-      
-      (* The currency is ZIL if the payment_token_address is zero address *)
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-      | False => 
+  
+  is_valid_ <- &state as ByStr20 with contract
+    field sell_side: Uint32,
+    field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))),
+    field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
+  end;
+  
+  match is_valid_ with
+    | Some some_value =>
+      sell_side_ <- &some_value.sell_side;
+      is_sell_order = builtin eq side sell_side_;
+      match is_sell_order with 
       | True => 
-        (* _amount must be equal to sale_price *)
-        RequireEqualZILAmount sale_price;
-        (* ZILs must be accepted only if a sell order is fulfilled *)
-        accept
-      end;
+        (* Side: Sell *)
+        (* - Buyers can fulfill sell orders. *)
+        buyer = _sender;
+        maybe_sell_order <- &some_value.sell_orders[token_address][token_id][payment_token_address][sale_price];
+    
+        match maybe_sell_order with
+        | None => 
+          error = SellOrderNotFoundError;
+          Throw error
+        | Some (Order seller expiration_bnum) =>  
+          RequireNotExpired expiration_bnum;
+          (* Sender must not be the seller *)
+          RequireNotSelf seller;
+          
+          (* The currency is ZIL if the payment_token_address is zero address *)
+          is_native_zil = builtin eq payment_token_address zero_address;
+          match is_native_zil with
+          | False => 
+            (* untested *)
+            msg_to_send_zrc2 = {
+              _tag: "ZRC2TransferFrom";
+              _recipient: transfer_proxy;
+              _amount: Uint128 0;
+              token_address: payment_token_address;
+              from: _sender;
+              to: seller;
+              amount: sale_price
+            };
+            msgs = one_msg msg_to_send_zrc2;
+            send msgs
+          | True => 
+            (* _amount must be equal to sale_price *)
+            RequireEqualZILAmount sale_price;
+            (* ZILs must be accepted only if a sell order is fulfilled *)
+            (* accept - untested*)
+            msg = {
+              _tag: "AddFunds";
+              _recipient: seller;
+              _amount: sale_price
+            };
+            msgs = one_msg msg;
+            send msgs
+          end;
+    
+          HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
+          
+          (* Remove all sell orders. *)
+          (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
+          
+          (* Note that we should keep the buy orders for the new owner. *)
+          (* The following is the reasons why the existing buy orders should not be removed: *) 
+          (* a) The buyers don't have to create new buy orders every single time whenever the owner of the token has changed. *)
+          (* b) The new owner can sell the token again shortly by fulfilling existing buy orders. *)
+    
+          (* delete sell_orders[token_address][token_id] *)
 
-      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
-      
-      (* Remove all sell orders. *)
-      (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
-      
-      (* Note that we should keep the buy orders for the new owner. *)
-      (* The following is the reasons why the existing buy orders should not be removed: *) 
-      (* a) The buyers don't have to create new buy orders every single time whenever the owner of the token has changed. *)
-      (* b) The new owner can sell the token again shortly by fulfilling existing buy orders. *)
+          msg_to_send_update_state = {
+            _tag: "FulfillOrder";
+            _recipient: state;
+            _amount: Uint128 0;
+            token_address: payment_token_address;
+            token_id: token_id;
+            payment_token_address: payment_token_address;
+            sale_price: sale_price;
+            side: side;
+            dest: dest;
+            buyer: buyer;
+            seller: seller
+          };
+          msgs = one_msg msg_to_send_update_state;
+          send msgs
 
-      delete sell_orders[token_address][token_id]
-    end
-  | False => 
-    (* Side: Buy *)
-    (* - Sellers can fulfill buy orders. *)
-    seller = _sender;
-    maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
+        end
+      | False => 
+        (* Side: Buy *)
+        (* - Sellers can fulfill buy orders. *)
+        seller = _sender;
+        maybe_buy_order <- &some_value.buy_orders[token_address][token_id][payment_token_address][sale_price];
+    
+        match maybe_buy_order with
+        | None => 
+          error = BuyOrderNotFoundError;
+          Throw error
+        | Some (Order buyer expiration_bnum) =>  
+          RequireNotExpired expiration_bnum;
+          (* Sender must not be the buyer *)
+          RequireNotSelf buyer;
+          
+          HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
 
-    match maybe_buy_order with
+          msg_to_send_update_state = {
+            _tag: "FulfillOrder";
+            _recipient: state;
+            _amount: Uint128 0;
+            token_address: payment_token_address;
+            token_id: token_id;
+            payment_token_address: payment_token_address;
+            sale_price: sale_price;
+            side: side;
+            dest: dest;
+            buyer: buyer;
+            seller: seller
+          };
+          msgs = one_msg msg_to_send_update_state;
+          send msgs
+    
+          (* Remove all sell orders *)
+          (* delete sell_orders[token_address][token_id]; *)
+          
+          (* - When a buy order is fulfilled, the buy order is removed. *)
+          (* Remove the buy order *)
+          (* Note that we should keep other buy orders for the new owner *)
+          (* delete buy_orders[token_address][token_id][payment_token_address][sale_price] *)
+        end
+      end
     | None => 
-      error = BuyOrderNotFoundError;
-      Throw error
-    | Some (Order buyer expiration_bnum) =>  
-      RequireNotExpired expiration_bnum;
-      (* Sender must not be the buyer *)
-      RequireNotSelf buyer;
-      
-      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
-
-      (* Remove all sell orders *)
-      delete sell_orders[token_address][token_id];
-      
-      (* - When a buy order is fulfilled, the buy order is removed. *)
-      (* Remove the buy order *)
-      (* Note that we should keep other buy orders for the new owner *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price]
-    end
+    error = InvalidSellSideError;
+    Throw error
   end
 end
 

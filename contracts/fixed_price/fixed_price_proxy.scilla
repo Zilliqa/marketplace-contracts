@@ -6,7 +6,7 @@ scilla_version 0
 (***************************************************)
 import BoolUtils IntUtils
 
-library FixedPriceOrderbook
+library FixedPriceOrderbook_Proxy
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_uint32 = Uint32 0
@@ -529,184 +529,6 @@ procedure SendZilIfNotZero(recipient : ByStr20, amount : Uint128)
   end
 end
 
-procedure HandleFulfillOrder(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  sale_price: Uint128,
-  buyer: ByStr20,
-  seller: ByStr20,
-  side: Uint32,
-  buy_dest: ByStr20
-  )
-  
-  (* Assume this marketplace support royalty *)
-  royalty_fee_bps <- & token_address.royalty_fee_bps;
-  RequireValidRoyaltyFeeBPS royalty_fee_bps;
-  royalty_amount = portion sale_price royalty_fee_bps;
-
-  (* Calculating the Service Fee *)
-  fee_bps <- service_fee_bps;
-  svc_fee = portion sale_price fee_bps;
-
-  (* Calculating the optional commission fee *)
-  collections_contract <- collection_address;
-  
-  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
-  collection_id = option_uint32 zero_uint32 opt_collection_id;
-  commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-  has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
-  
-  brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
-  is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
-
-  (* The brand recipient to pay commission to *)
-  opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
-  brand_recipient = option_address zero_address opt_brand_recipient;
-
-  profit = builtin sub sale_price royalty_amount;
-  profit_after_commission = builtin sub profit brand_commission_fee;
-  seller_profit = builtin sub profit_after_commission svc_fee;
-
-  royalty_recipient <- & token_address.royalty_recipient;
-  RequireAllowedUser royalty_recipient;
-
-  svc_fee_recipient <- service_fee_recipient;
-  RequireAllowedUser svc_fee_recipient;
-
-  (* The currency is ZIL if the payment_token_address is zero address *)
-  is_native_zil = builtin eq payment_token_address zero_address;
-  match is_native_zil with
-  | True =>
-    msg_to_royalty_recipient = {
-      _tag: "AddFunds";
-      _recipient: royalty_recipient;
-      _amount: royalty_amount
-    };
-
-    msg_to_svc_fee_recipient = {
-      _tag: "AddFunds";
-      _recipient: svc_fee_recipient;
-      _amount: svc_fee
-    };
-    
-    msg_to_seller = {
-      _tag: "AddFunds";
-      _recipient: seller;
-      _amount: seller_profit
-    };
-    
-    msgs = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
-    send msgs;
-    
-    (* Paying out a commission if there is one *)
-    match is_commission_fee with
-    | True =>
-      SendZilIfNotZero brand_recipient brand_commission_fee;
-
-      msg_to_collection_contract = {
-        _tag: "TokenSaleCallback";
-        _recipient: collections_contract; 
-        _amount: zero_uint128;
-        token_address: token_address;
-        token_id: token_id;
-        collection_id: collection_id;
-        commission_fee: brand_commission_fee
-      };
-      msgs = one_msg msg_to_collection_contract;
-      send msgs
-
-    | False => (* No operation *)
-    end
-
-  | False =>
-    (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
-
-    (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
-    ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;
-
-    (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
-    ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
-
-    (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-    ZRC2TransferFrom payment_token_address buyer seller seller_profit;
-
-    (* Paying out a commission if there is one *)
-    match is_commission_fee with
-      | False => (* No Operation *)
-      | True => 
-        ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee;
-
-        msg_to_collection_contract = {
-          _tag: "TokenSaleCallback";
-          _recipient: collections_contract; 
-          _amount: zero_uint128;
-          token_address: token_address;
-          token_id: token_id;
-          collection_id: collection_id;
-          commission_fee: brand_commission_fee
-        };
-        msgs = one_msg msg_to_collection_contract;
-        send msgs
-    end
-  end;
-
-
-  (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
-  ZRC6TransferFrom token_address buy_dest token_id;
-
-  e = {
-    _eventname : "FulfillOrder";
-    taker: _sender;
-    side: side;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price;
-    seller: seller;
-    buyer: buyer;
-    asset_recipient: buy_dest;
-    payment_tokens_recipient: seller;
-    royalty_recipient: royalty_recipient;
-    royalty_amount: royalty_amount;
-    service_fee: svc_fee
-  };
-  event e
-end
-
-procedure CancelOrder_(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  sale_price: Uint128,
-  side: Uint32
-)
-  current_logic <- logic;
-  RequireNonZeroAddress current_logic;
-  msg_to_cancel = {
-    _tag: "CancelOrder";
-    _recipient: current_logic;
-    _amount: Uint128 0;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price;
-    side: side
-  };
-  msgs = one_msg msg_to_cancel;
-  send msgs
-end
-
 procedure UpdateCollectionContract_(
   address: ByStr20 with contract 
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
@@ -897,11 +719,30 @@ end
 (* Sets sell and buy orders. *)
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
-transition SetOrder(order: OrderParam)
-  RequireNotPaused;
-  RequireAllowedUser _sender;
+(*transition SetOrder(order: OrderParam)*)
+(*  RequireNotPaused;*)
+(*  DoSetOrder order*)
+(*end*)
 
-  DoSetOrder order
+transition SetOrder(order: OrderParam)
+  match order with
+  | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
+    current_logic <- logic;
+    RequireNonZeroAddress current_logic;
+    msg_to_set_order = {
+      _tag: "SetOrder";
+      _recipient: current_logic;
+      _amount: Uint128 0;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price;
+      side: side;
+      expiration_bnum: expiration_bnum
+    };
+    msgs = one_msg msg_to_set_order;
+    send msgs
+  end
 end
 
 (* Batch set order *)
@@ -949,76 +790,21 @@ transition FulfillOrder(
   dest: ByStr20
   )
   RequireNotPaused;
-  RequireAllowedUser _sender;
-  RequireAllowedUser dest;
-  RequireValidDestination dest;
-
-  is_sell_order = builtin eq side sell_side;
-  match is_sell_order with 
-  | True => 
-    (* Side: Sell *)
-    (* - Buyers can fulfill sell orders. *)
-    buyer = _sender;
-    maybe_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
-
-    match maybe_sell_order with
-    | None => 
-      error = SellOrderNotFoundError;
-      Throw error
-    | Some (Order seller expiration_bnum) =>  
-      RequireNotExpired expiration_bnum;
-      (* Sender must not be the seller *)
-      RequireNotSelf seller;
-      
-      (* The currency is ZIL if the payment_token_address is zero address *)
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-      | False => 
-      | True => 
-        (* _amount must be equal to sale_price *)
-        RequireEqualZILAmount sale_price;
-        (* ZILs must be accepted only if a sell order is fulfilled *)
-        accept
-      end;
-
-      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
-      
-      (* Remove all sell orders. *)
-      (* When a sell order is fulfilled, the sell order is removed and the other sell orders for the token are also removed. *)
-      
-      (* Note that we should keep the buy orders for the new owner. *)
-      (* The following is the reasons why the existing buy orders should not be removed: *) 
-      (* a) The buyers don't have to create new buy orders every single time whenever the owner of the token has changed. *)
-      (* b) The new owner can sell the token again shortly by fulfilling existing buy orders. *)
-
-      delete sell_orders[token_address][token_id]
-    end
-  | False => 
-    (* Side: Buy *)
-    (* - Sellers can fulfill buy orders. *)
-    seller = _sender;
-    maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
-
-    match maybe_buy_order with
-    | None => 
-      error = BuyOrderNotFoundError;
-      Throw error
-    | Some (Order buyer expiration_bnum) =>  
-      RequireNotExpired expiration_bnum;
-      (* Sender must not be the buyer *)
-      RequireNotSelf buyer;
-      
-      HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
-
-      (* Remove all sell orders *)
-      delete sell_orders[token_address][token_id];
-      
-      (* - When a buy order is fulfilled, the buy order is removed. *)
-      (* Remove the buy order *)
-      (* Note that we should keep other buy orders for the new owner *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price]
-    end
-  end
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_fullfillorder = {
+    _tag: "FulfillOrder";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id;
+    payment_token_address: payment_token_address;
+    sale_price: sale_price;
+    side: side;
+    dest: dest
+  };
+  msgs = one_msg msg_to_fullfillorder;
+  send msgs
 end
 
 (* @multi-sig *)
@@ -1035,7 +821,21 @@ transition CancelOrder(
   sale_price: Uint128,
   side: Uint32
 )
-  CancelOrder_ token_address token_id payment_token_address sale_price side
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_cancel = {
+    _tag: "CancelOrder";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id;
+    payment_token_address: payment_token_address;
+    sale_price: sale_price;
+    side: side
+  };
+  msgs = one_msg msg_to_cancel;
+  send msgs
 end
 
 (* @multi-sig *)
@@ -1072,6 +872,7 @@ transition AllowPaymentTokenAddress(
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
+  RequireNotPaused;
   AllowPaymentTokenAddress_ address
 end
 
@@ -1081,21 +882,25 @@ transition DisallowPaymentTokenAddress(
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
+  RequireNotPaused;
   DisallowPaymentTokenAddress_ address
 end
 
 (* @multi-sig *)
 transition SetServiceFeeBPS(fee_bps: Uint128)
+  RequireNotPaused;
   SetServiceFeeBPS_ fee_bps
 end
 
 (* @multi-sig *)
 transition SetServiceFeeRecipient(to: ByStr20)
+  RequireNotPaused;
   SetServiceFeeRecipient_ to
 end
 
 (* @multi-sig *)
 transition ClearAllowList()
+  RequireNotPaused;
   ClearAllowList_
 end
 
@@ -1105,6 +910,7 @@ transition SetAllowlist(
     allowed_addresses : Map ByStr20 Bool 
   end
   )
+  RequireNotPaused;
   SetAllowlist_ address
 end
 
@@ -1117,6 +923,7 @@ transition UpdateCollectionContract(
     field collection_commission_fee: Map Uint32 Uint128
   end
   )
+  RequireNotPaused;
   UpdateCollectionContract_ address
 end
 
