@@ -246,6 +246,17 @@ procedure RequireContractOwner()
   end
 end
 
+procedure RequireNonZeroAddress(to: ByStr20)
+  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
+  is_zero_address = builtin eq to zero_address;
+  match is_zero_address with
+  | False =>
+  | True =>
+    error = ZeroAddressError;
+    Throw error
+  end
+end
+
 procedure RequireNotPaused()
   paused <- is_paused;
   match paused with
@@ -668,7 +679,7 @@ procedure HandleFulfillOrder(
   event e
 end
 
-procedure Cancel(
+procedure CancelOrder_(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
     field royalty_fee_bps: Uint128, 
@@ -679,84 +690,21 @@ procedure Cancel(
   payment_token_address: ByStr20,
   sale_price: Uint128,
   side: Uint32
-  )
-  is_sell_order = builtin eq side sell_side;
-  match is_sell_order with 
-  | True =>     
-    (* Side: Sell *)
-    maybe_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
-    match maybe_sell_order with
-    | None =>
-      error = SellOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-      (* Remove order *)
-      delete sell_orders[token_address][token_id][payment_token_address][sale_price];
-      
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
-  | False => 
-    (* Side: Buy *)
-    maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
-    match maybe_buy_order with
-    | None =>
-      error = BuyOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-
-      (* The currency is ZIL if the payment_token_address is zero address *)
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-        | False =>
-        | True =>
-          msg = {
-            _tag: "AddFunds";
-            _recipient: maker;
-            _amount: sale_price
-          };
-          msgs = one_msg msg;
-          send msgs
-      end;
-      
-      (* Remove order *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price];
-
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
-  end
-end
-
-procedure RequireNonZeroAddress(to: ByStr20)
-  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
-  is_zero_address = builtin eq to zero_address;
-  match is_zero_address with
-  | False =>
-  | True =>
-    error = ZeroAddressError;
-    Throw error
-  end
+)
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_cancel = {
+    _tag: "CancelOrder";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id;
+    payment_token_address: payment_token_address;
+    sale_price: sale_price;
+    side: side
+  };
+  msgs = one_msg msg_to_cancel;
+  send msgs
 end
 
 procedure UpdateCollectionContract_(
@@ -803,6 +751,66 @@ procedure ClearAllowList_()
     _tag: "ClearAllowList";
     _recipient: current_logic;
     _amount: Uint128 0
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure SetServiceFeeRecipient_(to: ByStr20)
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_update = {
+    _tag: "SetServiceFeeRecipient";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    to: to
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure SetServiceFeeBPS_(fee_bps: Uint128)
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_update = {
+    _tag: "SetServiceFeeBPS";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    fee_bps: fee_bps
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure DisallowPaymentTokenAddress_(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_update = {
+    _tag: "DisallowPaymentTokenAddress";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    address: address
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure AllowPaymentTokenAddress_(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_update = {
+    _tag: "AllowPaymentTokenAddress";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    address: address
   };
   msgs = one_msg msg_to_update;
   send msgs
@@ -1027,19 +1035,7 @@ transition CancelOrder(
   sale_price: Uint128,
   side: Uint32
 )
-  cur_owner <- contract_owner;
-  is_contract_owner = builtin eq cur_owner _sender;
-  
-  match is_contract_owner with
-  | True => 
-    (* the contract owner can cancel orders only if this contract is paused. *)
-    RequirePaused
-  | False =>
-    (* - the makers can cancel their orders only if this contract is not paused. *)
-    RequireNotPaused
-  end;
-
-  Cancel token_address token_id payment_token_address sale_price side
+  CancelOrder_ token_address token_id payment_token_address sale_price side
 end
 
 (* @multi-sig *)
@@ -1076,13 +1072,7 @@ transition AllowPaymentTokenAddress(
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
-  RequireContractOwner;
-  allowed_payment_tokens[address] := true;
-  e = {
-    _eventname : "AllowPaymentTokenAddress";
-    payment_token_address: address
-  };
-  event e
+  AllowPaymentTokenAddress_ address
 end
 
 (* @multi-sig *)
@@ -1091,50 +1081,22 @@ transition DisallowPaymentTokenAddress(
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
-  RequireContractOwner;
-  delete allowed_payment_tokens[address];
-  e = {
-    _eventname : "DisallowPaymentTokenAddress";
-    payment_token_address: address
-  };
-  event e
+  DisallowPaymentTokenAddress_ address
 end
 
 (* @multi-sig *)
 transition SetServiceFeeBPS(fee_bps: Uint128)
-  RequireContractOwner;
-  RequireValidBPS fee_bps;
-  service_fee_bps := fee_bps;
-  e = {
-    _eventname : "SetServiceFeeBPS";
-    service_fee_bps: fee_bps
-  };
-  event e
+  SetServiceFeeBPS_ fee_bps
 end
 
 (* @multi-sig *)
 transition SetServiceFeeRecipient(to: ByStr20)
-  RequireContractOwner;
-  RequireValidDestination to;
-  
-  service_fee_recipient := to;
-  
-  e = { 
-    _eventname: "SetServiceFeeRecipient";
-    to: to
-  };
-  event e
+  SetServiceFeeRecipient_ to
 end
 
 (* @multi-sig *)
 transition ClearAllowList()
-  RequireContractOwner;
-  allowlist_address := zero_address;
-
-  e = { 
-    _eventname: "ClearAllowList"
-  };
-  event e
+  ClearAllowList_
 end
 
 (* @multi-sig *)

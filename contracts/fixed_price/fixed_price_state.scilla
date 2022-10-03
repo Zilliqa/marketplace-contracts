@@ -678,73 +678,35 @@ procedure Cancel(
   token_id: Uint256,
   payment_token_address: ByStr20,
   sale_price: Uint128,
-  side: Uint32
+  side: Uint32,
+  maker: ByStr20
   )
   is_sell_order = builtin eq side sell_side;
   match is_sell_order with 
   | True =>     
-    (* Side: Sell *)
-    maybe_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
-    match maybe_sell_order with
-    | None =>
-      error = SellOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-      (* Remove order *)
-      delete sell_orders[token_address][token_id][payment_token_address][sale_price];
-      
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
+    delete sell_orders[token_address][token_id][payment_token_address][sale_price];
+    e = {
+      _eventname : "CancelOrder";
+      maker: maker;
+      side: side;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price
+    };
+    event e
   | False => 
-    (* Side: Buy *)
-    maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
-    match maybe_buy_order with
-    | None =>
-      error = BuyOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-
-      (* The currency is ZIL if the payment_token_address is zero address *)
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-        | False =>
-        | True =>
-          msg = {
-            _tag: "AddFunds";
-            _recipient: maker;
-            _amount: sale_price
-          };
-          msgs = one_msg msg;
-          send msgs
-      end;
-      
-      (* Remove order *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price];
-
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
+    delete buy_orders[token_address][token_id][payment_token_address][sale_price];
+    e = {
+      _eventname : "CancelOrder";
+      maker: maker;
+      side: side;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price
+    };
+    event e
   end
 end
 
@@ -886,10 +848,11 @@ transition CancelOrder(
   token_id: Uint256,
   payment_token_address: ByStr20,
   sale_price: Uint128,
-  side: Uint32
+  side: Uint32,
+  maker: ByStr20
 )
   RequireLogic;
-  Cancel token_address token_id payment_token_address sale_price side
+  Cancel token_address token_id payment_token_address sale_price side maker
 end
 
 (* @multi-sig *)
@@ -947,7 +910,6 @@ end
 (* @multi-sig *)
 transition SetServiceFeeBPS(fee_bps: Uint128)
   RequireLogic;
-  (* RequireValidBPS fee_bps; *)
   service_fee_bps := fee_bps;
   e = {
     _eventname : "SetServiceFeeBPS";
@@ -960,7 +922,6 @@ end
 (* @multi-sig *)
 transition SetServiceFeeRecipient(to: ByStr20)
   RequireLogic;
-  (* RequireValidDestination to; *)
   service_fee_recipient := to;
   e = { 
     _eventname: "SetServiceFeeRecipient";

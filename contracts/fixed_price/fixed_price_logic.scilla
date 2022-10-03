@@ -130,6 +130,7 @@ type Error =
   | InvalidRoyaltyFeeBPSError
   | NotProxyAdminError
   | ZeroAddressError
+  | InvalidSellSideError
   
 let make_error =
   fun (result : Error) =>
@@ -158,6 +159,7 @@ let make_error =
       | InvalidRoyaltyFeeBPSError          => Int32 -21
       | NotProxyAdminError                 => Int32 -22
       | ZeroAddressError                   => Int32 -23
+      | InvalidSellSideError               => Int32 -24
       end
     in
     { _exception : "Error"; code : result_code }
@@ -702,71 +704,100 @@ procedure Cancel(
   sale_price: Uint128,
   side: Uint32
   )
-  is_sell_order = builtin eq side sell_side;
-  match is_sell_order with 
-  | True =>     
-    (* Side: Sell *)
-    maybe_sell_order <- sell_orders[token_address][token_id][payment_token_address][sale_price];
-    match maybe_sell_order with
-    | None =>
-      error = SellOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
-      (* Remove order *)
-      delete sell_orders[token_address][token_id][payment_token_address][sale_price];
-      
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
-  | False => 
-    (* Side: Buy *)
-    maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
-    match maybe_buy_order with
-    | None =>
-      error = BuyOrderNotFoundError;
-      Throw error
-    | Some (Order maker expiration_bnum) =>  
-      (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel maker;
 
-      (* The currency is ZIL if the payment_token_address is zero address *)
-      is_native_zil = builtin eq payment_token_address zero_address;
-      match is_native_zil with
-        | False =>
-        | True =>
-          msg = {
-            _tag: "AddFunds";
-            _recipient: maker;
-            _amount: sale_price
+  is_valid_ <- &state as ByStr20 with contract
+    field sell_side: Uint32,
+    field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))),
+    field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
+  end;
+
+  match is_valid_ with
+  | Some some_value =>
+    sell_side_ <- &some_value.sell_side;
+    is_sell_order = builtin eq side sell_side_;
+      match is_sell_order with 
+      | True =>     
+        (* Side: Sell *)
+        maybe_sell_order <- &some_value.sell_orders[token_address][token_id][payment_token_address][sale_price];
+        match maybe_sell_order with
+        | None =>
+          error = SellOrderNotFoundError;
+          Throw error
+        | Some (Order maker expiration_bnum) =>  
+          (* sender must be the maker or the contract owner *)
+          RequireAccessToCancel maker;
+          (* Remove order *)
+          msg_to_cancel = {
+            _tag: "CancelOrder";
+            _recipient: state;
+            _amount: Uint128 0;
+            token_address: token_address;
+            token_id: token_id;
+            payment_token_address: payment_token_address;
+            sale_price: sale_price;
+            side : sell_side_;
+            maker: maker
           };
-          msgs = one_msg msg;
+          msgs = one_msg msg_to_cancel;
           send msgs
-      end;
-      
-      (* Remove order *)
-      delete buy_orders[token_address][token_id][payment_token_address][sale_price];
+        end
+      | False => 
+        (* Side: Buy *)
+        maybe_buy_order <- &some_value.buy_orders[token_address][token_id][payment_token_address][sale_price];
+        match maybe_buy_order with
+        | None =>
+          error = BuyOrderNotFoundError;
+          Throw error
+        | Some (Order maker expiration_bnum) =>  
+          (* sender must be the maker or the contract owner *)
+          RequireAccessToCancel maker;
 
-      e = {
-        _eventname : "CancelOrder";
-        maker: maker;
-        side: side;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price
-      };
-      event e
-    end
+          (* The currency is ZIL if the payment_token_address is zero address *)
+          is_native_zil = builtin eq payment_token_address zero_address;
+          match is_native_zil with
+            | False =>
+              msg_to_send_zrc2 = {
+                _tag: "ZRC2TransferFrom";
+                _recipient: transfer_proxy;
+                _amount: Uint128 0;
+                token_address: payment_token_address;
+                from: maker;
+                to: transfer_proxy;
+                amount: sale_price
+              };
+              msgs = one_msg msg_to_send_zrc2;
+              send msgs
+            | True =>
+              msg_to_send_zil = {
+                _tag: "SendZilIfNotZero";
+                _recipient: transfer_proxy;
+                _amount: Uint128 0;
+                recipient: maker;
+                amount: sale_price
+              };
+              msgs = one_msg msg_to_send_zil;
+              send msgs
+          end;
+          
+          (* Remove order *)
+          msg_to_cancel = {
+            _tag: "CancelOrder";
+            _recipient: state;
+            _amount: Uint128 0;
+            token_address: token_address;
+            token_id: token_id;
+            payment_token_address: payment_token_address;
+            sale_price: sale_price;
+            side : sell_side_;
+            maker: maker
+          };
+          msgs = one_msg msg_to_cancel;
+          send msgs
+        end
+      end
+  | None => 
+    error = InvalidSellSideError;
+    Throw error
   end
 end
 
@@ -808,6 +839,58 @@ procedure ClearAllowList_()
     _tag: "ClearAllowList";
     _recipient: state;
     _amount: Uint128 0
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure SetServiceFeeRecipient_(to: ByStr20)
+  msg_to_update = {
+    _tag: "SetServiceFeeRecipient";
+    _recipient: state;
+    _amount: Uint128 0;
+    to: to
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure SetServiceFeeBPS_(fee_bps: Uint128)
+  msg_to_update = {
+    _tag: "SetServiceFeeBPS";
+    _recipient: state;
+    _amount: Uint128 0;
+    fee_bps: fee_bps
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure DisallowPaymentTokenAddress_(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  msg_to_update = {
+    _tag: "DisallowPaymentTokenAddress";
+    _recipient: state;
+    _amount: Uint128 0;
+    address: address
+  };
+  msgs = one_msg msg_to_update;
+  send msgs
+end
+
+procedure AllowPaymentTokenAddress_(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  msg_to_update = {
+    _tag: "AllowPaymentTokenAddress";
+    _recipient: state;
+    _amount: Uint128 0;
+    address: address
   };
   msgs = one_msg msg_to_update;
   send msgs
@@ -1012,6 +1095,11 @@ transition CancelOrder(
   sale_price: Uint128,
   side: Uint32
 )
+  RequireProxy;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
+
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
   
@@ -1021,9 +1109,9 @@ transition CancelOrder(
     RequirePaused
   | False =>
     (* - the makers can cancel their orders only if this contract is not paused. *)
+    RequireProxy;
     RequireNotPaused
   end;
-
   Cancel token_address token_id payment_token_address sale_price side
 end
 
@@ -1061,13 +1149,13 @@ transition AllowPaymentTokenAddress(
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
+  RequireProxy;
   RequireContractOwner;
-  allowed_payment_tokens[address] := true;
-  e = {
-    _eventname : "AllowPaymentTokenAddress";
-    payment_token_address: address
-  };
-  event e
+  RequireNotPaused;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
+  AllowPaymentTokenAddress_ address
 end
 
 (* @multi-sig *)
@@ -1076,39 +1164,37 @@ transition DisallowPaymentTokenAddress(
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
+  RequireProxy;
   RequireContractOwner;
-  delete allowed_payment_tokens[address];
-  e = {
-    _eventname : "DisallowPaymentTokenAddress";
-    payment_token_address: address
-  };
-  event e
+  RequireNotPaused;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
+  DisallowPaymentTokenAddress_ address
 end
 
 (* @multi-sig *)
 transition SetServiceFeeBPS(fee_bps: Uint128)
+  RequireProxy;
   RequireContractOwner;
+  RequireNotPaused;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
   RequireValidBPS fee_bps;
-  service_fee_bps := fee_bps;
-  e = {
-    _eventname : "SetServiceFeeBPS";
-    service_fee_bps: fee_bps
-  };
-  event e
+  SetServiceFeeBPS_ fee_bps
 end
 
 (* @multi-sig *)
 transition SetServiceFeeRecipient(to: ByStr20)
+  RequireProxy;
   RequireContractOwner;
+  RequireNotPaused;
+  RequireNonZeroAddress proxy;
+  RequireNonZeroAddress state;
+  RequireNonZeroAddress transfer_proxy;
   RequireValidDestination to;
-  
-  service_fee_recipient := to;
-  
-  e = { 
-    _eventname: "SetServiceFeeRecipient";
-    to: to
-  };
-  event e
+  SetServiceFeeRecipient_ to
 end
 
 (* @multi-sig *)
