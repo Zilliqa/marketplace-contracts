@@ -206,9 +206,6 @@ field contract_ownership_recipient: ByStr20 = zero_address
 (* Defaults to False *)
 field is_paused: Bool = false
 
-(* There must be an allowlist for the payment tokens (ZRC-2) *)
- field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool 
-
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
 (* `service_fee_bps` must range from `1` to `10000`. *)
@@ -357,14 +354,20 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
 end
 
 procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
-  is_zero_address = builtin eq payment_token_address zero_address;
-  is_allowed_zrc2_address <- exists allowed_payment_tokens[payment_token_address];
-
-  is_allowed = orb is_zero_address is_allowed_zrc2_address;
-  match is_allowed with
-  | True =>
-  | False =>
-    error = NotAllowedPaymentToken;
+  allowed_payment_tokens_exist <- &state as ByStr20 with contract field allowed_payment_tokens: Map ByStr20 Bool end;
+  match allowed_payment_tokens_exist with
+  | Some c =>
+    is_allowed_zrc2_address <- &c.allowed_payment_tokens[payment_token_address];
+    match is_allowed_zrc2_address with
+    | Some some_value =>
+      is_zero_address = builtin eq payment_token_address zero_address;
+      is_allowed = orb is_zero_address some_value
+    | None => 
+      error = NotAllowedPaymentToken;
+      Throw error
+    end
+  | None => 
+    error = AllowedPaymentTokensContractNotFoundError;
     Throw error
   end
 end
