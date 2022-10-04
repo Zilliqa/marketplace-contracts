@@ -131,35 +131,39 @@ type Error =
   | NotProxyAdminError
   | ZeroAddressError
   | InvalidSellSideError
+  | AllowListNotFoundError
+  | AllowedPaymentTokensContractNotFoundError
   
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | NotContractOwnerError              => Int32 -1
-      | NotPausedError                     => Int32 -2
-      | PausedError                        => Int32 -3
-      | ZeroAddressDestinationError        => Int32 -4
-      | ThisAddressDestinationError        => Int32 -5
-      | SellOrderNotFoundError             => Int32 -6
-      | BuyOrderNotFoundError              => Int32 -7
-      | NotSpenderError                    => Int32 -8
-      | NotTokenOwnerError                 => Int32 -9
-      | TokenOwnerError                    => Int32 -10
-      | ExpiredError                       => Int32 -11
-      | NotAllowedToCancelOrder            => Int32 -12
-      | NotSelfError                       => Int32 -13
-      | SelfError                          => Int32 -14
-      | NotAllowedPaymentToken             => Int32 -15
-      | InvalidBPSError                    => Int32 -16
-      | NotEqualAmountError                => Int32 -17
-      | NotContractOwnershipRecipientError => Int32 -18
-      | NotAllowedUserError                => Int32 -19
-      | TotalFeesTooHigh                   => Int32 -20
-      | InvalidRoyaltyFeeBPSError          => Int32 -21
-      | NotProxyAdminError                 => Int32 -22
-      | ZeroAddressError                   => Int32 -23
-      | InvalidSellSideError               => Int32 -24
+      | NotContractOwnerError                       => Int32 -1
+      | NotPausedError                              => Int32 -2
+      | PausedError                                 => Int32 -3
+      | ZeroAddressDestinationError                 => Int32 -4
+      | ThisAddressDestinationError                 => Int32 -5
+      | SellOrderNotFoundError                      => Int32 -6
+      | BuyOrderNotFoundError                       => Int32 -7
+      | NotSpenderError                             => Int32 -8
+      | NotTokenOwnerError                          => Int32 -9
+      | TokenOwnerError                             => Int32 -10
+      | ExpiredError                                => Int32 -11
+      | NotAllowedToCancelOrder                     => Int32 -12
+      | NotSelfError                                => Int32 -13
+      | SelfError                                   => Int32 -14
+      | NotAllowedPaymentToken                      => Int32 -15
+      | InvalidBPSError                             => Int32 -16
+      | NotEqualAmountError                         => Int32 -17
+      | NotContractOwnershipRecipientError          => Int32 -18
+      | NotAllowedUserError                         => Int32 -19
+      | TotalFeesTooHigh                            => Int32 -20
+      | InvalidRoyaltyFeeBPSError                   => Int32 -21
+      | NotProxyAdminError                          => Int32 -22
+      | ZeroAddressError                            => Int32 -23
+      | InvalidSellSideError                        => Int32 -24
+      | AllowListNotFoundError                      => Int32 -25
+      | AllowedPaymentTokensContractNotFoundError   => Int32 -26
       end
     in
     { _exception : "Error"; code : result_code }
@@ -182,18 +186,6 @@ contract FixedPriceOrderbook_Logic
   transfer_proxy: ByStr20
 )
 
-(* 
-  A composite primary key of a sell order or buy order consists of
-  - asset contract address (ZRC-6)
-  - token ID
-  - payment token contract address (ZRC-2)
-  - sale price
-*)
-
-(* Allowlist Contract Address *)
-(* Defaults to `zero_address` *)
-field allowlist_address: ByStr20 = zero_address
-
 (* Collection Contract Address *)
 field collection_address: ByStr20 with contract
   field token_collection: Map ByStr20 (Map Uint256 Uint32),
@@ -214,14 +206,8 @@ field contract_ownership_recipient: ByStr20 = zero_address
 (* Defaults to False *)
 field is_paused: Bool = false
 
-(* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> sell_order  ) ) *)
-field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
-
-(* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> buy_order ) ) *)
-field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
-
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
-field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
+ field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool 
 
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
@@ -439,27 +425,34 @@ procedure RequireNotExpired(expiration_bnum: BNum)
 end
 
 procedure RequireAllowedUser(address: ByStr20)
-  allowlist <- allowlist_address;
-  is_zero_address = builtin eq zero_address allowlist;
-  match is_zero_address with
-  | True =>
-    (* Noop *)
-    (* This contract doesn't use allowlist *)
-  | False =>
-    maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
-    match maybe_allowlist_contract_address with 
-    | None => 
-    | Some contract_address =>
-      maybe_allowed_address <- & contract_address.allowed_addresses[address];
-      match maybe_allowed_address with
-      | Some _ =>
-        (* Noop *)
-        (* The address is allowed *)
-      | None =>
-        error = NotAllowedUserError;
-        Throw error
+  is_allowlist_exist <- &state as ByStr20 with contract field allowlist_address: ByStr20 end;
+  match is_allowlist_exist with
+  | Some c =>
+    allowlist <- &c.allowlist_address;
+    is_zero_address = builtin eq zero_address allowlist;
+    match is_zero_address with
+    | True =>
+      (* Noop *)
+      (* This contract doesn't use allowlist *)
+    | False =>
+      maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
+      match maybe_allowlist_contract_address with 
+      | None => 
+      | Some contract_address =>
+        maybe_allowed_address <- & contract_address.allowed_addresses[address];
+        match maybe_allowed_address with
+        | Some _ =>
+          (* Noop *)
+          (* The address is allowed *)
+        | None =>
+          error = NotAllowedUserError;
+          Throw error
+        end
       end
     end
+  | None => 
+    error = AllowListNotFoundError;
+    Throw error
   end
 end
 
@@ -614,8 +607,8 @@ procedure HandleFulfillOrder(
       _amount: seller_profit
     };
     
-    msgs = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
-    send msgs;
+    msgs1 = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
+    send msgs1;
     
     (* Paying out a commission if there is one *)
     match is_commission_fee with
@@ -631,8 +624,8 @@ procedure HandleFulfillOrder(
         collection_id: collection_id;
         commission_fee: brand_commission_fee
       };
-      msgs = one_msg msg_to_collection_contract;
-      send msgs
+      msgs2 = one_msg msg_to_collection_contract;
+      send msgs2
 
     | False => (* No operation *)
     end
@@ -959,7 +952,11 @@ procedure DoSetOrder(order: OrderParam)
   RequireThisToBeSpender token_address token_id;
   RequireValidTotalFees token_address token_id;
   
-  is_valid_ <- &state as ByStr20 with contract field sell_side: Uint32 end;
+  is_valid_ <- &state as ByStr20 with contract
+    field sell_side: Uint32,
+    field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))),
+    field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
+  end;
   
   match is_valid_ with
   | Some some_value =>
@@ -1009,7 +1006,7 @@ procedure DoSetOrder(order: OrderParam)
       (* The currency is ZIL if the payment_token_address is zero address *)
       is_native_zil = builtin eq payment_token_address zero_address;
 
-      maybe_buy_order <- buy_orders[token_address][token_id][payment_token_address][sale_price];
+      maybe_buy_order <- &some_value.buy_orders[token_address][token_id][payment_token_address][sale_price];
       match maybe_buy_order with 
         | None =>
           (* create a buy order *)

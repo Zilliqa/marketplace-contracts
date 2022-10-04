@@ -110,24 +110,8 @@ type Error =
   | NotContractOwnerError
   | NotPausedError
   | PausedError
-  | ZeroAddressDestinationError
-  | ThisAddressDestinationError
-  | SellOrderNotFoundError
-  | BuyOrderNotFoundError
-  | NotSpenderError
-  | NotTokenOwnerError
-  | TokenOwnerError
-  | ExpiredError
-  | NotAllowedToCancelOrder
-  | NotSelfError
   | SelfError
-  | NotAllowedPaymentToken
-  | InvalidBPSError
-  | NotEqualAmountError
   | NotContractOwnershipRecipientError
-  | NotAllowedUserError
-  | TotalFeesTooHigh
-  | InvalidRoyaltyFeeBPSError
   | ZeroAddressError
   | NotOperatorError
   
@@ -138,26 +122,10 @@ let make_error =
       | NotContractOwnerError              => Int32 -1
       | NotPausedError                     => Int32 -2
       | PausedError                        => Int32 -3
-      | ZeroAddressDestinationError        => Int32 -4
-      | ThisAddressDestinationError        => Int32 -5
-      | SellOrderNotFoundError             => Int32 -6
-      | BuyOrderNotFoundError              => Int32 -7
-      | NotSpenderError                    => Int32 -8
-      | NotTokenOwnerError                 => Int32 -9
-      | TokenOwnerError                    => Int32 -10
-      | ExpiredError                       => Int32 -11
-      | NotAllowedToCancelOrder            => Int32 -12
-      | NotSelfError                       => Int32 -13
-      | SelfError                          => Int32 -14
-      | NotAllowedPaymentToken             => Int32 -15
-      | InvalidBPSError                    => Int32 -16
-      | NotEqualAmountError                => Int32 -17
-      | NotContractOwnershipRecipientError => Int32 -18
-      | NotAllowedUserError                => Int32 -19
-      | TotalFeesTooHigh                   => Int32 -20
-      | InvalidRoyaltyFeeBPSError          => Int32 -21
-      | ZeroAddressError                   => Int32 -22
-      | NotOperatorError                   => Int32 -22
+      | SelfError                          => Int32 -4
+      | NotContractOwnershipRecipientError => Int32 -5
+      | ZeroAddressError                   => Int32 -6
+      | NotOperatorError                   => Int32 -7
       end
     in
     { _exception : "Error"; code : result_code }
@@ -268,121 +236,6 @@ procedure RequirePaused()
   end
 end
 
-procedure RequireValidDestination(to: ByStr20)
-  is_zero_address = builtin eq to zero_address;
-  match is_zero_address with
-  | False =>
-  | True =>
-    error = ZeroAddressDestinationError;
-    Throw error
-  end;
-
-  is_this_address = builtin eq to _this_address;
-  match is_this_address with
-  | False =>
-  | True =>
-    error = ThisAddressDestinationError;
-    Throw error
-  end
-end
-
-procedure RequireValidBPS(val_bps: Uint128)
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max_bps;
-  
-  is_valid = andb is_gte_min is_lte_max;
-  match is_valid with 
-    | True => 
-    | False =>
-      error = InvalidBPSError;
-      Throw error
-  end
-end
-
-procedure RequireValidRoyaltyFeeBPS(val_bps: Uint128)
-  (* max: 25% (arbitrary number) *)
-  max = Uint128 2500;
-  is_gte_min = uint128_ge val_bps min_bps;
-  is_lte_max = uint128_le val_bps max;
-  
-  is_valid = andb is_gte_min is_lte_max;
-  match is_valid with 
-    | True => 
-    | False =>
-      error = InvalidRoyaltyFeeBPSError;
-      Throw error
-  end
-end
-
-procedure RequireValidTotalFees(token_address: ByStr20 with contract 
-    field royalty_fee_bps: Uint128
-  end,
-  token_id: Uint256
-  )
-  (* royalty_fee_bps *)
-  royalty_fee_bps <- & token_address.royalty_fee_bps;
-
-  (* service_fee_bps *)
-  svc_fee_bps <- service_fee_bps;
-
-  (* commission_fee_bps *)
-  collections_contract <- collection_address;
-  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
-  collection_id = option_uint32 zero_uint32 opt_collection_id;
-  opt_commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-  commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
-  
-  royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
-  total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
-
-  hundred_percent = Uint128 100000;
-  is_lte_max = uint128_lt total_fee_bps hundred_percent;
-  
-  match is_lte_max with 
-    | True => 
-    | False =>
-      error = TotalFeesTooHigh;
-      Throw error
-  end
-end
-
-procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
-  is_zero_address = builtin eq payment_token_address zero_address;
-  is_allowed_zrc2_address <- exists allowed_payment_tokens[payment_token_address];
-
-  is_allowed = orb is_zero_address is_allowed_zrc2_address;
-  match is_allowed with
-  | True =>
-  | False =>
-    error = NotAllowedPaymentToken;
-    Throw error
-  end
-end
-
-procedure RequireEqualZILAmount(amount: Uint128)
-  is_eq = builtin eq amount _amount;
-  match is_eq with
-  | True =>
-  | False =>
-    error = NotEqualAmountError;
-    Throw error
-  end
-end
-
-procedure RequireAccessToCancel(maker_address: ByStr20)
-  cur_owner <- contract_owner;
-  is_contract_owner = builtin eq cur_owner _sender;
-  is_maker = builtin eq maker_address _sender;
-
-  is_allowed_to_cancel_order = orb is_maker is_contract_owner;
-  match is_allowed_to_cancel_order with
-  | True =>
-  | False =>
-    error = NotAllowedToCancelOrder;
-    Throw error
-  end
-end
-
 procedure RequireNotSelf(address: ByStr20)
   is_self = builtin eq address _sender;
   match is_self with
@@ -390,131 +243,6 @@ procedure RequireNotSelf(address: ByStr20)
   | True =>
     error = SelfError;
     Throw error
-  end
-end
-
-procedure RequireSelf(address: ByStr20)
-  is_self = builtin eq address _sender;
-  match is_self with
-  | True =>
-  | False =>
-    error = NotSelfError;
-    Throw error
-  end
-end
-
-procedure RequireNotExpired(expiration_bnum: BNum)
-  cur_bnum <- & BLOCKNUMBER;  
-  is_not_expired = builtin blt cur_bnum expiration_bnum;
-  match is_not_expired with
-  | True =>
-  | False =>
-    error = ExpiredError;
-    Throw error
-  end
-end
-
-procedure RequireAllowedUser(address: ByStr20)
-  allowlist <- allowlist_address;
-  is_zero_address = builtin eq zero_address allowlist;
-  match is_zero_address with
-  | True =>
-    (* Noop *)
-    (* This contract doesn't use allowlist *)
-  | False =>
-    maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
-    match maybe_allowlist_contract_address with 
-    | None => 
-    | Some contract_address =>
-      maybe_allowed_address <- & contract_address.allowed_addresses[address];
-      match maybe_allowed_address with
-      | Some _ =>
-        (* Noop *)
-        (* The address is allowed *)
-      | None =>
-        error = NotAllowedUserError;
-        Throw error
-      end
-    end
-  end
-end
-
-procedure RequireThisToBeSpender(token_address: ByStr20 with contract field spenders: Map Uint256 ByStr20 end, token_id: Uint256)
-  maybe_spender <- & token_address.spenders[token_id];
-  spender = option_address zero_address maybe_spender;
-  is_spender = builtin eq _this_address spender;
-  match is_spender with
-  | True =>
-  | False =>
-    error = NotSpenderError;
-    Throw error
-  end
-end
-
-procedure RequireSenderToBeTokenOwner(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
-  maybe_token_owner <- & token_address.token_owners[token_id];
-  token_owner = option_address zero_address maybe_token_owner;
-  is_token_owner = builtin eq _sender token_owner;
-  match is_token_owner with
-  | True =>
-  | False =>
-    error = NotTokenOwnerError;
-    Throw error
-  end
-end
-
-procedure RequireSenderNotToBeTokenOwner(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
-  maybe_token_owner <- & token_address.token_owners[token_id];
-  token_owner = option_address zero_address maybe_token_owner;
-  is_token_owner = builtin eq _sender token_owner;
-  match is_token_owner with
-  | False =>
-  | True =>
-    error = TokenOwnerError;
-    Throw error
-  end
-end
-
-procedure ZRC2TransferFrom(payment_token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
-  msg_to_zrc2 = {
-    _tag: "TransferFrom";
-    _recipient: payment_token_address;
-    _amount: Uint128 0;
-    from: from;
-    to: to;
-    amount: amount
-  };
-  msgs = one_msg msg_to_zrc2;
-  send msgs
-end
-
-procedure ZRC6TransferFrom(
-  token_address: ByStr20,
-  to: ByStr20,
-  token_id: Uint256)
-  msg_to_zrc6 = {
-    _tag: "TransferFrom";
-    _recipient: token_address;
-    _amount: Uint128 0;
-    to: to;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_zrc6;
-  send msgs
-end
-
-procedure SendZilIfNotZero(recipient : ByStr20, amount : Uint128)
-  is_zero = builtin eq amount zero_uint128;
-  match is_zero with
-  | False => 
-    msg = {
-      _tag: "AddFunds";
-      _recipient: recipient;
-      _amount: amount
-    };
-    msg = one_msg msg;
-    send msg
-  | True => (* do not send zero amounts *)
   end
 end
 
