@@ -134,7 +134,7 @@ let make_error =
 (*             The contract definition             *)
 (***************************************************)
 
-contract FixedPriceOrderbook
+contract FixedPriceOrderbook_State
 (
   initial_contract_owner: ByStr20,
   initial_collection_contract: ByStr20 with contract

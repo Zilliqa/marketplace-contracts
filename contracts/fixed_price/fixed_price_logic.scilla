@@ -133,6 +133,8 @@ type Error =
   | InvalidSellSideError
   | AllowListNotFoundError
   | AllowedPaymentTokensContractNotFoundError
+  | CollectionAddressNotFoundError
+  | InvalidCollectionAddress
   
 let make_error =
   fun (result : Error) =>
@@ -164,9 +166,11 @@ let make_error =
       | InvalidSellSideError                        => Int32 -24
       | AllowListNotFoundError                      => Int32 -25
       | AllowedPaymentTokensContractNotFoundError   => Int32 -26
+      | CollectionAddressNotFoundError              => Int32 -27
+      | InvalidCollectionAddress                    => Int32 -28
       end
     in
-    { _exception : "Error"; code : result_code }
+    { _exception : "Error"; source: "Logic" code : result_code }
 
 (***************************************************)
 (*             The contract definition             *)
@@ -175,24 +179,18 @@ let make_error =
 contract FixedPriceOrderbook_Logic
 (
   initial_contract_owner: ByStr20,
-  initial_collection_contract: ByStr20 with contract
-    field token_collection: Map ByStr20 (Map Uint256 Uint32),
-    field collection_owning_brand: Map Uint32 ByStr20,
-    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
-    field collection_commission_fee: Map Uint32 Uint128
-  end,
   state: ByStr20,
   proxy: ByStr20,
   transfer_proxy: ByStr20
 )
 
 (* Collection Contract Address *)
-field collection_address: ByStr20 with contract
+(* field collection_address: ByStr20 with contract
   field token_collection: Map ByStr20 (Map Uint256 Uint32),
   field collection_owning_brand: Map Uint32 ByStr20,
   field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
   field collection_commission_fee: Map Uint32 Uint128
-end = initial_collection_contract
+end = initial_collection_contract *)
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -332,24 +330,55 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
   (* service_fee_bps *)
   svc_fee_bps <- service_fee_bps;
 
-  (* commission_fee_bps *)
-  collections_contract <- collection_address;
-  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
-  collection_id = option_uint32 zero_uint32 opt_collection_id;
-  opt_commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-  commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
-  
-  royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
-  total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
+  is_collection_address_exist <- &state as ByStr20 with contract
+    field collection_address: ByStr20
+  end;
 
-  hundred_percent = Uint128 100000;
-  is_lte_max = uint128_lt total_fee_bps hundred_percent;
-  
-  match is_lte_max with 
+  match is_collection_address_exist with
+  | Some c =>
+    collections_contract_ <- &c.collection_address;
+    is_zero_address = builtin eq zero_address collections_contract_;
+
+    match is_zero_address with
     | True => 
-    | False =>
-      error = TotalFeesTooHigh;
+      error = InvalidCollectionAddress;
       Throw error
+    | False => 
+      maybe_collections_contract_ <- & collections_contract_ as ByStr20 with contract
+        field token_collection: Map ByStr20 (Map Uint256 Uint32),
+        field collection_owning_brand: Map Uint32 ByStr20,
+        field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+        field collection_commission_fee: Map Uint32 Uint128
+      end;
+
+      match maybe_collections_contract_ with 
+      | None => 
+        error = InvalidCollectionAddress;
+        Throw error
+      | Some collections_contract => 
+        (* commission_fee_bps *)
+        opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+        collection_id = option_uint32 zero_uint32 opt_collection_id;
+        opt_commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+        commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
+        
+        royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
+        total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
+      
+        hundred_percent = Uint128 100000;
+        is_lte_max = uint128_lt total_fee_bps hundred_percent;
+        
+        match is_lte_max with 
+          | True => 
+          | False =>
+            error = TotalFeesTooHigh;
+            Throw error
+        end
+      end
+    end
+  | None => 
+    error = CollectionAddressNotFoundError;
+    Throw error
   end
 end
 
@@ -564,182 +593,213 @@ procedure HandleFulfillOrder(
   svc_fee = portion sale_price fee_bps;
 
   (* Calculating the optional commission fee *)
-  collections_contract <- collection_address;
-  
-  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
-  collection_id = option_uint32 zero_uint32 opt_collection_id;
-  commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-  has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
-  
-  brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
-  is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
+  (* collections_contract <- collection_address; *)
 
-  (* The brand recipient to pay commission to *)
-  opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
-  brand_recipient = option_address zero_address opt_brand_recipient;
-
-  profit = builtin sub sale_price royalty_amount;
-  profit_after_commission = builtin sub profit brand_commission_fee;
-  seller_profit = builtin sub profit_after_commission svc_fee;
-
-  royalty_recipient <- & token_address.royalty_recipient;
-  RequireAllowedUser royalty_recipient;
-
-  svc_fee_recipient <- service_fee_recipient;
-  RequireAllowedUser svc_fee_recipient;
-
-  (* The currency is ZIL if the payment_token_address is zero address *)
-  is_native_zil = builtin eq payment_token_address zero_address;
-  match is_native_zil with
-  | True =>
-    msg_to_royalty_recipient = {
-      _tag: "AddFunds";
-      _recipient: royalty_recipient;
-      _amount: royalty_amount
-    };
-
-    msg_to_svc_fee_recipient = {
-      _tag: "AddFunds";
-      _recipient: svc_fee_recipient;
-      _amount: svc_fee
-    };
-    
-    msg_to_seller = {
-      _tag: "AddFunds";
-      _recipient: seller;
-      _amount: seller_profit
-    };
-    
-    msgs1 = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
-    send msgs1;
-    
-    (* Paying out a commission if there is one *)
-    match is_commission_fee with
-    | True =>
-      SendZilIfNotZero brand_recipient brand_commission_fee;
-
-      msg_to_collection_contract = {
-        _tag: "TokenSaleCallback";
-        _recipient: collections_contract; 
-        _amount: zero_uint128;
-        token_address: token_address;
-        token_id: token_id;
-        collection_id: collection_id;
-        commission_fee: brand_commission_fee
-      };
-      msgs2 = one_msg msg_to_collection_contract;
-      send msgs2
-
-    | False => (* No operation *)
-    end
-
-  | False =>
-    (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
-
-    (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
-    (* ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;*)
-    msg_to_zrc2_royalty_fee = {
-      _tag: "ZRC2TransferFrom";
-      _recipient: transfer_proxy;
-      _amount: Uint128 0;
-      token_address: payment_token_address;
-      from: buyer;
-      to: royalty_recipient;
-      amount: royalty_amount
-    };
-    msgs1 = one_msg msg_to_zrc2_royalty_fee;
-    send msgs1;
-
-    (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
-    (* ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee; *)
-    msg_to_zrc2_svc_fee = {
-      _tag: "ZRC2TransferFrom";
-      _recipient: transfer_proxy;
-      _amount: Uint128 0;
-      token_address: payment_token_address;
-      from: buyer;
-      to: svc_fee_recipient;
-      amount: svc_fee
-    };
-    msgs2 = one_msg msg_to_zrc2_svc_fee;
-    send msgs2;
-
-    (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-    (* ZRC2TransferFrom payment_token_address buyer seller seller_profit; *)
-    msg_to_zrc2_seller_profit = {
-      _tag: "ZRC2TransferFrom";
-      _recipient: transfer_proxy;
-      _amount: Uint128 0;
-      token_address: payment_token_address;
-      from: buyer;
-      to: seller;
-      amount: seller_profit
-    };
-    msgs3 = one_msg msg_to_zrc2_seller_profit;
-    send msgs3;
-
-    (* Paying out a commission if there is one *)
-    match is_commission_fee with
-      | False => (* No Operation *)
-      | True => 
-      (* ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee; *)
-        msg_to_brand_commission = {
-          _tag: "ZRC2TransferFrom";
-          _recipient: transfer_proxy;
-          _amount: Uint128 0;
-          token_address: payment_token_address;
-          from: buyer;
-          to: brand_recipient;
-          amount: brand_commission_fee
-        };
-        msgs4 = one_msg msg_to_brand_commission;
-        send msgs4;
-
-        msg_to_collection_contract = {
-          _tag: "TokenSaleCallback";
-          _recipient: collections_contract; 
-          _amount: zero_uint128;
-          token_address: token_address;
-          token_id: token_id;
-          collection_id: collection_id;
-          commission_fee: brand_commission_fee
-        };
-        msgs5 = one_msg msg_to_collection_contract;
-        send msgs5
-    end
+  is_collection_address_exist <- &state as ByStr20 with contract
+    field collection_address: ByStr20
   end;
 
+  match is_collection_address_exist with
+  | Some c =>
+    collections_contract_ <- &c.collection_address;
+    is_zero_address = builtin eq zero_address collections_contract_;
 
-  (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
-  (* ZRC6TransferFrom token_address buy_dest token_id; *)
-  msg_to_brand_commission = {
-    _tag: "ZRC6TransferFrom";
-    _recipient: transfer_proxy;
-    _amount: Uint128 0;
-    token_address: token_address;
-    to: buy_dest;
-    token_id: token_id
-  };
-  msgs6 = one_msg msg_to_brand_commission;
-  send msgs6;
-
-  e = {
-    _eventname : "FulfillOrder";
-    taker: _sender;
-    side: side;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price;
-    seller: seller;
-    buyer: buyer;
-    asset_recipient: buy_dest;
-    payment_tokens_recipient: seller;
-    royalty_recipient: royalty_recipient;
-    royalty_amount: royalty_amount;
-    service_fee: svc_fee
-  };
-  event e
+    match is_zero_address with
+    | True =>
+      error = InvalidCollectionAddress;
+      Throw error
+    | False =>
+      maybe_collections_contract_ <- & collections_contract_ as ByStr20 with contract
+        field token_collection: Map ByStr20 (Map Uint256 Uint32),
+        field collection_owning_brand: Map Uint32 ByStr20,
+        field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+        field collection_commission_fee: Map Uint32 Uint128
+      end;
+      match maybe_collections_contract_ with 
+      | None => 
+        error = InvalidCollectionAddress;
+        Throw error
+      | Some collections_contract => 
+        opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+        collection_id = option_uint32 zero_uint32 opt_collection_id;
+        commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+        has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
+        
+        brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
+        is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
+      
+        (* The brand recipient to pay commission to *)
+        opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
+        brand_recipient = option_address zero_address opt_brand_recipient;
+      
+        profit = builtin sub sale_price royalty_amount;
+        profit_after_commission = builtin sub profit brand_commission_fee;
+        seller_profit = builtin sub profit_after_commission svc_fee;
+      
+        royalty_recipient <- & token_address.royalty_recipient;
+        RequireAllowedUser royalty_recipient;
+      
+        svc_fee_recipient <- service_fee_recipient;
+        RequireAllowedUser svc_fee_recipient;
+      
+        (* The currency is ZIL if the payment_token_address is zero address *)
+        is_native_zil = builtin eq payment_token_address zero_address;
+        match is_native_zil with
+        | True =>
+          msg_to_royalty_recipient = {
+            _tag: "AddFunds";
+            _recipient: royalty_recipient;
+            _amount: royalty_amount
+          };
+      
+          msg_to_svc_fee_recipient = {
+            _tag: "AddFunds";
+            _recipient: svc_fee_recipient;
+            _amount: svc_fee
+          };
+          
+          msg_to_seller = {
+            _tag: "AddFunds";
+            _recipient: seller;
+            _amount: seller_profit
+          };
+          
+          msgs1 = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
+          send msgs1;
+          
+          (* Paying out a commission if there is one *)
+          match is_commission_fee with
+          | True =>
+            SendZilIfNotZero brand_recipient brand_commission_fee;
+      
+            msg_to_collection_contract = {
+              _tag: "TokenSaleCallback";
+              _recipient: collections_contract; 
+              _amount: zero_uint128;
+              token_address: token_address;
+              token_id: token_id;
+              collection_id: collection_id;
+              commission_fee: brand_commission_fee
+            };
+            msgs2 = one_msg msg_to_collection_contract;
+            send msgs2
+      
+          | False => (* No operation *)
+          end
+      
+        | False =>
+          (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
+      
+          (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
+          (* ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;*)
+          msg_to_zrc2_royalty_fee = {
+            _tag: "ZRC2TransferFrom";
+            _recipient: transfer_proxy;
+            _amount: Uint128 0;
+            token_address: payment_token_address;
+            from: buyer;
+            to: royalty_recipient;
+            amount: royalty_amount
+          };
+          msgs1 = one_msg msg_to_zrc2_royalty_fee;
+          send msgs1;
+      
+          (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
+          (* ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee; *)
+          msg_to_zrc2_svc_fee = {
+            _tag: "ZRC2TransferFrom";
+            _recipient: transfer_proxy;
+            _amount: Uint128 0;
+            token_address: payment_token_address;
+            from: buyer;
+            to: svc_fee_recipient;
+            amount: svc_fee
+          };
+          msgs2 = one_msg msg_to_zrc2_svc_fee;
+          send msgs2;
+      
+          (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
+          (* ZRC2TransferFrom payment_token_address buyer seller seller_profit; *)
+          msg_to_zrc2_seller_profit = {
+            _tag: "ZRC2TransferFrom";
+            _recipient: transfer_proxy;
+            _amount: Uint128 0;
+            token_address: payment_token_address;
+            from: buyer;
+            to: seller;
+            amount: seller_profit
+          };
+          msgs3 = one_msg msg_to_zrc2_seller_profit;
+          send msgs3;
+      
+          (* Paying out a commission if there is one *)
+          match is_commission_fee with
+            | False => (* No Operation *)
+            | True => 
+            (* ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee; *)
+              msg_to_brand_commission = {
+                _tag: "ZRC2TransferFrom";
+                _recipient: transfer_proxy;
+                _amount: Uint128 0;
+                token_address: payment_token_address;
+                from: buyer;
+                to: brand_recipient;
+                amount: brand_commission_fee
+              };
+              msgs4 = one_msg msg_to_brand_commission;
+              send msgs4;
+      
+              msg_to_collection_contract = {
+                _tag: "TokenSaleCallback";
+                _recipient: collections_contract; 
+                _amount: zero_uint128;
+                token_address: token_address;
+                token_id: token_id;
+                collection_id: collection_id;
+                commission_fee: brand_commission_fee
+              };
+              msgs5 = one_msg msg_to_collection_contract;
+              send msgs5
+          end
+        end;
+      
+      
+        (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
+        (* ZRC6TransferFrom token_address buy_dest token_id; *)
+        msg_to_brand_commission = {
+          _tag: "ZRC6TransferFrom";
+          _recipient: transfer_proxy;
+          _amount: Uint128 0;
+          token_address: token_address;
+          to: buy_dest;
+          token_id: token_id
+        };
+        msgs6 = one_msg msg_to_brand_commission;
+        send msgs6;
+      
+        e = {
+          _eventname : "FulfillOrder";
+          taker: _sender;
+          side: side;
+          token_address: token_address;
+          token_id: token_id;
+          payment_token_address: payment_token_address;
+          sale_price: sale_price;
+          seller: seller;
+          buyer: buyer;
+          asset_recipient: buy_dest;
+          payment_tokens_recipient: seller;
+          royalty_recipient: royalty_recipient;
+          royalty_amount: royalty_amount;
+          service_fee: svc_fee
+        };
+        event e
+      end
+    end
+  | None =>
+    error = CollectionAddressNotFoundError;
+    Throw error
+  end
 end
 
 procedure Cancel(
