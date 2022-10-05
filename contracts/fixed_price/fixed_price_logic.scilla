@@ -135,6 +135,7 @@ type Error =
   | AllowedPaymentTokensContractNotFoundError
   | CollectionAddressNotFoundError
   | InvalidCollectionAddress
+  | InvalidStateContractError
   
 let make_error =
   fun (result : Error) =>
@@ -168,29 +169,21 @@ let make_error =
       | AllowedPaymentTokensContractNotFoundError   => Int32 -26
       | CollectionAddressNotFoundError              => Int32 -27
       | InvalidCollectionAddress                    => Int32 -28
+      | InvalidStateContractError                   => Int32 -29
       end
     in
-    { _exception : "Error"; source: "Logic" code : result_code }
+    { _exception : "Error"; source: "Logic"; code : result_code }
 
 (***************************************************)
 (*             The contract definition             *)
 (***************************************************)
 
-contract FixedPriceOrderbook_Logic
-(
+contract FixedPriceOrderbook_Logic (
   initial_contract_owner: ByStr20,
   state: ByStr20,
   proxy: ByStr20,
   transfer_proxy: ByStr20
 )
-
-(* Collection Contract Address *)
-(* field collection_address: ByStr20 with contract
-  field token_collection: Map ByStr20 (Map Uint256 Uint32),
-  field collection_owning_brand: Map Uint32 ByStr20,
-  field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
-  field collection_commission_fee: Map Uint32 Uint128
-end = initial_collection_contract *)
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -203,14 +196,6 @@ field contract_ownership_recipient: ByStr20 = zero_address
 (* Emergency stop mechanism *)
 (* Defaults to False *)
 field is_paused: Bool = false
-
-(* service fee BPS (e.g. 250 = 2.5% *)
-(* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
-(* `service_fee_bps` must range from `1` to `10000`. *)
-(* Defaults to 250 *)
-field service_fee_bps: Uint128 = Uint128 250
-
-field service_fee_recipient: ByStr20 = initial_contract_owner
 
 (* Procedures *)
 procedure Throw(error : Error)
@@ -327,16 +312,15 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
   (* royalty_fee_bps *)
   royalty_fee_bps <- & token_address.royalty_fee_bps;
 
-  (* service_fee_bps *)
-  svc_fee_bps <- service_fee_bps;
-
-  is_collection_address_exist <- &state as ByStr20 with contract
+  is_state <- &state as ByStr20 with contract
+    field service_fee_bps: Uint128,
     field collection_address: ByStr20
   end;
 
-  match is_collection_address_exist with
-  | Some c =>
-    collections_contract_ <- &c.collection_address;
+  match is_state with
+  | Some some_value =>
+    svc_fee_bps <- &some_value.service_fee_bps;
+    collections_contract_ <- &some_value.collection_address;
     is_zero_address = builtin eq zero_address collections_contract_;
 
     match is_zero_address with
@@ -376,8 +360,8 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
         end
       end
     end
-  | None => 
-    error = CollectionAddressNotFoundError;
+  | None =>
+    error = InvalidStateContractError;
     Throw error
   end
 end
@@ -589,21 +573,18 @@ procedure HandleFulfillOrder(
   royalty_amount = portion sale_price royalty_fee_bps;
 
   (* Calculating the Service Fee *)
-  fee_bps <- service_fee_bps;
-  svc_fee = portion sale_price fee_bps;
-
-  (* Calculating the optional commission fee *)
-  (* collections_contract <- collection_address; *)
-
-  is_collection_address_exist <- &state as ByStr20 with contract
-    field collection_address: ByStr20
+  is_state <- &state as ByStr20 with contract
+    field service_fee_bps: Uint128,
+    field collection_address: ByStr20,
+    field service_fee_recipient: ByStr20
   end;
 
-  match is_collection_address_exist with
-  | Some c =>
-    collections_contract_ <- &c.collection_address;
+  match is_state with
+  | Some some_value =>
+    fee_bps <- &some_value.service_fee_bps;
+    svc_fee = portion sale_price fee_bps;
+    collections_contract_ <- &some_value.collection_address;
     is_zero_address = builtin eq zero_address collections_contract_;
-
     match is_zero_address with
     | True =>
       error = InvalidCollectionAddress;
@@ -639,7 +620,7 @@ procedure HandleFulfillOrder(
         royalty_recipient <- & token_address.royalty_recipient;
         RequireAllowedUser royalty_recipient;
       
-        svc_fee_recipient <- service_fee_recipient;
+        svc_fee_recipient <- &some_value.service_fee_recipient;
         RequireAllowedUser svc_fee_recipient;
       
         (* The currency is ZIL if the payment_token_address is zero address *)
@@ -797,7 +778,7 @@ procedure HandleFulfillOrder(
       end
     end
   | None =>
-    error = CollectionAddressNotFoundError;
+    error = InvalidStateContractError;
     Throw error
   end
 end

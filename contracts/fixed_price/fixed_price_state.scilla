@@ -432,7 +432,6 @@ transition Pause()
   is_paused := true;
   e = {
     _eventname: "Pause";
-    source: "FPState";
     is_paused: true
   };
   event e
@@ -446,7 +445,6 @@ transition Unpause()
   is_paused := false;
   e = {
     _eventname: "Unpause";
-    source: "FPState";
     is_paused: false
   };
   event e
@@ -458,7 +456,6 @@ transition AllowPaymentTokenAddress(address: ByStr20)
   allowed_payment_tokens[address] := true;
   e = {
     _eventname : "AllowPaymentTokenAddress";
-    source: "FPState";
     payment_token_address: address
   };
   event e
@@ -470,7 +467,6 @@ transition DisallowPaymentTokenAddress(address: ByStr20)
   delete allowed_payment_tokens[address];
   e = {
     _eventname : "DisallowPaymentTokenAddress";
-    source: "FPState";
     payment_token_address: address
   };
   event e
@@ -482,7 +478,6 @@ transition SetServiceFeeBPS(fee_bps: Uint128)
   service_fee_bps := fee_bps;
   e = {
     _eventname : "SetServiceFeeBPS";
-    source: "FPState";
     service_fee_bps: fee_bps
   };
   event e
@@ -494,7 +489,6 @@ transition SetServiceFeeRecipient(to: ByStr20)
   service_fee_recipient := to;
   e = { 
     _eventname: "SetServiceFeeRecipient";
-    source: "FPState";
     to: to
   };
   event e
@@ -505,8 +499,7 @@ transition ClearAllowList()
   RequireLogic;
   allowlist_address := zero_address;
   e = { 
-    _eventname: "ClearAllowList";
-    source: "FPState"
+    _eventname: "ClearAllowList"
   };
   event e
 end
@@ -517,7 +510,6 @@ transition SetAllowlist(allowed_addresses: ByStr20)
   allowlist_address := allowed_addresses;
   e = { 
     _eventname: "SetAllowlist";
-    source: "FPState";
     address: allowed_addresses
   };
   event e
@@ -536,7 +528,6 @@ transition UpdateCollectionContract(
   collection_address := new_collection_address;
   e = { 
     _eventname: "UpdateCollectionContract";
-    source: "FPState";
     address: new_collection_address
   };
   event e
@@ -552,7 +543,6 @@ transition UpdateLogic(new_logic_contract: ByStr20)
   e = { 
     _eventname: "LogicContractUpdated";
     address: new_logic_contract;
-    source: "FPState";
     when: cur_bnum
   };
   event e
