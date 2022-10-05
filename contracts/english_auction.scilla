@@ -9,6 +9,7 @@ import BoolUtils IntUtils
 library EnglishAuctionOrderbook
 
 let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint32 = Uint32 0
 let zero_uint128 = Uint128 0
 let one_uint128 = Uint128 1
 let false = False
@@ -29,17 +30,32 @@ let get_bal =
     | Some bal => bal
     end
       
-let portion = 
-  fun(amount: Uint128) =>
-  fun(bps: Uint128) => 
-    (* To avoid integer overflow, use division only. *)
-    (* amount / ( 10000 / bps ) *)
-    (* bps ranges from 1 to 10000. *)
-    let max_bps = Uint128 10000 in
-    let x = builtin div max_bps bps in
-    (* x ranges from 1 to 10000. *)
-    let result = builtin div amount x in
-    result
+    let uint128_to_uint256 : Uint128 -> Uint256 =
+    fun (x : Uint128) =>
+      let ox256 = builtin to_uint256 x in
+        match ox256 with
+        | None =>
+          (* this never happens, hence we throw a division by zero exception just in case *)
+          let zero = Uint256 0 in
+          builtin div zero zero
+        | Some x256 => x256
+        end
+  
+  let portion = 
+    fun(amount: Uint128) =>
+    fun(bps: Uint128) => 
+      let max_bps256 = uint128_to_uint256 max_bps in
+      let amount256 = uint128_to_uint256 amount in
+      let bps256 = uint128_to_uint256 bps in
+      let x256 = builtin mul amount256 bps256 in
+      let res256 = builtin div x256 max_bps256 in
+      let ores128 = builtin to_uint128 res256 in
+      match ores128 with
+      | None =>
+        zero_uint128
+      | Some res128 =>
+        res128
+      end
 
 let option_value =
   tfun 'A =>
@@ -51,6 +67,21 @@ let option_value =
     end
 
 let option_address = @option_value ByStr20
+let option_uint32 = @option_value Uint32
+let option_uint128 = @option_value Uint128
+
+(* Computes the commission_fee if there is one. If not, it returns Uint128 0 *)
+let compute_commission_fee = 
+  fun(sale_price: Uint128) =>
+  fun(opt_commission_fee_bps: Option Uint128) =>
+  fun(maybe_has_had_first_sale: Bool) =>
+    match maybe_has_had_first_sale with
+      | True => 
+        zero_uint128
+      | False => 
+        let brand_commission_fee = option_uint128 zero_uint128 opt_commission_fee_bps in
+          portion sale_price brand_commission_fee
+    end
 
 type SellOrder = 
 | SellOrder of ByStr20 (* maker *)
@@ -65,6 +96,16 @@ type SellOrder =
 (* maker, amount, dest, bid count *)
 type BuyOrder = 
 | BuyOrder of ByStr20 Uint128 ByStr20 Uint128
+
+(* for batch transitions *)
+(* token_address, token_id, payment_token_address, start_amount, expiration block number *)
+type OrderParam =
+| OrderParam of ByStr20 with contract 
+field royalty_recipient: ByStr20, 
+field royalty_fee_bps: Uint128, 
+field spenders: Map Uint256 ByStr20, 
+field token_owners: Map Uint256 ByStr20 
+end Uint256 ByStr20 Uint128 BNum
 
 (* Error exceptions *)
 type Error =
@@ -93,6 +134,7 @@ type Error =
   | InvalidBidIncrementBPSError
   | InvalidRoyaltyFeeBPSError
   | InvalidServiceFeeBPSError
+  | TotalFeesTooHigh
 
 let make_error =
   fun (result : Error) =>
@@ -123,6 +165,7 @@ let make_error =
       | InvalidBidIncrementBPSError         => Int32 -24
       | InvalidRoyaltyFeeBPSError           => Int32 -25
       | InvalidServiceFeeBPSError           => Int32 -26
+      | TotalFeesTooHigh                    => Int32 -27
       end
     in
     { _exception : "Error"; code : result_code }
@@ -133,11 +176,17 @@ let make_error =
 
 contract EnglishAuctionOrderbook
 (
-  initial_contract_owner: ByStr20
+  initial_contract_owner: ByStr20,
+  initial_collection_contract: ByStr20 with contract
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
 )
 
 (* Allowlist Contract Address *)
-(* Defaults to `initial_contract_owner` *)
+(* Defaults to `zero_address` *)
 field allowlist_address: ByStr20 = zero_address
 
 (* Contract Owner *)
@@ -147,6 +196,14 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Contract ownership recipient *)
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Collection Contract Address *)
+field collection_address: ByStr20 with contract
+  field token_collection: Map ByStr20 (Map Uint256 Uint32),
+  field collection_owning_brand: Map Uint32 ByStr20,
+  field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+  field collection_commission_fee: Map Uint32 Uint128
+end = initial_collection_contract
 
 (* Emergency stop mechanism *)
 (* Defaults to False *)
@@ -220,7 +277,6 @@ procedure RequireAllowedUser(address: ByStr20)
 end
 
 procedure RequireValidDestination(to: ByStr20)
-  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
   is_zero_address = builtin eq to zero_address;
   match is_zero_address with
   | False =>
@@ -281,6 +337,40 @@ procedure RequireValidBidIncrementBPS(val_bps: Uint128)
   end
 end
 
+(* Checks that total fees is <100% *)
+procedure RequireValidTotalFees(
+  token_address: ByStr20 with contract 
+    field royalty_fee_bps: Uint128
+  end,
+  token_id: Uint256
+  )
+  (* royalty_fee_bps *)
+  royalty_fee_bps <- & token_address.royalty_fee_bps;
+
+  (* service_fee_bps *)
+  svc_fee_bps <- service_fee_bps;
+
+  (* commission_fee_bps *)
+  collections_contract <- collection_address;
+  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+  collection_id = option_uint32 zero_uint32 opt_collection_id;
+  opt_commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+  commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
+
+  royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
+  total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
+
+  hundred_percent = Uint128 100000;
+  is_lte_max = uint128_lt total_fee_bps hundred_percent;
+
+  match is_lte_max with 
+    | True => 
+    | False =>
+      error = TotalFeesTooHigh;
+      Throw error
+  end
+end
+
 procedure RequireContractOwner()
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
@@ -318,7 +408,6 @@ end
 
 procedure RequireNotPaused()
   (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | False =>
@@ -331,7 +420,6 @@ end
 
 procedure RequirePaused()
   (* Reference: *)
-  (* https://consensys.github.io/smart-contract-best-practices/general_philosophy/#prepare-for-failure *)
   paused <- is_paused;
   match paused with
   | True =>
@@ -645,75 +733,82 @@ procedure CancelAuction(
   end
 end
 
-(* Starts an auction *)
-transition Start(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20  
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20,
-  start_amount: Uint128,
-  expiration_bnum: BNum
-  )
+procedure DoStart(order: OrderParam)
+  match order with
+  | OrderParam token_address token_id payment_token_address start_amount expiration_bnum =>
+    RequireNotExpired expiration_bnum;
+    RequireAllowedPaymentToken payment_token_address;
+
+    RequireValidTotalFees token_address token_id;
+
+    has_sell_order <- exists sell_orders[token_address][token_id];
+    match has_sell_order with 
+    | True => 
+      (* It's already listed *)
+      error = SellOrderFoundError;
+      Throw error
+    | False => 
+      RequireSenderToBeTokenOwner token_address token_id;
+      RequireThisToBeSpender token_address token_id;
+      (* lock up token by holding it *)
+      ZRC6TransferFrom token_address _this_address token_id;
+
+      royalty_recipient <- & token_address.royalty_recipient;
+      RequireAllowedUser royalty_recipient;
+
+      royalty_fee_bps <- & token_address.royalty_fee_bps;
+      RequireValidRoyaltyFeeBPS royalty_fee_bps;
+
+      svc_fee_recipient <- service_fee_recipient;
+      RequireAllowedUser svc_fee_recipient;
+
+      (* service_fee_bps is already validated by SetServiceFeeBPS *)
+      svc_fee_bps <- service_fee_bps;
+
+      (* create a sell order *)
+      new_order = SellOrder 
+        _sender 
+        expiration_bnum 
+        payment_token_address 
+        start_amount 
+        royalty_recipient 
+        royalty_fee_bps 
+        svc_fee_recipient 
+        svc_fee_bps;
+
+      sell_orders[token_address][token_id] := new_order
+    end;
+    
+    e = {
+      _eventname : "Start";
+      maker: _sender;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      start_amount: start_amount;
+      expiration_bnum: expiration_bnum
+    };
+    event e
+  end
+end
+
+(* Starts an individual auction *)
+transition Start(order: OrderParam)
   (* 
     - Seller can start an auction for an asset only if the asset has no ongoing auction. 
   *)
   RequireNotPaused;
   RequireAllowedUser _sender;
-  RequireNotExpired expiration_bnum;
-  RequireAllowedPaymentToken payment_token_address;
 
-  has_sell_order <- exists sell_orders[token_address][token_id];
-  match has_sell_order with 
-  | True => 
-    (* It's already listed *)
-    error = SellOrderFoundError;
-    Throw error
-  | False => 
-    RequireSenderToBeTokenOwner token_address token_id;
-    RequireThisToBeSpender token_address token_id;
-    (* lock up token by holding it *)
-    ZRC6TransferFrom token_address _this_address token_id;
+  DoStart order
+end
 
-    royalty_recipient <- & token_address.royalty_recipient;
-    RequireAllowedUser royalty_recipient;
+(* batch starting auctions *)
+transition BatchStart(order_list: List OrderParam)
+  RequireNotPaused;
+  RequireAllowedUser _sender;
 
-    royalty_fee_bps <- & token_address.royalty_fee_bps;
-    RequireValidRoyaltyFeeBPS royalty_fee_bps;
-
-    svc_fee_recipient <- service_fee_recipient;
-    RequireAllowedUser svc_fee_recipient;
-
-    (* service_fee_bps is already validated by SetServiceFeeBPS *)
-    svc_fee_bps <- service_fee_bps;
-
-    (* create a sell order *)
-    new_order = SellOrder 
-      _sender 
-      expiration_bnum 
-      payment_token_address 
-      start_amount 
-      royalty_recipient 
-      royalty_fee_bps 
-      svc_fee_recipient 
-      svc_fee_bps;
-
-    sell_orders[token_address][token_id] := new_order
-  end;
-  
-  e = {
-    _eventname : "Start";
-    maker: _sender;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    start_amount: start_amount;
-    expiration_bnum: expiration_bnum
-  };
-  event e
+  forall order_list DoStart
 end
 
 (* Bids on an item *)
@@ -791,6 +886,7 @@ transition Bid(
   end
 end
 
+(* @multi-sig *)
 (* Cancels an auction *)
 transition Cancel(
   token_address: ByStr20 with contract 
@@ -913,6 +1009,7 @@ transition End(
         (* 2. the seller can withdraw the payment tokens. *)
         (* 3. the royalty recipient can withdraw the royalty amount. *)
         (* 4. the service fee recipient can withdraw the service fee. *)
+        (* 5. the brand recipient can withdraw the commission fee, if any *)
 
         (* Calculate royalty amount *)
         royalty_amount = portion sale_price royalty_fee_bps;
@@ -920,9 +1017,25 @@ transition End(
         (* Calculate service fee *)
         service_fee = portion sale_price svc_fee_bps;
 
+        (* Calculate commission fee *)
+        collections_contract <- collection_address;
+        opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+        collection_id = option_uint32 zero_uint32 opt_collection_id;
+        
+        commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+        has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
+        
+        brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
+        is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
+        
+        (* Fetching the brand recipient to pay commission to *)
+        opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
+        brand_recipient = option_address zero_address opt_brand_recipient;
+
         (* Calculate seller profit *)
         profit = builtin sub sale_price royalty_amount;
-        seller_profit = builtin sub profit service_fee;
+        profit_after_commission = builtin sub profit brand_commission_fee;
+        seller_profit = builtin sub profit_after_commission service_fee;
 
         (* royalties for the royalty recipient *)
         AddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
@@ -935,6 +1048,26 @@ transition End(
 
         (* payment tokens for the seller *)
         AddToPaymentTokenBalance seller payment_token_address seller_profit;
+
+        (* Paying out a commission if there is one *)
+        match is_commission_fee with
+          | True =>
+            AddToPaymentTokenBalance brand_recipient payment_token_address brand_commission_fee;
+
+            msg_to_collection_contract = {
+              _tag: "TokenSaleCallback";
+              _recipient: collections_contract; 
+              _amount: zero_uint128;
+              token_address: token_address;
+              token_id: token_id;
+              collection_id: collection_id;
+              commission_fee: brand_commission_fee
+            };
+            msgs = one_msg msg_to_collection_contract;
+            send msgs
+
+          | False => (* No operation *)
+        end;
 
         (* Cleanup orders *)
         delete sell_orders[token_address][token_id];
@@ -1125,6 +1258,26 @@ transition SetAllowlist(address: ByStr20)
   };
   event e
 end
+
+(* @multi-sig *)
+transition UpdateCollectionContract(
+  address: ByStr20 with contract 
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
+  )
+  RequireContractOwner;
+  collection_address := address;
+  
+  e = { 
+    _eventname: "UpdateCollectionContract";
+    address: address
+  };
+  event e
+end
+
 
 (* @multi-sig *)
 (* Sets `to` as the contract ownership recipient. *)
