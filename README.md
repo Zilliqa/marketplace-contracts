@@ -39,6 +39,8 @@
 
 Runs contract tests using [Isolated Server container](https://hub.docker.com/r/zilliqa/zilliqa-isolated-server), [Jest](https://jestjs.io/), and [Scilla JSON Utils](https://github.com/Zilliqa/scilla-json-utils)
 
+Create `.env` file, consider `.env.example` as reference, update the details and run the test cases.
+
 We run tests sequentially since block numbers are increased with `IncreaseBlocknum`.
 
 ## Batch Sell Testing
