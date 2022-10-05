@@ -1508,9 +1508,3 @@ transition AcceptContractOwnership()
     event e
   end
 end
-
-(* empty callbacks *)
-transition ZRC6_TransferFromCallback(from:ByStr20, to: ByStr20, token_id: Uint256)
-end
-transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
-end
