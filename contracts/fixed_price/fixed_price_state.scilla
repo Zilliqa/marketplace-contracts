@@ -452,7 +452,7 @@ end
 
 (* @multi-sig *)
 transition AllowPaymentTokenAddress(address: ByStr20)
-  RequireLogic;
+  RequireContractOwner;
   allowed_payment_tokens[address] := true;
   e = {
     _eventname : "AllowPaymentTokenAddress";
@@ -463,7 +463,7 @@ end
 
 (* @multi-sig *)
 transition DisallowPaymentTokenAddress(address: ByStr20)
-  RequireLogic;
+  RequireContractOwner;
   delete allowed_payment_tokens[address];
   e = {
     _eventname : "DisallowPaymentTokenAddress";
@@ -474,7 +474,7 @@ end
 
 (* @multi-sig *)
 transition SetServiceFeeBPS(fee_bps: Uint128)
-  RequireLogic;
+  RequireContractOwner;
   service_fee_bps := fee_bps;
   e = {
     _eventname : "SetServiceFeeBPS";
@@ -485,7 +485,7 @@ end
 
 (* @multi-sig *)
 transition SetServiceFeeRecipient(to: ByStr20)
-  RequireLogic;
+  RequireContractOwner;
   service_fee_recipient := to;
   e = { 
     _eventname: "SetServiceFeeRecipient";
@@ -496,7 +496,7 @@ end
 
 (* @multi-sig *)
 transition ClearAllowList()
-  RequireLogic;
+  RequireContractOwner;
   allowlist_address := zero_address;
   e = { 
     _eventname: "ClearAllowList"
@@ -506,7 +506,7 @@ end
 
 (* @multi-sig *)
 transition SetAllowlist(allowed_addresses: ByStr20)
-  RequireLogic;
+  RequireContractOwner;
   allowlist_address := allowed_addresses;
   e = { 
     _eventname: "SetAllowlist";
@@ -524,7 +524,7 @@ transition UpdateCollectionContract(
     field collection_commission_fee: Map Uint32 Uint128
   end
   )
-  RequireLogic;
+  RequireContractOwner;
   collection_address := new_collection_address;
   e = { 
     _eventname: "UpdateCollectionContract";
