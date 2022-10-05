@@ -1,0 +1,656 @@
+(* SPDX-License-Identifier: MIT *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import IntUtils
+library Collections
+
+(* Global variables *)
+let zero_address = 0x0000000000000000000000000000000000000000
+let false = False
+let true = True
+let uint32_one = Uint32 1
+
+let option_value =
+  tfun 'A =>
+  fun (default: 'A) =>
+  fun (maybe_val: Option 'A) =>
+    match maybe_val with
+    | Some v => v
+    | None => default
+    end
+
+let option_address = @option_value ByStr20
+
+type TokenState = 
+    | Requested of Uint32 (* collection_id *)
+
+(* for batch transitions *)
+(* token_address, token_id, collection_id *)
+type CollectionItemParam = 
+    | CollectionItemParam of ByStr20 with contract
+    field spenders: Map Uint256 ByStr20,
+    field token_owners: Map Uint256 ByStr20
+    end Uint256 Uint32
+
+(* Error exception *)
+type Error =
+  | TokenAlreadyInCollection
+  | TokenIdDoesNotExist
+  | TokenDoesNotExistInCollection
+  | SenderIsNotTokenOwner
+  | CommissionFeeTooHigh
+  | RequestDoesNotExist
+  | SenderIsNotBrandOwner
+  | CollectionIdDoesNotExist
+  | NotContractOwner
+  | InvalidMaxFeeBPS
+  | NotContractOwnershipRecipient
+  | SelfError
+  | PausedError
+  | NotPausedError
+  | NotAllowedUserError
+  | OnlyRegisteredMarketplaceCanCall
+
+let make_error =
+  fun (result: Error) =>
+    let result_code = 
+      match result with
+      | TokenAlreadyInCollection                     => Int32 -1
+      | TokenIdDoesNotExist                          => Int32 -2
+      | TokenDoesNotExistInCollection                => Int32 -3
+      | SenderIsNotTokenOwner                        => Int32 -4
+      | CommissionFeeTooHigh                         => Int32 -5
+      | RequestDoesNotExist                          => Int32 -6
+      | SenderIsNotBrandOwner                        => Int32 -7
+      | CollectionIdDoesNotExist                     => Int32 -8
+      | NotContractOwner                             => Int32 -9
+      | InvalidMaxFeeBPS                             => Int32 -10
+      | NotContractOwnershipRecipient                => Int32 -11
+      | SelfError                                    => Int32 -12
+      | PausedError                                  => Int32 -13
+      | NotPausedError                               => Int32 -14
+      | NotAllowedUserError                          => Int32 -15
+      | OnlyRegisteredMarketplaceCanCall             => Int32 -16
+      end
+    in
+    { _exception: "Error"; code: result_code }
+
+
+contract Collections
+(
+  initial_contract_owner: ByStr20
+)
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+(* Contract ownership recipient *)
+(* Defaults to `zero_address` *)
+field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Allowlist Contract Address *)
+(* Defaults to `zero_address` *)
+field allowlist_address: ByStr20 = zero_address
+
+(* Used to control who is able to call `TokenSaleCallback` *)
+field marketplace_addresses: Map ByStr20 Bool = Emp ByStr20 Bool
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
+
+(* Mapping from collection_id to a brand_owner (address) *)
+field collection_owning_brand: Map Uint32 ByStr20 = Emp Uint32 ByStr20
+field collection_owning_brand_size: Uint32 = Uint32 0
+
+(* Mapping from token_address -> token_id to a collection *)
+field token_collection: Map ByStr20 (Map Uint256 Uint32) = Emp ByStr20 (Map Uint256 Uint32)
+
+(* Mapping from token_address to token_id:brand_owner (address) *)
+field requests: Map ByStr20 (Map Uint256 (Map ByStr20 TokenState)) = Emp ByStr20 (Map Uint256 (Map ByStr20 TokenState))
+
+(* Mapping from collection_id to collection_fee *)
+field collection_commission_fee: Map Uint32 Uint128 = Emp Uint32 Uint128
+
+(* Mapping for knowing if an NFT has been sold or not *)
+field has_had_first_sale: Map ByStr20 (Map Uint256 Bool) = Emp ByStr20 (Map Uint256 Bool)
+
+(* Can be updated by `contract_owner` with the transition `SetMaxCommissionFeeBPS` *)
+field max_commission_fee_bps: Uint128 = Uint128 250
+
+(* Emit Errors *)
+procedure Throw(error: Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwner;
+    Throw error
+  end
+end
+
+procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
+  is_self = builtin eq address_a address_b;
+  match is_self with
+  | False =>
+  | True =>
+    error = SelfError;
+    Throw error
+  end
+end
+
+procedure RequireTokenOwner(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256
+    )
+    owner <- & token_address.token_owners[token_id];
+
+    match owner with
+        | Some owner =>
+        owner_is_sender = builtin eq owner _sender;
+            match owner_is_sender with
+            | True => (* No operation *)
+            | False =>
+                error = SenderIsNotTokenOwner;
+                Throw error
+            end
+        | None =>
+        error = TokenIdDoesNotExist;
+        Throw error
+    end
+end
+
+procedure RequireTokenNotInCollection(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256
+    )
+    is_token_in_collection <- exists token_collection[token_address][token_id];
+
+    match is_token_in_collection with 
+    | True => 
+        (* A token can ONLY belong to ONE collection - TokenAlreadyInCollection *)
+        error = TokenAlreadyInCollection;
+        Throw error
+    | False => (* No Operation *)
+    end 
+end
+
+procedure RequireBrandOwner(
+    collection_id: Uint32
+    )
+    owner <- collection_owning_brand[collection_id];
+
+    match owner with
+        | Some owner =>
+        owner_is_sender = builtin eq owner _sender;
+            match owner_is_sender with
+            | True => (* No operation *)
+            | False =>
+                error = SenderIsNotBrandOwner;
+                Throw error
+            end
+        | None =>
+        error = CollectionIdDoesNotExist;
+        Throw error
+    end
+end
+
+(* We set a max upper boundary with the field `max_commission_fee_bps` *)
+(* This is by default 250 (2.5%), but can be updated by contract owner *)
+(* with the transition `SetMaxCommissionFeeBPS` *)
+procedure RequireValidBPS(val_bps: Uint128)
+    max_fee_bps <- max_commission_fee_bps;
+    is_lte_max = uint128_le val_bps max_fee_bps;
+    match is_lte_max with
+        | True => (* No Operation *)
+        | False =>
+        error = CommissionFeeTooHigh;
+        Throw error
+    end
+end
+
+procedure RequireValidMaxBPS(val_bps: Uint128)
+  (* max: 25% (arbitrary number) *)
+  max = Uint128 2500;
+  is_lte_max = uint128_le val_bps max;
+  
+  match is_lte_max with 
+    | True => 
+    | False =>
+      error = InvalidMaxFeeBPS;
+      Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general-philosophy/prepare-for-failure/ *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  (* Reference: *)
+  (* https://consensys.github.io/smart-contract-best-practices/general-philosophy/prepare-for-failure/ *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
+procedure RequireAllowedUser(address: ByStr20)
+  allowlist <- allowlist_address;
+  is_zero_address = builtin eq zero_address allowlist;
+  match is_zero_address with
+  | True =>
+    (* Noop *)
+    (* This contract doesn't use allowlist *)
+  | False =>
+    maybe_allowlist_contract_address <- & allowlist as ByStr20 with contract field allowed_addresses: Map ByStr20 Bool end;
+    match maybe_allowlist_contract_address with 
+    | None => 
+    | Some contract_address =>
+      maybe_allowed_address <- & contract_address.allowed_addresses[address];
+      match maybe_allowed_address with
+      | Some _ =>
+        (* Noop *)
+        (* The address is allowed *)
+      | None =>
+        error = NotAllowedUserError;
+        Throw error
+      end
+    end
+  end
+end
+
+procedure RequireMarketplaceAddressOnly()
+    maybe_sender_is_known <- marketplace_addresses[_sender];
+    match maybe_sender_is_known with
+    | Some _ => (* No Operation *)
+    | None => 
+        error = OnlyRegisteredMarketplaceCanCall;
+        Throw error
+    end
+end
+
+(* Used by a brand_owner to request an NFT to their collection *)
+procedure DoRequestTokenToCollection(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+      RequireBrandOwner collection_id;
+      RequireTokenNotInCollection token_address token_id;
+
+      (* When the same brand_owner uses this function a second time we just overwrite *)
+      requested = Requested collection_id;
+      requests[token_address][token_id][_sender] := requested;
+      commission_fee <- collection_commission_fee[collection_id];
+
+      e = {
+          _eventname : "RequestTokenToCollectionSent";
+          token_address: token_address;
+          token_id: token_id;
+          collection_id: collection_id;
+          commission_fee: commission_fee
+      };
+      event e
+    end
+end
+
+(* Lets a brand_owner delete a request if one exist. *)
+procedure DoDeleteRequestTokenToCollection(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+        RequireBrandOwner collection_id;
+    
+        maybe_request <- requests[token_address][token_id][_sender];
+        
+        match maybe_request with
+        | Some (Requested collection_id) => 
+        delete requests[token_address][token_id][_sender];
+
+        e = {
+            _eventname : "RequestTokenToCollectionDeleted";
+            token_address: token_address;
+            token_id: token_id;
+            collection_id: collection_id
+        };
+        event e
+
+        | None => 
+        error = RequestDoesNotExist;
+        Throw error
+        end
+    end
+end
+
+(* Used by a NFT owner to accept a request to have one of their NFTs added to a collection *)
+procedure DoAcceptCollectionRequest(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+      RequireTokenOwner token_address token_id;
+      RequireTokenNotInCollection token_address token_id;
+
+      opt_brand_address <- collection_owning_brand[collection_id];
+      brand_address = option_address zero_address opt_brand_address;
+      maybe_request <- requests[token_address][token_id][brand_address];
+
+      match maybe_request with 
+      | Some (Requested collection_id) =>
+          token_collection[token_address][token_id] := collection_id; 
+          delete requests[token_address][token_id];
+  
+          e = {
+              _eventname : "AddToCollectionRequestAccepted";
+              token_address: token_address;
+              token_id: token_id;
+              brand_owner: brand_address;
+              collection_id: collection_id
+            };
+          event e
+
+      | None => 
+          error = RequestDoesNotExist;
+          Throw error
+      end
+  end
+end
+
+(* Used by a brand_owner to delete an NFT from a collection they own *)
+procedure DoRemoveTokenFromCollection(request: CollectionItemParam)
+    match request with
+    | CollectionItemParam token_address token_id collection_id =>
+      RequireBrandOwner collection_id;
+
+      maybe_collection_id <- exists token_collection[token_address][token_id];
+      
+      match maybe_collection_id with 
+      | True => 
+          delete token_collection[token_address][token_id];
+          e = {
+              _eventname : "TokenRemovedFromCollection";
+              token_address: token_address;
+              token_id: token_id;
+              collection_id: collection_id
+          };
+          event e
+          
+      | False =>
+          error = TokenDoesNotExistInCollection;
+          Throw error
+      end;
+
+      (* Deleting the corresponding record in has_had_first_sale if exist *)
+      is_sale_record <- exists has_had_first_sale[token_address][token_id];
+
+      match is_sale_record with 
+      | True  =>
+      delete has_had_first_sale[token_address][token_id]
+      | False => (* No operation *)
+      end
+  end
+end
+
+(* Lets anyone (subjected to the allowlist) create an empty collection with an id assigned by the smart contract *)
+transition CreateCollection(
+    commission_fee: Uint128
+    )
+    RequireAllowedUser _sender;
+    RequireValidBPS commission_fee;
+    RequireNotPaused;
+    
+    size <- collection_owning_brand_size;
+    collection_id = builtin add size uint32_one;
+    collection_owning_brand_size := collection_id;
+
+    collection_owning_brand[collection_id] := _sender;
+    collection_commission_fee[collection_id] := commission_fee;
+
+    e = {
+        _eventname : "CollectionCreated";
+        collection_id: collection_id;
+        brand_owner: _sender;
+        commission_fee: commission_fee
+    };
+    event e
+end
+
+transition RequestTokenToCollection(request: CollectionItemParam)
+    RequireNotPaused;
+    DoRequestTokenToCollection request
+end
+
+transition BatchRequestTokenToCollection(request_list: List CollectionItemParam)
+    RequireNotPaused;
+    forall request_list DoRequestTokenToCollection
+end
+
+transition DeleteRequestTokenToCollection(request: CollectionItemParam)
+    RequireNotPaused;
+    DoDeleteRequestTokenToCollection request
+end
+
+transition BatchDeleteRequestTokenToCollection(request_list: List CollectionItemParam)
+    RequireNotPaused;
+    forall request_list DoDeleteRequestTokenToCollection
+end
+
+transition AcceptCollectionRequest(request: CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
+    DoAcceptCollectionRequest request
+end
+
+transition BatchAcceptCollectionRequest(request_list: List CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
+    forall request_list DoAcceptCollectionRequest
+end
+
+transition RemoveTokenFromCollection(token: CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
+    DoRemoveTokenFromCollection token
+end
+
+transition BatchRemoveTokenFromCollection(token_list: List CollectionItemParam)
+    RequireNotPaused;
+    RequireAllowedUser _sender;
+    forall token_list DoRemoveTokenFromCollection
+end
+
+(* Called by either fixed_price or auction contracts during an NFT sale *)
+(* to detect if a commission_fee should be paid. Only applicable on the 1st sale of an NFT in a collection *)
+transition TokenSaleCallback(
+    token_address: ByStr20 with contract 
+        field token_owners: Map Uint256 ByStr20 
+    end,
+    token_id: Uint256,
+    collection_id: Uint32,
+    commission_fee: Uint128
+    )
+    RequireNotPaused;
+
+    (* Precondition: we are called by a registered fixed_price or auction contracts *)
+    RequireMarketplaceAddressOnly;
+    
+    (* Register the first sale if it never happened *)
+    is_first_sale <- exists has_had_first_sale[token_address][token_id];
+
+    match is_first_sale with
+      | True => (* No Operation *)
+      | False => 
+        has_had_first_sale[token_address][token_id] := true;
+
+        e = {
+            _eventname : "CommissionFeePaid";
+            token_address: token_address;
+            token_id: token_id;
+            collection_id: collection_id;
+            commission_fee: commission_fee
+          };
+        event e
+    end
+end
+
+(* @multi-sig *)
+(* Sets `max_commission_fee_bps` *)
+(* @Requirements: *)
+(* - `_sender` must be the contract owner. Otherwise, it must throw `NotContractOwner` *)
+(* - `new_max_commission_fee_bps` must be in the range of 0 and 2500. Otherwise, it must throw `InvalidMaxFeeBPS` *)
+transition SetMaxCommissionFeeBPS(new_max_commission_fee_bps: Uint128)
+  RequireContractOwner;
+  RequireValidMaxBPS new_max_commission_fee_bps;
+
+  (* Can we run into an issue where the combined fees (royalty, service & commission) result in gt 100%? *)
+  old_commission_fee_bps <- max_commission_fee_bps;
+  max_commission_fee_bps := new_max_commission_fee_bps;
+  
+  e = { 
+    _eventname: "MaxCommissionFeeBpsUpdated";
+    old_max_commission_fee_bps: old_commission_fee_bps;
+    new_max_commission_fee_bps: new_max_commission_fee_bps
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `to` as the contract ownership recipient. *)
+(* To reset `contract_ownership_recipient`, use `zero_address`. *)
+(* i.e., `0x0000000000000000000000000000000000000000` *)
+transition SetContractOwnershipRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireNotSelf to _sender;
+
+  contract_ownership_recipient := to;
+
+  e = {
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `contract_ownership_recipient` as the contract owner. *)
+transition AcceptContractOwnership()
+  recipient <- contract_ownership_recipient;
+
+  is_recipient = builtin eq _sender recipient;
+  match is_recipient with
+  | False =>
+    error = NotContractOwnershipRecipient;
+    Throw error
+  | True =>
+    contract_owner := _sender;
+    contract_ownership_recipient := zero_address;
+
+    e = {
+      _eventname: "ContractOwnershipAccepted";
+      contract_owner: _sender
+    };
+    event e
+  end
+end
+
+(* @multi-sig *)
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Unpauses the contract. *)
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetAllowlist(address: ByStr20)
+  RequireContractOwner;
+  allowlist_address := address;
+  
+  e = { 
+    _eventname: "AllowlistUpdated";
+    address: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition ClearAllowList()
+  RequireContractOwner;
+  allowlist_address := zero_address;
+
+  e = { 
+    _eventname: "AllowListCleared"
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Lets contract_owner add a marketplace contract address. *)
+(* We need to control which adddresses can call the transition `TokenSaleCallback` *)
+transition RegisterMarketplaceAddress(address: ByStr20)
+    RequireContractOwner;
+
+    marketplace_addresses[address] := true;
+    e = {
+        _eventname : "RegisteredMarketplaceAddress";
+        address: address
+    };
+    event e
+end
+
+(* @multi-sig *)
+(* Lets contract_owner remove a marketplace contract address. *)
+(* We need to control which adddresses can call the transition `TokenSaleCallback` *)
+transition DeregisterMarketplaceAddress(address: ByStr20)
+    RequireContractOwner;
+
+    delete marketplace_addresses[address];
+    e = {
+        _eventname : "DeregisterMarketplaceAddress";
+        address: address
+    };
+    event e
+end

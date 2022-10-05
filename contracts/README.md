@@ -14,6 +14,8 @@
   - [C2. Mutable Fields](#c2-mutable-fields)
   - [D2. Error Codes](#d2-error-codes)
   - [E2. Transitions](#e2-transitions)
+- [V. Collection Contract](#v-collection-contract)
+- [VI. Collection Contract Specification](#vi-collection-contract-specification)
 
 ## I. Fixed Price Contract
 
@@ -945,5 +947,592 @@ Accepts the contract ownership transfer. `contract_owner` is replaced.
 {
     eventname: "AcceptContractOwnership";
     contract_owner: ByStr20
+}
+```
+
+## V. Collection Contract
+
+In the Collection contract, brands can create and manage their collections. A collection is simply a logical grouping of NFTs. An NFT that belongs to a collection is expected to receive greater exposure to NFT buyers. In exchange for this, it shares some of the profit called `commission_fee`. The `commission_fee` is only applicable on the 1st sale of an NFT while in a collection. 
+
+A brand can have an arbitrary amount of collections and an arbitrary amount of NFTs in each collection. To create a collection, a whitelisted user can use the transition `CreateCollection` together with a `commission_fee` value. NB this value can never be changed. 
+
+Adding an NFT to a collection is a 2-step process. First the brand sends a request to add a specific NFT to a specific `collection_id` via the transition `RequestTokenToCollection` (brand must be the owner of the collection). Secondly, the owner of the NFT must accept the request via the transition `AcceptCollectionRequest`. 
+
+When a sale occurs in either of the marketplace contracts (fixed price or english auction), it will call the collection contract to learn if a `commission_fee` should be paid, to which address (brand_owner) and how much. The specific call it makes is to the transition `TokenSaleCallback`. When a `commission_fee` is paid, the contract registers that as a first sale, to enforce `commission_fee` payouts to only the first sale. 
+
+
+## VI. Collection Contract Specification
+
+### A1. Immutable Parameters
+
+| Name                     | Type      | Description                |
+| ------------------------ | --------- | -------------------------- |
+| `initial_contract_owner` | `ByStr20` | Address of contract owner. |
+
+### B1. ADT
+
+**`TokenState`**
+
+Stores information about requests to add NFTs to collections.
+
+```
+| Requested of Uint32 (* collection_id *)
+```
+
+**`CollectionItemParam`**
+
+Stores information about collection items. 
+
+```
+(* token_address, token_id, collection_id *)
+| CollectionItemParam of ByStr20 with contract
+    field spenders: Map Uint256 ByStr20,
+    field token_owners: Map Uint256 ByStr20
+    end Uint256 Uint32
+```
+
+### C1. Mutable Fields
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `contract_owner`               | `ByStr20`                                                      | Contract admin, defaults to `initial_contract_owner` |
+| `allowlist_address`            | `ByStr20`                                                      | Indicate if the contract has a list of permitted users defined by `allowlist_contract`.  The allowlist contract is used to define which wallet addresses can interact with collections, either as a brand or as an NFT owner. Defaults to `zero_address` to indicate that anyone can interact with it. |
+| `contract_ownership_recipient` | `ByStr20`                                                      | Temporary holding field for contract ownership recipient, defaults to `zero_address`. |
+| `marketplace_addresses`               | `Map ByStr20 Bool`                                                      | Used to control which adddresses can call the transition `TokenSaleCallback` |
+| `is_paused`                    | `Bool`                                                         | `True` if the contract is paused. Otherwise, `False`. `is_paused` defaults to `False`.          
+| `collection_owning_brand`                  | `Map Uint32 ByStr20`  | Stores a map of collection_ids to brand_owners. Mapping of `Uint32` -> `ByStr20` |
+| `collection_owning_brand_size`                  | `Uint32`  | Stores a count of the number of collections created. Used to automatically assign collection_ids by the contract |
+| `token_collection`                  | `Map ByStr20 (Map Uint256 Uint32)`  | Stores a map of token_address -> token_id -> collection_id. |
+| `requests`                  | `Map ByStr20 (Map Uint256 (Map ByStr20 TokenState))`  | Stores a map of token_address -> token_id -> brand_owner -> TokenState. Records are deleted upon getting accepted to a `token_collection` |
+| `collection_commission_fee`                  | `Map Uint32 Uint128`  | Stores a map of collection_id -> commission_fee. The `commission_fee` represents a % in basis points. Ie 250 = 2.5% |
+| `has_had_first_sale`                  | `Map ByStr20 (Map Uint256 Bool)`  | Stores a map of token_address -> token_id -> Bool. Used to enforce the business requirement of `commission_fee` payout only on 1st sale for a token in a collection. The record is deleted upon an NFT getting removed from a collection |
+| `max_commission_fee_bps`                  | `Uint128`  | Brands can set their own commission_fees, but capped at a max upper boundary. The contract_owner can update this value. The `max_commission_fee_bps` represents a % in basis points. Ie 250 = 2.5% |
+
+### D1. Error Codes
+
+| Name | Type | Code | Description |
+| ---- | ---- | -----| ----------- |
+| `TokenAlreadyInCollection`          | `Int32` | `-1`  | Emit when the token is already in a collection.                                           |
+| `TokenIdDoesNotExist`               | `Int32` | `-2`  | Emit when the token_address:token_id combination is not found.                            |
+| `TokenDoesNotExistInCollection`     | `Int32` | `-3`  | Emit when the token is not in a collection.                                               |
+| `SenderIsNotTokenOwner`             | `Int32` | `-4`  | Emit when the sender does not own the token.                                              |
+| `CommissionFeeTooHigh`              | `Int32` | `-5`  | Emit when the brand creates a collection with a commission fee exceeding the max value.   |
+| `RequestDoesNotExist`               | `Int32` | `-6`  | Emit when the collection request is not found.                                            |
+| `SenderIsNotBrandOwner`             | `Int32` | `-7`  | Emit when the sender is not a brand_owner.                                                |
+| `CollectionIdDoesNotExist`          | `Int32` | `-8`  | Emit when the collection_id does not exist.                                               |
+| `NotContractOwner`                  | `Int32` | `-9`  | Emit when the address is not the contract owner.                                          |
+| `InvalidMaxFeeBPS`                  | `Int32` | `-10` | Emit when the max_commission_fee_bps exceeds the hardcoded upper boundary.                |
+| `NotContractOwnershipRecipient`     | `Int32` | `-11` | Emit when the address is not the contract_ownership_recipient*                            |
+| `SelfError`                         | `Int32` | `-12` | Emit when the address is the `_sender`.                                                   |
+| `PausedError`                       | `Int32` | `-13` | Emit when the contract is paused.                                                         |
+| `NotPausedError`                    | `Int32` | `-14` | Emit when the contract is not paused.                                                     |
+| `NotAllowedUserError`               | `Int32` | `-15` | Emit when the user is not on the allowedlist.                                             |
+| `OnlyRegisteredMarketplaceCanCall`  | `Int32` | `-16` | Emit when the sender is not on the `marketplace_addresses` map                            |
+
+
+### E1. Transitions
+
+|     | Transition |
+| --- | ---------- |
+| 1   | `CreateCollection(commission_fee: Uint128)`                                                                                                                              |
+| 2   | `RequestTokenToCollection(request: CollectionItemParam)`                                                                                                                 |
+| 3   | `BatchRequestTokenToCollection(request_list: CollectionItemParam)`                                                                                                       |
+| 4   | `DeleteRequestTokenToCollection(request: CollectionItemParam)`                                                                                                           |
+| 5   | `BatchDeleteRequestTokenToCollection(request_list: List CollectionItemParam)`                                                                                            |
+| 6   | `AcceptCollectionRequest(request: CollectionItemParam`                                                                                                                   |
+| 7   | `BatchAcceptCollectionRequest(request_list: List CollectionItemParam)`                                                                                                   |
+| 8   | `RemoveTokenFromCollection(token: CollectionItemParam)`                                                                                                                  |
+| 9   | `BatchRemoveTokenFromCollection(token_list: List CollectionItemParam)`                                                                                                   |
+| 10  | `TokenSaleCallback(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256, collection_id: Uint32, commission_fee: Uint128)` |
+| 11  | `SetMaxCommissionFeeBPS(new_max_commission_fee_bps: Uint128)`                                                                                                            |
+| 12  | `SetContractOwnershipRecipient(to: ByStr20)`                                                                                                                             |
+| 13  | `AcceptContractOwnership()`                                                                                                                                              |
+| 14  | `Pause()`                                                                                                                                                                |
+| 15  | `Unpause()`                                                                                                                                                              |
+| 16  | `SetAllowlist(address: ByStr20)`                                                                                                                                         |
+| 17  | `ClearAllowList()`                                                                                                                                                       |
+| 18  | `RegisterMarketplaceAddress()`                                                                                                                                           |
+| 19  | `DeregisterMarketplaceAddress()`                                                                                                                                         |
+
+
+#### 1. `CreateCollection`
+
+Lets anyone create an empty collection together with a `commission_fee` value. This value can not be changed. A collection_id is assigned by the contract. 
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `commission_fee`            | `Uint128`    | The commission_fee charged by a brand upon a sale of an NFT that belongs to the collection, as measured in basis points.  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `commission_fee` must not exceed the field variable `max_commission_fee_bps`.
+
+**Events:**
+
+```
+{
+    _eventname : "CollectionCreated";
+    collection_id: collection_id;
+    brand_owner: _sender;
+    commission_fee: commission_fee
+}
+```
+
+#### 2. `RequestTokenToCollection`
+
+Lets anyone create an empty collection together with a `commission_fee` value. This value can not be changed. A collection_id is assigned by the contract. 
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `request`            | `CollectionItemParam`    | The request containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the `collection_id`.
+- The requested token must not already be in a collection
+
+
+**Events:**
+
+```
+{
+    _eventname : "RequestTokenToCollectionSent";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id;
+    commission_fee: commission_fee
+}
+```
+
+
+#### 3. `BatchRequestTokenToCollection`
+
+Lets anyone create an empty collection together with a `commission_fee` value. This value can not be changed. A collection_id is assigned by the contract. 
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `request_list`            | `CollectionItemParam`    | A list of requests containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the `collection_id`.
+- The requested token must not already be in a collection
+
+
+**Events:**
+
+```
+{
+    _eventname : "RequestTokenToCollectionSent";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id;
+    commission_fee: commission_fee
+}
+```
+
+#### 4. `DeleteRequestTokenToCollection`
+
+Lets a brand owner delete a sent request. 
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `request`            | `CollectionItemParam`    | A request containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the `collection_id`.
+
+
+**Events:**
+
+```
+{
+    _eventname : "RequestTokenToCollectionDeleted";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id
+}
+```
+
+#### 5. `BatchDeleteRequestTokenToCollection`
+
+Lets a brand owner delete a sent request. 
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `request_list`            | `CollectionItemParam`    | A list of requests containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the `collection_id`.
+
+
+**Events:**
+
+```
+{
+    _eventname : "RequestTokenToCollectionDeleted";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id
+}
+```
+
+
+#### 6. `AcceptCollectionRequest`
+
+Used by an NFT owner to accept a request to have one of their NFTs added to a collection
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `request`            | `CollectionItemParam`    | A request containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the NFT.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- The requested token must not already be in a collection
+
+
+**Events:**
+
+```
+{
+    _eventname : "AddToCollectionRequestAccepted";
+    token_address: token_address;
+    token_id: token_id;
+    brand_owner: brand_address;
+    collection_id: collection_id
+}
+```
+
+#### 7. `BatchAcceptCollectionRequest`
+
+Used by an NFT owner to accept a request to have one of their NFTs added to a collection
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `request_list`            | `CollectionItemParam`    | A list of requests containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the NFT.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- The requested token must not already be in a collection
+
+
+**Events:**
+
+```
+{
+    _eventname : "AddToCollectionRequestAccepted";
+    token_address: token_address;
+    token_id: token_id;
+    brand_owner: brand_address;
+    collection_id: collection_id
+}
+```
+
+#### 8. `RemoveTokenFromCollection`
+
+Used by a brand_owner to delete an NFT from a collection they own. Can not be called by the NFT owner
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token`            | `CollectionItemParam`    | A request containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the `collection_id`.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+
+**Events:**
+
+```
+{
+    _eventname : "TokenRemovedFromCollection";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id
+}
+```
+
+
+#### 9. `BatchRemoveTokenFromCollection`
+
+Used by a brand_owner to delete an NFT from a collection they own. Can not be called by the NFT owner
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_list`            | `CollectionItemParam`    | A list of requests containing `token_address`, `token_id` and `collection_id`  |
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be the owner of the `collection_id`.
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+
+**Events:**
+
+```
+{
+    _eventname : "TokenRemovedFromCollection";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id
+}
+```
+
+#### 10. `TokenSaleCallback`
+
+Called by either fixed_price or auction contracts during an NFT sale to detect if a commission_fee should be paid. Only applicable on the 1st sale of an NFT in a collection
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end`    | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                                                                             | The token ID |
+| `collection_id`            | `Uint32`                                                                              | The collection ID   |
+| `commission_fee`           | `Uint128`                                                                             | Commission fee represented by basis points  |
+
+**Requirements:**
+
+**Events:**
+
+```
+{
+    _eventname : "CommissionFeePaid";
+    token_address: token_address;
+    token_id: token_id;
+    collection_id: collection_id;
+    commission_fee: commission_fee
+}
+```
+
+#### 11. `SetMaxCommissionFeeBPS`
+
+An admin function that lets `contract_owner` update the `max_commission_fee_bps` value. It can not exceed a hardcoded value set to 2500 (25%).
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `new_max_commission_fee_bps`   | `Uint128`    | The new value |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- `new_max_commission_fee_bps` must not exceed 2500.
+
+**Events:**
+
+```
+{
+    _eventname: "MaxCommissionFeeBpsUpdated";
+    old_max_commission_fee_bps: old_commission_fee_bps;
+    new_max_commission_fee_bps: new_max_commission_fee_bps
+}
+```
+
+#### 12. `SetContractOwnershipRecipient`
+
+An admin function that lets `contract_owner` transfer its ownership to a new address, by setting `to` as the contract ownership recipient. To reset `contract_ownership_recipient`, use `zero_address`. i.e., `0x0000000000000000000000000000000000000000`. This is a 2-step process that have to be completed by the appointed address via the transition `AcceptContractOwnership`
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `to`   | `ByStr20`    | The contract_ownership_recipient |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- `to` is not equal to `_sender`.
+
+**Events:**
+
+```
+{
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+}
+```
+
+#### 13. `AcceptContractOwnership`
+
+Accepts the contract ownership transfer. `contract_owner` is replaced.
+
+**Requirements:**
+
+- `_sender` must be `contract_ownership_recipient`.
+
+**Events:**
+
+```
+{
+    eventname: "AcceptContractOwnership";
+    contract_owner: ByStr20
+}
+```
+
+#### 14. `Pause`
+
+Pauses the contract. Use this when things are going wrong ('circuit breaker').
+
+**Requirements:**
+
+- The contract must not be paused.
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "Pause";
+    is_paused: Bool
+}
+```
+
+#### 15. `Unpause`
+
+Unpauses the contract.
+
+**Requirements:**
+
+- The contract must be paused.
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "Unpause";
+    is_paused: Bool
+}
+```
+
+#### 16. `SetAllowlist`
+
+Updates the `allowlist_address`, for the whitelisting of wallets on contract level.
+
+Set to `zero_address` to remove wallets restriction.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New allowlist address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "SetAllowlist";
+    address: ByStr20
+}
+```
+
+#### 17. `ClearAllowList`
+
+Updates the `allowlist_address` to `zero_address` to remove wallets restriction.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New allowlist address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "ClearAllowlist";
+}
+```
+
+#### 18. `RegisterMarketplaceAddress`
+
+Lets contract_owner add a marketplace contract address. Both fixed_price and english_auction addresses are used here. 
+The purpose is to control which adddresses can call the transition `TokenSaleCallback`. 
+If unrestricted, sophisticated NFT owners can call it to avoid paying the `commission_fee`
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New marketplace address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "RegisteredMarketplaceAddress";
+    address: address
+}
+```
+
+#### 19. `DeregisterMarketplaceAddress`
+
+Lets contract_owner remove a marketplace contract address. Both fixed_price and english_auction addresses are used here. 
+The purpose is to control which adddresses can call the transition `TokenSaleCallback`. 
+If unrestricted, sophisticated NFT owners can call it to avoid paying the `commission_fee`
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | marketplace address to delist |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "DeregisterMarketplaceAddress";
+    address: address
 }
 ```
