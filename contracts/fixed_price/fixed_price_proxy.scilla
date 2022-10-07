@@ -138,36 +138,42 @@ end
 (* Sets sell and buy orders. *)
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
-procedure DoSetOrder(order: OrderParam)
+procedure SetOrder_(token_address: ByStr20, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, expiration_bnum: BNum)
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_set_order = {
+    _tag: "SetOrder";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id;
+    payment_token_address: payment_token_address;
+    sale_price: sale_price;
+    side: side;
+    expiration_bnum: expiration_bnum
+  };
+  msgs = one_msg msg_to_set_order;
+  send msgs
+end
+
+procedure SetBatchOrders_(order: OrderParam)
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
-    current_logic <- logic;
-    RequireNonZeroAddress current_logic;
-    msg_to_set_order = {
-      _tag: "SetOrder";
-      _recipient: current_logic;
-      _amount: Uint128 0;
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      sale_price: sale_price;
-      side: side;
-      expiration_bnum: expiration_bnum
-    };
-    msgs = one_msg msg_to_set_order;
-    send msgs
+    SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum
   end
 end
 
-
 transition SetOrder(order: OrderParam)
-  DoSetOrder order
+  match order with
+  | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
+    SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum
+  end
 end
 
 (* Batch set order *)
 transition SetBatchOrder(order_list: List OrderParam)
   RequireNotPaused;
-  forall order_list DoSetOrder
+  forall order_list SetBatchOrders_
 end
 
 (* @multi-sig *)

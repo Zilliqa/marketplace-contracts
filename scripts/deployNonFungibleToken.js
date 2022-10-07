@@ -68,7 +68,7 @@ async function deployNonFungibleToken(
       },
   ]
 
-  console.info(`Deploying non-fungible token ${symbol}... init : ${JSON.stringify(init)}`)
+  // console.info(`Deploying non-fungible token ${symbol}... init : ${JSON.stringify(init)}`)
   return await deployContract(privateKey, address, code, init)
 }
 

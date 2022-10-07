@@ -43,7 +43,11 @@ let make_error =
 (*             The contract definition             *)
 (***************************************************)
 
-contract TransferProxy(multiSig: ByStr20)
+contract TransferProxy(initial_contract_owner: ByStr20)
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
 
 field operators: Map ByStr20 Bool = Emp ByStr20 Bool
 
@@ -59,7 +63,8 @@ procedure Throw(error : Error)
 end
 
 procedure RequireContractOwner()
-  is_contract_owner = builtin eq multiSig _sender;
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
   match is_contract_owner with
   | True => 
   | False =>
@@ -160,7 +165,8 @@ end
 (***************************************************)
 
 transition updateOperator(to: ByStr20, status: Bool)
-  is_valid = builtin eq multiSig _sender;
+  cur_owner <- contract_owner;
+  is_valid = builtin eq cur_owner _sender;
   match is_valid with
   | False =>
     error = NotMultiSigError;

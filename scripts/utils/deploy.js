@@ -23,7 +23,7 @@ const deployContract = async (privateKey, ownerAddress, code, init) => {
     {
       version: TESTNET_VERSION,
       amount: new BN(0),
-      gasPrice: new BN(minGasPrice.result),
+      gasPrice: new BN(minGasPrice.result).mul(new BN(2)),
       gasLimit: Long.fromNumber(80000)
     },
     33,

@@ -112,6 +112,40 @@ async function callContract(
   )
 }
 
+async function callWithoutConfirm(
+  privateKey,
+  contract,
+  transition,
+  args,
+  zilsToSend = 0,
+  insertRecipientAsSender = true,
+  insertDeadlineBlock = true
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+  useKey(privateKey)
+
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+  const deployedContract = zilliqa.contracts.at(contract);
+
+  const callTx = await deployedContract.callWithoutConfirm(
+    transition,
+    args,
+    {
+      version: TESTNET_VERSION,
+      amount: new BN(zilsToSend),
+      gasPrice: new BN(minGasPrice.result),
+      gasLimit: Long.fromNumber(25000)
+    },
+    false
+  );
+
+  const confirmedTxn = await callTx.confirm(callTx.id);
+  return confirmedTxn.receipt;
+}
+
 async function sendZil(privateKey, recipientAddress, sendingAmount, gasLimit) {
   let blockchainTxnId = null
   try {
@@ -401,7 +435,7 @@ async function setupBalancesOnAccounts(accounts) {
     await sendZil(
       accounts.contractOwner.privateKey,
       accounts.nftBuyer.address,
-      40000,
+      4000,
       Long.fromNumber(50)
     )
   }
@@ -565,6 +599,7 @@ exports.batchTransfer = batchTransfer
 exports.increaseAllowance = increaseAllowance
 exports.transfer = transfer
 exports.callContract = callContract
+exports.callWithoutConfirm = callWithoutConfirm
 exports.getState = getState
 exports.getBalance = getBalance
 exports.sendZil = sendZil

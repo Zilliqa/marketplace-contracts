@@ -17,8 +17,6 @@ let true = True
 let min_bps = Uint128 1
 let max_bps = Uint128 10000
 
-let sell_side = Uint32 0
-
 let one_msg = 
   fun (msg : Message) => 
     let nil_msg = Nil {Message} in
@@ -148,6 +146,8 @@ contract FixedPriceOrderbook_State
 (* Logic Contract Address  *)
 field logic: ByStr20 = zero_address
 
+field sell_side: Uint32 = Uint32 0
+
 (* 
   A composite primary key of a sell order or buy order consists of
   - asset contract address (ZRC-6)
@@ -259,32 +259,13 @@ procedure Cancel(
   side: Uint32,
   maker: ByStr20
   )
-  is_sell_order = builtin eq side sell_side;
+  sell_side_ <- sell_side;
+  is_sell_order = builtin eq side sell_side_;
   match is_sell_order with 
   | True =>     
-    delete sell_orders[token_address][token_id][payment_token_address][sale_price];
-    e = {
-      _eventname : "CancelOrder";
-      maker: maker;
-      side: side;
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      sale_price: sale_price
-    };
-    event e
+    delete sell_orders[token_address][token_id][payment_token_address][sale_price]
   | False => 
-    delete buy_orders[token_address][token_id][payment_token_address][sale_price];
-    e = {
-      _eventname : "CancelOrder";
-      maker: maker;
-      side: side;
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      sale_price: sale_price
-    };
-    event e
+    delete buy_orders[token_address][token_id][payment_token_address][sale_price]
   end
 end
 
@@ -332,46 +313,21 @@ transition SetOrder(
   RequireLogic;
 (*  order = OrderParam token_address token_id payment_token_address sale_price side expiration_bnum;*)
 (*  DoSetOrder order*)
-  
-  is_sell_order = builtin eq side sell_side;
+  sell_side_ <- sell_side;
+  is_sell_order = builtin eq side sell_side_;
   match is_sell_order with 
   | True => 
     (* Side: Sell *)
     (* Only the token owner can create sell orders *)
     (* set new sell order *)
     new_order = Order sender expiration_bnum;
-    sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
-    
-    e = {
-      _eventname : "SetOrder";
-      maker: _sender;
-      side: side;
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      sale_price: sale_price;
-      expiration_bnum: expiration_bnum
-    };
-    event e
+    sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order
   | False => 
     (* Side: Buy *)
     (* The token owner must not be able to create buy orders *)
     (* set new buy order *)
     new_order = Order sender expiration_bnum;
-
-    buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order;
-
-    e = {
-      _eventname : "SetOrder";
-      maker: _sender;
-      side: side;
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      sale_price: sale_price;
-      expiration_bnum: expiration_bnum
-    };
-    event e
+    buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order
   end
 end
 
@@ -395,7 +351,8 @@ transition FulfillOrder(
   )
   RequireNotPaused;
   RequireLogic;
-  is_sell_order = builtin eq side sell_side;
+  sell_side_ <- sell_side;
+  is_sell_order = builtin eq side sell_side_;
   match is_sell_order with 
   | True =>
     delete sell_orders[token_address][token_id]
