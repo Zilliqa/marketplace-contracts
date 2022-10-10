@@ -103,18 +103,25 @@ const accounts = {
 
     // batch mint
     const pair = await createPairADT(accounts.nftSeller.address, "")
-    const _batchMint = await batchMint(accounts.nftSeller.privateKey, _deployNonFungibleToken, [pair]);
+    const _batchMint = await batchMint(accounts.nftSeller.privateKey, _deployNonFungibleToken, [pair, pair]);
     console.log("😰 _batchMint", _batchMint.receipt.success);
 
     // setSpender
-    const _setSpender = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "1");
-    console.log("😰 setSpender", _setSpender.success);
+    const _setSpender_tokenId_1 = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "1");
+    console.log("😰 setSpender fot tokenId - 1", _setSpender_tokenId_1.success);
+
+    const _setSpender_tokenId_2 = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "2");
+    console.log("😰 setSpender fot tokenId - 1", _setSpender_tokenId_2.success);
 
     // setOrder
     const globalBNum = await getBlockNumber(zilliqa);
-    const newExpiryBlock = String(globalBNum + 99999)
-    const _setOrder = await setOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "1", "0x0000000000000000000000000000000000000000", "10000000000000", "0", newExpiryBlock);
-    console.log("😰 setOrder", _setOrder);
+    const newExpiryBlock_SellOrder = String(globalBNum + 99999)
+    const _setOrder_SellOrder = await setOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "1", "0x0000000000000000000000000000000000000000", "10000000000000", "0", newExpiryBlock_SellOrder);
+    console.log("😰 setOrder SellOrder", _setOrder_SellOrder);
+
+    const newExpiryBlock_BuyOrder = String(globalBNum + 999)
+    const _setOrder_BuyOrder = await setOrder(accounts.nftBuyer.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "2", "0x0000000000000000000000000000000000000000", "20000000000000", "1", newExpiryBlock_BuyOrder);
+    console.log("😰 setOrder buyOrder", _setOrder_BuyOrder);
     
     if(process.env.CHAIN_ID == 222) {
         await clearBalancesOnAccounts(accounts);
