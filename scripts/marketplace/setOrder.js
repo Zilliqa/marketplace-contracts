@@ -20,25 +20,41 @@ async function setOrder(
     expiryBlock
   );
 
-  // console.log(formattedSaleAdtOrder);
-
-  const txSellOrder = await callWithoutConfirm(
-    privateKey,
-    fixedPriceProxy,
-    "SetOrder",
-    [
-      {
-        vname: "order",
-        type: `${fixedPriceProxy}.OrderParam`,
-        value: formattedSaleAdtOrder,
-      },
-    ],
-    0,
-    false,
-    false
-  );
-
-  return txSellOrder;
+  if(side === 0) {
+    const txSellOrder = await callWithoutConfirm(
+      privateKey,
+      fixedPriceProxy,
+      "SetOrder",
+      [
+        {
+          vname: "order",
+          type: `${fixedPriceProxy}.OrderParam`,
+          value: formattedSaleAdtOrder,
+        },
+      ],
+      0,
+      false,
+      false
+    );
+    return txSellOrder;
+  } else {
+    const txSellOrder = await callWithoutConfirm(
+      privateKey,
+      fixedPriceProxy,
+      "SetOrder",
+      [
+        {
+          vname: "order",
+          type: `${fixedPriceProxy}.OrderParam`,
+          value: formattedSaleAdtOrder,
+        },
+      ],
+      price,
+      false,
+      false
+    );
+    return txSellOrder;
+  }
 }
 
 async function createFixedPriceOrder(

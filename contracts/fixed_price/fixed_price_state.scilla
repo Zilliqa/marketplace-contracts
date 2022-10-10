@@ -9,99 +9,8 @@ import BoolUtils IntUtils
 library FixedPriceOrderbook_State
 
 let zero_address = 0x0000000000000000000000000000000000000000
-let zero_uint32 = Uint32 0
-let zero_uint128 = Uint128 0
 let false = False
 let true = True
-
-let min_bps = Uint128 1
-let max_bps = Uint128 10000
-
-let one_msg = 
-  fun (msg : Message) => 
-    let nil_msg = Nil {Message} in
-    Cons {Message} msg nil_msg
-
-let two_msgs =
-fun (msg1: Message) =>
-fun (msg2: Message) =>
-  let msgs_tmp = one_msg msg2 in
-  Cons {Message} msg1 msgs_tmp
-
-let three_msgs =
-fun (msg1: Message) =>
-fun (msg2: Message) =>
-fun (msg3: Message) =>
-  let msgs_tmp = two_msgs msg2 msg3 in
-  Cons {Message} msg1 msgs_tmp
-
-let uint128_to_uint256 : Uint128 -> Uint256 =
-  fun (x : Uint128) =>
-    let ox256 = builtin to_uint256 x in
-      match ox256 with
-      | None =>
-        (* this never happens, hence we throw a division by zero exception just in case *)
-        let zero = Uint256 0 in
-        builtin div zero zero
-      | Some x256 => x256
-      end
-
-let portion = 
-  fun(amount: Uint128) =>
-  fun(bps: Uint128) => 
-    let max_bps256 = uint128_to_uint256 max_bps in
-    let amount256 = uint128_to_uint256 amount in
-    let bps256 = uint128_to_uint256 bps in
-    let x256 = builtin mul amount256 bps256 in
-    let res256 = builtin div x256 max_bps256 in
-    let ores128 = builtin to_uint128 res256 in
-    match ores128 with
-    | None =>
-      zero_uint128
-    | Some res128 =>
-      res128
-    end
-  
-
-let option_value =
-  tfun 'A =>
-  fun (default: 'A) =>
-  fun (maybe_val: Option 'A) =>
-    match maybe_val with
-    | Some v => v
-    | None => default
-    end
-
-let option_address = @option_value ByStr20
-let option_uint32 = @option_value Uint32
-let option_uint128 = @option_value Uint128
-
-(* Computes the commission_fee if there is one. If not, it returns Uint128 0 *)
-let compute_commission_fee = 
-  fun(sale_price: Uint128) =>
-  fun(opt_commission_fee_bps: Option Uint128) =>
-  fun(maybe_has_had_first_sale: Bool) =>
-    match maybe_has_had_first_sale with
-      | True => 
-        zero_uint128
-      | False => 
-        let brand_commission_fee = option_uint128 zero_uint128 opt_commission_fee_bps in
-          portion sale_price brand_commission_fee
-    end
-
-(* maker, expiration block number *)
-type Order = 
-| Order of ByStr20 BNum
-
-(* for batch transitions *)
-(* token_address, token_id, payment_token_address, sale_price, side, expiration block number *)
-type OrderParam =
-| OrderParam of ByStr20 with contract 
-field royalty_recipient: ByStr20, 
-field royalty_fee_bps: Uint128, 
-field spenders: Map Uint256 ByStr20, 
-field token_owners: Map Uint256 ByStr20 
-end Uint256 ByStr20 Uint128 Uint32 BNum
 
 (* Error exceptions *)
 type Error =
@@ -181,10 +90,10 @@ field contract_ownership_recipient: ByStr20 = zero_address
 field is_paused: Bool = false
 
 (* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> sell_order  ) ) *)
-field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
+field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum)))
 
 (* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> buy_order ) ) *)
-field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
+field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum)))
 
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
 field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
@@ -311,8 +220,6 @@ transition SetOrder(
 )
   RequireNotPaused;
   RequireLogic;
-(*  order = OrderParam token_address token_id payment_token_address sale_price side expiration_bnum;*)
-(*  DoSetOrder order*)
   sell_side_ <- sell_side;
   is_sell_order = builtin eq side sell_side_;
   match is_sell_order with 
@@ -320,14 +227,12 @@ transition SetOrder(
     (* Side: Sell *)
     (* Only the token owner can create sell orders *)
     (* set new sell order *)
-    new_order = Order sender expiration_bnum;
-    sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order
+    sell_orders[token_address][token_id][payment_token_address][sale_price][sender] := expiration_bnum
   | False => 
     (* Side: Buy *)
     (* The token owner must not be able to create buy orders *)
     (* set new buy order *)
-    new_order = Order sender expiration_bnum;
-    buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order
+    buy_orders[token_address][token_id][payment_token_address][sale_price][sender] := expiration_bnum
   end
 end
 

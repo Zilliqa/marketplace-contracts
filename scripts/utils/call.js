@@ -117,7 +117,7 @@ async function callWithoutConfirm(
   contract,
   transition,
   args,
-  zilsToSend = 0,
+  zilsToSend,
   insertRecipientAsSender = true,
   insertDeadlineBlock = true
 ) {
@@ -435,7 +435,7 @@ async function setupBalancesOnAccounts(accounts) {
     await sendZil(
       accounts.contractOwner.privateKey,
       accounts.nftBuyer.address,
-      4000,
+      5000,
       Long.fromNumber(50)
     )
   }

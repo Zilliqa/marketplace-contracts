@@ -43,7 +43,7 @@ async function deployFixedPriceContractLogic(
       value: initialOwnerAddress,
     },
     {
-      vname: "state",
+      vname: "initial_state_contract",
       type: "ByStr20",
       value: state,
     },

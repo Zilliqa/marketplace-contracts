@@ -135,21 +135,6 @@ procedure ZRC6TransferFrom_(
   send msgs
 end
 
-procedure SendZilIfNotZero_(recipient : ByStr20, amount : Uint128)
-  is_zero = builtin eq amount zero_uint128;
-  match is_zero with
-  | False => 
-    msg = {
-      _tag: "AddFunds";
-      _recipient: recipient;
-      _amount: amount
-    };
-    msg = one_msg msg;
-    send msg
-  | True => (* do not send zero amounts *)
-  end
-end
-
 procedure RequireOperator()
   is_operator_exist <- exists operators[_sender];
   match is_operator_exist with
@@ -216,9 +201,16 @@ transition ZRC6TransferFrom (token_address: ByStr20, to: ByStr20, token_id: Uint
   ZRC6TransferFrom_ token_address to token_id
 end
 
-transition SendZilIfNotZero (recipient: ByStr20, amount: Uint128)
+transition SendZilIfNotZero ()
   RequireOperator;
-  SendZilIfNotZero_ recipient amount
+  accept;
+  msg = {
+    _tag: "ZilTransferSuccessCallBack";
+    _recipient: _sender;
+    _amount: Uint128 0
+  };
+  msg = one_msg msg;
+  send msg
 end
 
 (* empty callbacks *)

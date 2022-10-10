@@ -111,7 +111,7 @@ const accounts = {
     console.log("😰 setSpender fot tokenId - 1", _setSpender_tokenId_1.success);
 
     const _setSpender_tokenId_2 = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "2");
-    console.log("😰 setSpender fot tokenId - 1", _setSpender_tokenId_2.success);
+    console.log("😰 setSpender fot tokenId - 2", _setSpender_tokenId_2.success);
 
     // setOrder
     const globalBNum = await getBlockNumber(zilliqa);

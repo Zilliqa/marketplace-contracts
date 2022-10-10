@@ -137,6 +137,7 @@ type Error =
   | InvalidStateContractError1
   | InvalidStateContractError2
   | InvalidStateContractError3
+  | InvalidStateContractError4
   
 let make_error =
   fun (result : Error) =>
@@ -173,6 +174,7 @@ let make_error =
       | InvalidStateContractError1                  => Int32 -29
       | InvalidStateContractError2                  => Int32 -30
       | InvalidStateContractError3                  => Int32 -31
+      | InvalidStateContractError4                  => Int32 -32
       end
     in
     { _exception : "Error"; source: "Logic"; code : result_code }
@@ -183,7 +185,11 @@ let make_error =
 
 contract FixedPriceOrderbook_Logic (
   initial_contract_owner: ByStr20,
-  state: ByStr20,
+  initial_state_contract: ByStr20 with contract 
+    field sell_side: Uint32, 
+    field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum))),
+    field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum)))
+  end,
   proxy: ByStr20,
   transfer_proxy: ByStr20
 )
@@ -199,6 +205,14 @@ field contract_ownership_recipient: ByStr20 = zero_address
 (* Emergency stop mechanism *)
 (* Defaults to False *)
 field is_paused: Bool = false
+
+(* State Contract *)
+(* Defaults to `initial_state_contract` *)
+field state_contract: ByStr20 with contract
+  field sell_side: Uint32, 
+  field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum))),
+  field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum)))
+end = initial_state_contract
 
 (* Procedures *)
 procedure Throw(error : Error)
@@ -314,6 +328,7 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
   )
   (* royalty_fee_bps *)
   royalty_fee_bps <- & token_address.royalty_fee_bps;
+  state <- state_contract;
 
   is_state <- &state as ByStr20 with contract
     field service_fee_bps: Uint128,
@@ -370,6 +385,7 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
 end
 
 procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
+  state <- state_contract;
   is_zero_address = builtin eq payment_token_address zero_address;
   allowed_payment_tokens_exist <- &state as ByStr20 with contract field allowed_payment_tokens: Map ByStr20 Bool end;
   match allowed_payment_tokens_exist with
@@ -445,6 +461,7 @@ procedure RequireNotExpired(expiration_bnum: BNum)
 end
 
 procedure RequireAllowedUser(address: ByStr20)
+  state <- state_contract;
   is_allowlist_exist <- &state as ByStr20 with contract field allowlist_address: ByStr20 end;
   match is_allowlist_exist with
   | Some c =>
@@ -575,6 +592,7 @@ procedure HandleFulfillOrder(
   royalty_fee_bps <- & token_address.royalty_fee_bps;
   RequireValidRoyaltyFeeBPS royalty_fee_bps;
   royalty_amount = portion sale_price royalty_fee_bps;
+  state <- state_contract;
 
   (* Calculating the Service Fee *)
   is_state <- &state as ByStr20 with contract
@@ -799,6 +817,8 @@ procedure Cancel(
   sale_price: Uint128,
   side: Uint32
   )
+  
+  state <- state_contract;
 
   is_valid_ <- &state as ByStr20 with contract
     field sell_side: Uint32,
@@ -923,113 +943,74 @@ end
 procedure DoSetOrder(order: OrderParam)
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
+    state <- state_contract;
     RequireNotExpired expiration_bnum;
     RequireAllowedPaymentToken payment_token_address;
     RequireThisToBeSpender token_address token_id;
     RequireValidTotalFees token_address token_id;
+    
+    sell_side_ <- & state.sell_side;
+    is_sell_order = builtin eq side sell_side_;
+    match is_sell_order with 
+    | True => 
+      (* Side: Sell *)
+      (* Only the token owner can create sell orders *)
+      RequireSenderToBeTokenOwner token_address token_id;
+      (* set new sell order *)
+      msg_to_set_sellorder = {
+        _tag: "SetOrder";
+        _recipient: state;
+        _amount: Uint128 0;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        sender: _origin;
+        expiration_bnum: expiration_bnum
+      };
+      msgs = one_msg msg_to_set_sellorder;
+      send msgs;
+      
+      e = {
+        _eventname : "SetOrder";
+        maker: _origin;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        expiration_bnum: expiration_bnum
+      };
+      event e
+    | False => 
+      (* Side: Buy *)
+      (* The token owner must not be able to create buy orders *)
+      RequireSenderNotToBeTokenOwner token_address token_id;
 
-    maybe_state_contract_ <- & state as ByStr20 with contract 
-      field sell_side : Uint32
-    end;
+      (* The currency is ZIL if the payment_token_address is zero address *)
+      is_native_zil = builtin eq payment_token_address zero_address;
 
-    match maybe_state_contract_ with
-    | None => 
-      error = InvalidStateContractError3;
-      Throw error
-    | Some state_contract =>
-      sell_side_ <- & state_contract.sell_side;
-      is_sell_order = builtin eq side sell_side_;    
-      match is_sell_order with 
-      | True => 
-        (* Side: Sell *)
-        (* Only the token owner can create sell orders *)
-        RequireSenderToBeTokenOwner token_address token_id;
-        
-        (* set new sell order *)
-        (* new_order = Order _sender expiration_bnum;*)
-        (* sell_orders[token_address][token_id][payment_token_address][sale_price] := new_order;*)
-        
-        msg_to_set_sellorder = {
-          _tag: "SetOrder";
-          _recipient: state;
-          _amount: Uint128 0;
-          side: side;
-          token_address: token_address;
-          token_id: token_id;
-          payment_token_address: payment_token_address;
-          sale_price: sale_price;
-          sender: _origin;
-          expiration_bnum: expiration_bnum
-        };
-        msgs = one_msg msg_to_set_sellorder;
-        send msgs;
-        
-        e = {
-          _eventname : "SetOrder";
-          maker: _origin;
-          side: side;
-          token_address: token_address;
-          token_id: token_id;
-          payment_token_address: payment_token_address;
-          sale_price: sale_price;
-          expiration_bnum: expiration_bnum
-        };
-        event e
-      | False => 
-        (* Side: Buy *)
-        (* The token owner must not be able to create buy orders *)
-        RequireSenderNotToBeTokenOwner token_address token_id;
+      (* chcek if there is any value exist *)
+      maybe_buy_order <- & state.buy_orders[token_address][token_id][payment_token_address][sale_price][_origin];
 
-        (* The currency is ZIL if the payment_token_address is zero address *)
-        is_native_zil = builtin eq payment_token_address zero_address;
+      match maybe_buy_order with 
+      | None =>
+        (* create a buy order *)
+        match is_native_zil with 
+        | False =>
+          msg_to_send_zrc2 = {
+            _tag: "ZRC2TransferFrom";
+            _recipient: transfer_proxy;
+            _amount: Uint128 0;
+            token_address: payment_token_address;
+            from: _origin;
+            to: transfer_proxy;
+            amount: sale_price
+          };
+          msgs = one_msg msg_to_send_zrc2;
+          send msgs;
 
-        maybe_state_contract_buy_orders <- & state as ByStr20 with contract
-          field buy_orders : Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
-        end;
-
-        match maybe_state_contract_buy_orders with
-        | None =>
-        | Some some_buy_orders =>
-          maybe_buy_order <- & some_buy_orders.buy_orders[token_address][token_id][payment_token_address][sale_price];
-          (* maybe_buy_order <- & state_contract.buy_orders[token_address][token_id][payment_token_address][sale_price]; *)
-            match maybe_buy_order with 
-            | None =>
-              (* create a buy order *)
-              match is_native_zil with 
-              | False =>
-                msg_to_send_zrc2 = {
-                  _tag: "ZRC2TransferFrom";
-                  _recipient: transfer_proxy;
-                  _amount: Uint128 0;
-                  token_address: payment_token_address;
-                  from: _origin;
-                  to: transfer_proxy;
-                  amount: sale_price
-                };
-                msgs = one_msg msg_to_send_zrc2;
-                send msgs
-              | True => 
-                (* _amount must be equal to sale_price *)
-                RequireEqualZILAmount sale_price;
-                (* ZILs must be accepted only if a buy order is newly created *)
-                (* accept*)
-                msg = {
-                  _tag: "AddFunds";
-                  _recipient: transfer_proxy;
-                  _amount: sale_price
-                };
-                msgs = one_msg msg;
-                send msgs
-              end
-            | Some (Order buyer _) => 
-              (* update the buy order *)
-              RequireSelf buyer
-          end;
-
-          (* set new buy order *)
-          (* new_order = Order _sender expiration_bnum;*)
-          (* buy_orders[token_address][token_id][payment_token_address][sale_price] := new_order;*)
-          
           msg_to_set_buyorder = {
             _tag: "SetOrder";
             _recipient: state;
@@ -1044,7 +1025,7 @@ procedure DoSetOrder(order: OrderParam)
           };
           msgs = one_msg msg_to_set_buyorder;
           send msgs;
-
+    
           e = {
             _eventname : "SetOrder";
             maker: _origin;
@@ -1056,10 +1037,53 @@ procedure DoSetOrder(order: OrderParam)
             expiration_bnum: expiration_bnum
           };
           event e
+        | True => 
+          accept;
+
+          msg_to_set_buyorder = {
+            _tag: "SetOrder";
+            _recipient: state;
+            _amount: _amount;
+            side: side;
+            token_address: token_address;
+            token_id: token_id;
+            payment_token_address: payment_token_address;
+            sale_price: sale_price;
+            sender: _origin;
+            expiration_bnum: expiration_bnum
+          };
+          msgs = one_msg msg_to_set_buyorder;
+          send msgs;
+    
+          e = {
+            _eventname : "SetOrder";
+            maker: _origin;
+            side: side;
+            token_address: token_address;
+            token_id: token_id;
+            payment_token_address: payment_token_address;
+            sale_price: _amount;
+            expiration_bnum: expiration_bnum
+          };
+          event e;
+
+          msg_to_send_zil = {
+            _tag: "SendZilIfNotZero";
+            _recipient: transfer_proxy;
+            _amount: _amount
+          };
+          msgs = one_msg msg_to_send_zil;
+          send msgs
         end
+      | Some (somevalue) => 
+        (* update the buy order *)
+        RequireSelf _origin
       end
     end
   end
+end
+
+transition ZilTransferSuccessCallBack()
 end
 
 (* Sets sell and buy orders. *)
@@ -1078,6 +1102,7 @@ transition SetOrder(
   side: Uint32,
   expiration_bnum: BNum
 )
+  state <- state_contract;
   RequireNotPaused;
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
@@ -1103,6 +1128,7 @@ transition FulfillOrder(
   (* `dest` is only meaningful for buyers at the moment *)
   dest: ByStr20
   )
+  state <- state_contract;
   RequireNotPaused;
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
@@ -1258,6 +1284,7 @@ transition CancelOrder(
   sale_price: Uint128,
   side: Uint32
 )
+  state <- state_contract;
   RequireProxy;
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
