@@ -196,12 +196,23 @@ transition ZRC2Transfer (token_address: ByStr20, to: ByStr20, amount: Uint128)
   ZRC2Transfer_ token_address to amount
 end
 
+transition ZilOut (to: ByStr20, amount: Uint128)
+  RequireOperator;
+  msg = {
+    _tag: "AddFunds";
+    _recipient: to;
+    _amount: amount
+  };
+  msg = one_msg msg;
+  send msg
+end
+
 transition ZRC6TransferFrom (token_address: ByStr20, to: ByStr20, token_id: Uint256)
   RequireOperator;
   ZRC6TransferFrom_ token_address to token_id
 end
 
-transition SendZilIfNotZero ()
+transition ZilIn ()
   RequireOperator;
   accept;
   msg = {

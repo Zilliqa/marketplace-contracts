@@ -23,7 +23,7 @@ async function batchMint(privateKey, nftContractAddress, list) {
     false
   )
 
-  console.log('batchMint txn : ', JSON.stringify(batchMintTxn))
+  // console.log('batchMint txn : ', JSON.stringify(batchMintTxn))
 
   return batchMintTxn
 }

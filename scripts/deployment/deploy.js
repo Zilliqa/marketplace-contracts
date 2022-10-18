@@ -17,6 +17,7 @@ const { updateSetSpender } = require("../marketplace/updateSetSpender.js");
 const { batchMint } = require("../marketplace/batchMint");
 const { setupBalancesOnAccounts, clearBalancesOnAccounts } = require("../utils/call");
 const { setOrder } = require("../marketplace/setOrder");
+const { cancelOrder } = require("../marketplace/cancelOrder");
 const { getBlockNumber } = require('../utils/helper')
 
 
@@ -103,7 +104,7 @@ const accounts = {
 
     // batch mint
     const pair = await createPairADT(accounts.nftSeller.address, "")
-    const _batchMint = await batchMint(accounts.nftSeller.privateKey, _deployNonFungibleToken, [pair, pair]);
+    const _batchMint = await batchMint(accounts.nftSeller.privateKey, _deployNonFungibleToken, [pair, pair, pair, pair]);
     console.log("😰 _batchMint", _batchMint.receipt.success);
 
     // setSpender
@@ -113,15 +114,34 @@ const accounts = {
     const _setSpender_tokenId_2 = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "2");
     console.log("😰 setSpender fot tokenId - 2", _setSpender_tokenId_2.success);
 
-    // setOrder
+    const _setSpender_tokenId_3 = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "3");
+    console.log("😰 setSpender fot tokenId - 3", _setSpender_tokenId_3.success);
+
+    const _setSpender_tokenId_4 = await updateSetSpender(accounts.nftSeller.privateKey, _deployNonFungibleToken, _transferProxyContract, "4");
+    console.log("😰 setSpender fot tokenId - 4", _setSpender_tokenId_4.success);
+
+    // setOrder - tokenId (1) - by seller
     const globalBNum = await getBlockNumber(zilliqa);
     const newExpiryBlock_SellOrder = String(globalBNum + 99999)
-    const _setOrder_SellOrder = await setOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "1", "0x0000000000000000000000000000000000000000", "10000000000000", "0", newExpiryBlock_SellOrder);
-    console.log("😰 setOrder SellOrder", _setOrder_SellOrder);
+    const _setOrder_SellOrder1 = await setOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "1", "0x0000000000000000000000000000000000000000", "10000000000000", "0", newExpiryBlock_SellOrder);
+    console.log("😰 setOrder SellOrder", _setOrder_SellOrder1.success);
 
+    // setOrder - tokenId (2) - by buyer
     const newExpiryBlock_BuyOrder = String(globalBNum + 999)
     const _setOrder_BuyOrder = await setOrder(accounts.nftBuyer.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "2", "0x0000000000000000000000000000000000000000", "20000000000000", "1", newExpiryBlock_BuyOrder);
-    console.log("😰 setOrder buyOrder", _setOrder_BuyOrder);
+    console.log("😰 setOrder buyOrder", _setOrder_BuyOrder.success);
+
+    // cancelOrder - tokenId (3) - by seller
+    const _cancelSellOrder = await cancelOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "1", "0x0000000000000000000000000000000000000000", "10000000000000", "0");
+    console.log("😰 cancel SellOrder", _cancelSellOrder.success);
+
+    // cancelOrder - tokenId (2) - by buyer
+    const _cancelBuyOrder = await cancelOrder(accounts.nftBuyer.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "2", "0x0000000000000000000000000000000000000000", "20000000000000", "1");
+    console.log("😰 cancel BuyOrder", _cancelBuyOrder.success);
+    
+    // setOrder - tokenId (3) - by seller
+    const _setOrder_SellOrder2 = await setOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "3", "0x0000000000000000000000000000000000000000", "10000000000000", "0", newExpiryBlock_SellOrder);
+    console.log("😰 setOrder SellOrder", _setOrder_SellOrder2.success);
     
     if(process.env.CHAIN_ID == 222) {
         await clearBalancesOnAccounts(accounts);

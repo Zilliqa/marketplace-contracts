@@ -144,7 +144,7 @@ procedure SetOrder_(token_address: ByStr20, token_id: Uint256, payment_token_add
   msg_to_set_order = {
     _tag: "SetOrder";
     _recipient: current_logic;
-    _amount: Uint128 0;
+    _amount: _amount;
     token_address: token_address;
     token_id: token_id;
     payment_token_address: payment_token_address;
@@ -164,6 +164,7 @@ procedure SetBatchOrders_(order: OrderParam)
 end
 
 transition SetOrder(order: OrderParam)
+  accept;
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
     SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum

@@ -816,124 +816,117 @@ procedure Cancel(
   payment_token_address: ByStr20,
   sale_price: Uint128,
   side: Uint32
-  )
-  
+)
+
   state <- state_contract;
+  sell_side_ <- & state.sell_side;
+  is_sell_order = builtin eq side sell_side_;
 
-  is_valid_ <- &state as ByStr20 with contract
-    field sell_side: Uint32,
-    field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order))),
-    field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Order)))
-  end;
+  match is_sell_order with 
+  | True =>     
+    (* Side: Sell *)
+    maybe_sell_order <- & state.sell_orders[token_address][token_id][payment_token_address][sale_price][_origin];
 
-  match is_valid_ with
-  | Some some_value =>
-    sell_side_ <- &some_value.sell_side;
-    is_sell_order = builtin eq side sell_side_;
-      match is_sell_order with 
-      | True =>     
-        (* Side: Sell *)
-        maybe_sell_order <- &some_value.sell_orders[token_address][token_id][payment_token_address][sale_price];
-        match maybe_sell_order with
-        | None =>
-          error = SellOrderNotFoundError;
-          Throw error
-        | Some (Order maker expiration_bnum) =>  
-          (* sender must be the maker or the contract owner *)
-          RequireAccessToCancel maker;
-          (* Remove order *)
+    match maybe_sell_order with
+    | None =>
+      error = SellOrderNotFoundError;
+      Throw error
+    | Some (expiration_bnum) =>  
+      (* sender must be the maker or the contract owner *)
+      RequireAccessToCancel _origin;
+      (* Remove order *)
 
-          e = {
-            _eventname : "CancelOrder";
-            maker: maker;
-            side: sell_side_;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price
-          };
-          event e;
+      e = {
+        _eventname : "CancelOrder";
+        maker: _origin;
+        side: sell_side_;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price
+      };
+      event e;
 
-          msg_to_cancel = {
-            _tag: "CancelOrder";
-            _recipient: state;
-            _amount: Uint128 0;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price;
-            side : sell_side_;
-            maker: maker
-          };
-          msgs = one_msg msg_to_cancel;
-          send msgs
-        end
-      | False => 
-        (* Side: Buy *)
-        maybe_buy_order <- &some_value.buy_orders[token_address][token_id][payment_token_address][sale_price];
-        match maybe_buy_order with
-        | None =>
-          error = BuyOrderNotFoundError;
-          Throw error
-        | Some (Order maker expiration_bnum) =>  
-          (* sender must be the maker or the contract owner *)
-          RequireAccessToCancel maker;
+      msg_to_cancel = {
+        _tag: "CancelOrder";
+        _recipient: state;
+        _amount: Uint128 0;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        side : sell_side_;
+        maker: _origin
+      };
+      msgs = one_msg msg_to_cancel;
+      send msgs
+    end
+  | False => 
+    (* Side: Buy *)
+    maybe_buy_order <- & state.buy_orders[token_address][token_id][payment_token_address][sale_price][_origin];
 
-          (* The currency is ZIL if the payment_token_address is zero address *)
-          is_native_zil = builtin eq payment_token_address zero_address;
-          match is_native_zil with
-            | False =>
-              msg_to_send_zrc2 = {
-                _tag: "ZRC2TransferFrom";
-                _recipient: transfer_proxy;
-                _amount: Uint128 0;
-                token_address: payment_token_address;
-                from: maker;
-                to: transfer_proxy;
-                amount: sale_price
-              };
-              msgs = one_msg msg_to_send_zrc2;
-              send msgs
-            | True =>
-              msg = {
-                _tag: "AddFunds";
-                _recipient: maker;
-                _amount: sale_price
-              };
-              msgs = one_msg msg;
-              send msgs
-          end;
-          
-          (* Remove order *)
-          e = {
-            _eventname : "CancelOrder";
-            maker: maker;
-            side: sell_side_;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price
-          };
-          event e;
+    match maybe_buy_order with
+    | None =>
+      error = BuyOrderNotFoundError;
+      Throw error
+    | Some (expiration_bnum) =>  
+      (* sender must be the maker or the contract owner *)
+      RequireAccessToCancel _origin;
 
-          msg_to_cancel = {
-            _tag: "CancelOrder";
-            _recipient: state;
-            _amount: Uint128 0;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price;
-            side : sell_side_;
-            maker: maker
-          };
-          msgs = one_msg msg_to_cancel;
-          send msgs
-        end
-      end
-  | None => 
-    error = InvalidSellSideError;
-    Throw error
+      (* The currency is ZIL if the payment_token_address is zero address *)
+      is_native_zil = builtin eq payment_token_address zero_address;
+
+      match is_native_zil with
+      | False =>
+        msg_to_send_zrc2 = {
+          _tag: "ZRC2Transfer";
+          _recipient: transfer_proxy;
+          _amount: Uint128 0;
+          token_address: payment_token_address;
+          to: _origin;
+          amount: sale_price
+        };
+        msgs = one_msg msg_to_send_zrc2;
+        send msgs
+
+      | True =>
+        msg_to_send_zil = {
+          _tag: "ZilOut";
+          _recipient: transfer_proxy;
+          _amount: Uint128 0;
+          to: _origin;
+          amount: sale_price
+        };
+        msgs = one_msg msg_to_send_zil;
+        send msgs
+      end;
+      
+      (* Remove order *)
+      e = {
+        _eventname : "CancelOrder";
+        maker: _origin;
+        side: sell_side_;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price
+      };
+      event e;
+
+      msg_to_cancel = {
+        _tag: "CancelOrder";
+        _recipient: state;
+        _amount: Uint128 0;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        side : sell_side_;
+        maker: _origin
+      };
+      msgs = one_msg msg_to_cancel;
+      send msgs
+    end
   end
 end
 
@@ -1037,13 +1030,11 @@ procedure DoSetOrder(order: OrderParam)
             expiration_bnum: expiration_bnum
           };
           event e
-        | True => 
-          accept;
-
+        | True =>
           msg_to_set_buyorder = {
             _tag: "SetOrder";
             _recipient: state;
-            _amount: _amount;
+            _amount: Uint128 0;
             side: side;
             token_address: token_address;
             token_id: token_id;
@@ -1062,13 +1053,14 @@ procedure DoSetOrder(order: OrderParam)
             token_address: token_address;
             token_id: token_id;
             payment_token_address: payment_token_address;
-            sale_price: _amount;
+            sale_price: sale_price;
             expiration_bnum: expiration_bnum
           };
           event e;
 
+          accept;
           msg_to_send_zil = {
-            _tag: "SendZilIfNotZero";
+            _tag: "ZilIn";
             _recipient: transfer_proxy;
             _amount: _amount
           };
