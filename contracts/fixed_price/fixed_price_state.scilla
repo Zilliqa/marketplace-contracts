@@ -249,10 +249,7 @@ transition FulfillOrder(
   token_id: Uint256,
   payment_token_address: ByStr20,
   sale_price: Uint128,
-  side: Uint32,
-  dest: ByStr20,
-  buyer: ByStr20,
-  seller: ByStr20
+  side: Uint32
   )
   RequireNotPaused;
   RequireLogic;

@@ -18,6 +18,7 @@ const { batchMint } = require("../marketplace/batchMint");
 const { setupBalancesOnAccounts, clearBalancesOnAccounts } = require("../utils/call");
 const { setOrder } = require("../marketplace/setOrder");
 const { cancelOrder } = require("../marketplace/cancelOrder");
+const { fullFillOrder } = require("../marketplace/fullFillOrder");
 const { getBlockNumber } = require('../utils/helper')
 
 
@@ -96,6 +97,9 @@ const accounts = {
     const _updateLogicContractInProxy = await updateLogicContractInStateProxy(accounts.contractOwner.privateKey, _fixedPriceProxy, _fixedPriceLogic, "UpdateLogic", "to");
     console.log("😰 updateLogicContractInProxy", _updateLogicContractInProxy.success);
 
+    const _updateStateContractInProxy = await updateLogicContractInStateProxy(accounts.contractOwner.privateKey, _fixedPriceProxy, _fixedPriceState, "UpdateState", "to");
+    console.log("😰 updateStateContractInProxy", _updateStateContractInProxy.success);
+
     // deploy collection contract
     const nonFungibleTokenDeployParams = { name: 'TestNFTToken1', symbol: null, baseURI: 'https://ipfs.io/ipfs/' }
     const [deployNonFungibleTokenContract] = await deployNonFungibleToken(accounts.nftSeller.privateKey, nonFungibleTokenDeployParams, accounts.nftSeller.address);
@@ -139,9 +143,13 @@ const accounts = {
     const _cancelBuyOrder = await cancelOrder(accounts.nftBuyer.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "2", "0x0000000000000000000000000000000000000000", "20000000000000", "1");
     console.log("😰 cancel BuyOrder", _cancelBuyOrder.success);
     
-    // setOrder - tokenId (3) - by seller
+    // // setOrder - tokenId (3) - by seller (kind of put on sale)
     const _setOrder_SellOrder2 = await setOrder(accounts.nftSeller.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "3", "0x0000000000000000000000000000000000000000", "10000000000000", "0", newExpiryBlock_SellOrder);
     console.log("😰 setOrder SellOrder", _setOrder_SellOrder2.success);
+
+    // // FulfillOrder - tokenId(3) - by buyer
+    const _fullFillOrder_by_buyer = await fullFillOrder(accounts.nftBuyer.privateKey, _fixedPriceProxy, _deployNonFungibleToken, "3", "0x0000000000000000000000000000000000000000", "10000000000000", "0", accounts.nftSeller.address, accounts.nftBuyer.address);
+    console.log("😰 fullFillOrder by buyer", _fullFillOrder_by_buyer);
     
     if(process.env.CHAIN_ID == 222) {
         await clearBalancesOnAccounts(accounts);

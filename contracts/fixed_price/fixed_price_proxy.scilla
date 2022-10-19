@@ -38,6 +38,7 @@ type Error =
   | NotContractOwnershipRecipientError
   | NotMultiSigError
   | ZeroAddressError
+  | InvalidStateContractError
   
 let make_error =
   fun (result : Error) =>
@@ -50,6 +51,7 @@ let make_error =
       | NotContractOwnershipRecipientError => Int32 -5
       | NotMultiSigError                   => Int32 -6
       | ZeroAddressError                   => Int32 -7
+      | InvalidStateContractError          => Int32 -8
       end
     in
     { _exception : "Error"; source: "proxy"; code : result_code }
@@ -62,6 +64,9 @@ contract FixedPriceOrderbook_Proxy (initial_contract_owner: ByStr20)
 
 (* logic *)
 field logic: ByStr20 = zero_address
+
+(* state *)
+field state_contract: ByStr20 = zero_address
 
 (* Contract Owner *)
 (* Defaults to `initial_contract_owner` *)
@@ -140,20 +145,49 @@ end
 (* - Buyers can set buy orders (offers) *)
 procedure SetOrder_(token_address: ByStr20, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, expiration_bnum: BNum)
   current_logic <- logic;
+  current_state <- state_contract;
   RequireNonZeroAddress current_logic;
-  msg_to_set_order = {
-    _tag: "SetOrder";
-    _recipient: current_logic;
-    _amount: _amount;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price;
-    side: side;
-    expiration_bnum: expiration_bnum
-  };
-  msgs = one_msg msg_to_set_order;
-  send msgs
+  RequireNonZeroAddress current_state;
+  is_state <- &current_state as ByStr20 with contract field sell_side: Uint32 end;
+  match is_state with
+  | Some some_state =>
+    sell_side_ <- &some_state.sell_side;
+    is_sell_order = builtin eq side sell_side_;
+    match is_sell_order with 
+    | True =>  
+      msg_to_set_order = {
+        _tag: "SetOrder";
+        _recipient: current_logic;
+        _amount: Uint128 0;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        side: side;
+        expiration_bnum: expiration_bnum
+      };
+      msgs = one_msg msg_to_set_order;
+      send msgs
+    | False =>
+      accept;
+      msg_to_set_order = {
+        _tag: "SetOrder";
+        _recipient: current_logic;
+        _amount: _amount;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        side: side;
+        expiration_bnum: expiration_bnum
+      };
+      msgs = one_msg msg_to_set_order;
+      send msgs
+    end
+  | None => 
+    error = InvalidStateContractError;
+    Throw error
+  end
 end
 
 procedure SetBatchOrders_(order: OrderParam)
@@ -164,7 +198,6 @@ procedure SetBatchOrders_(order: OrderParam)
 end
 
 transition SetOrder(order: OrderParam)
-  accept;
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
     SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum
@@ -197,6 +230,26 @@ transition UpdateLogic(to: ByStr20)
   end
 end
 
+(* @multi-sig *)
+transition UpdateState(to: ByStr20)
+  RequireNonZeroAddress to;
+  is_valid = builtin eq initial_contract_owner _sender;
+  match is_valid with
+  | False =>
+    error = NotMultiSigError;
+    Throw error
+  | True =>
+    current_block_number <- & BLOCKNUMBER;
+    state_contract := to;
+    e = { 
+      _eventname: "StateContractUpdated";
+      address: to;
+      when: current_block_number
+    };
+    event e
+  end
+end
+
 (* Fulfills orders *)
 transition FulfillOrder(
   token_address: ByStr20 with contract 
@@ -211,21 +264,26 @@ transition FulfillOrder(
   side: Uint32,
   (* `dest` enables buyers to set an address to receive the asset when fulfilling a sell order. *)
   (* `dest` is only meaningful for buyers at the moment *)
-  dest: ByStr20
+  dest: ByStr20,
+  seller: ByStr20,
+  buyer: ByStr20
   )
   RequireNotPaused;
   current_logic <- logic;
   RequireNonZeroAddress current_logic;
+  accept;
   msg_to_fullfillorder = {
     _tag: "FulfillOrder";
     _recipient: current_logic;
-    _amount: Uint128 0;
+    _amount: _amount;
     token_address: token_address;
     token_id: token_id;
     payment_token_address: payment_token_address;
     sale_price: sale_price;
     side: side;
-    dest: dest
+    dest: dest;
+    buyer: buyer;
+    seller: seller
   };
   msgs = one_msg msg_to_fullfillorder;
   send msgs
