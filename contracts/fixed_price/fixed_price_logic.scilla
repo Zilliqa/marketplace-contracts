@@ -349,45 +349,24 @@ procedure RequireValidTotalFees(token_address: ByStr20 with contract
   state <- state_contract;
   
   svc_fee_bps <- & state.service_fee_bps;
+  (* commission_fee_bps *)
   collections_contract_ <- & state.collection_address;
-  is_zero_address = builtin eq zero_address collections_contract_;
+  opt_collection_id <- & collections_contract_.token_collection[token_address][token_id];
+  collection_id = option_uint32 zero_uint32 opt_collection_id;
+  opt_commission_fee_bps <- & collections_contract_.collection_commission_fee[collection_id];
+  commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
+  
+  royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
+  total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
 
-  match is_zero_address with
+  hundred_percent = Uint128 100000;
+  is_lte_max = uint128_lt total_fee_bps hundred_percent;
+
+  match is_lte_max with 
   | True => 
-    error = InvalidCollectionAddress;
+  | False =>
+    error = TotalFeesTooHigh;
     Throw error
-  | False => 
-    maybe_collections_contract_ <- & collections_contract_ as ByStr20 with contract
-      field token_collection: Map ByStr20 (Map Uint256 Uint32),
-      field collection_owning_brand: Map Uint32 ByStr20,
-      field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
-      field collection_commission_fee: Map Uint32 Uint128
-    end;
-
-    match maybe_collections_contract_ with 
-    | None => 
-      error = InvalidCollectionAddress;
-      Throw error
-    | Some collections_contract => 
-      (* commission_fee_bps *)
-      opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
-      collection_id = option_uint32 zero_uint32 opt_collection_id;
-      opt_commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-      commission_fee_bps = option_uint128 zero_uint128 opt_commission_fee_bps;
-      
-      royalty_and_service_fee_bps = builtin add royalty_fee_bps svc_fee_bps;
-      total_fee_bps = builtin add royalty_and_service_fee_bps commission_fee_bps;
-    
-      hundred_percent = Uint128 100000;
-      is_lte_max = uint128_lt total_fee_bps hundred_percent;
-      
-      match is_lte_max with 
-        | True => 
-        | False =>
-          error = TotalFeesTooHigh;
-          Throw error
-      end
-    end
   end
 end
 
