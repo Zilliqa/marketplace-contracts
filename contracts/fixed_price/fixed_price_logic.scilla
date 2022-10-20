@@ -1132,7 +1132,7 @@ transition FulfillOrder(
         _tag: "FulfillOrder";
         _recipient: state;
         _amount: Uint128 0;
-        token_address: payment_token_address;
+        token_address: token_address;
         token_id: token_id;
         payment_token_address: payment_token_address;
         sale_price: sale_price;
