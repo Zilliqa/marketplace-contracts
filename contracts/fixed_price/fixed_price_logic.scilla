@@ -792,7 +792,8 @@ procedure Cancel(
   match is_sell_order with 
   | True =>     
     (* Side: Sell *)
-    maybe_sell_order <- & state.sell_orders[token_address][token_id][payment_token_address][sale_price][_origin];
+    seller = _origin;
+    maybe_sell_order <- & state.sell_orders[token_address][token_id][payment_token_address][sale_price][seller];
 
     match maybe_sell_order with
     | None =>
@@ -800,13 +801,13 @@ procedure Cancel(
       Throw error
     | Some (expiration_bnum) =>  
       (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel _origin;
+      RequireAccessToCancel seller;
       (* Remove order *)
 
       e = {
         _eventname : "CancelOrder";
-        maker: _origin;
-        side: sell_side_;
+        maker: seller;
+        side: side;
         token_address: token_address;
         token_id: token_id;
         payment_token_address: payment_token_address;
@@ -822,15 +823,16 @@ procedure Cancel(
         token_id: token_id;
         payment_token_address: payment_token_address;
         sale_price: sale_price;
-        side : sell_side_;
-        maker: _origin
+        side : side;
+        maker: seller
       };
       msgs = one_msg msg_to_cancel;
       send msgs
     end
   | False => 
     (* Side: Buy *)
-    maybe_buy_order <- & state.buy_orders[token_address][token_id][payment_token_address][sale_price][_origin];
+    buyer = _origin;
+    maybe_buy_order <- & state.buy_orders[token_address][token_id][payment_token_address][sale_price][buyer];
 
     match maybe_buy_order with
     | None =>
@@ -838,7 +840,7 @@ procedure Cancel(
       Throw error
     | Some (expiration_bnum) =>  
       (* sender must be the maker or the contract owner *)
-      RequireAccessToCancel _origin;
+      RequireAccessToCancel buyer;
 
       (* The currency is ZIL if the payment_token_address is zero address *)
       is_native_zil = builtin eq payment_token_address zero_address;
@@ -850,7 +852,7 @@ procedure Cancel(
           _recipient: transfer_proxy;
           _amount: Uint128 0;
           token_address: payment_token_address;
-          to: _origin;
+          to: buyer;
           amount: sale_price
         };
         msgs = one_msg msg_to_send_zrc2;
@@ -861,7 +863,7 @@ procedure Cancel(
           _tag: "ZilOut";
           _recipient: transfer_proxy;
           _amount: Uint128 0;
-          to: _origin;
+          to: buyer;
           amount: sale_price
         };
         msgs = one_msg msg_to_send_zil;
@@ -871,8 +873,8 @@ procedure Cancel(
       (* Remove order *)
       e = {
         _eventname : "CancelOrder";
-        maker: _origin;
-        side: sell_side_;
+        maker: buyer;
+        side: side;
         token_address: token_address;
         token_id: token_id;
         payment_token_address: payment_token_address;
@@ -888,8 +890,8 @@ procedure Cancel(
         token_id: token_id;
         payment_token_address: payment_token_address;
         sale_price: sale_price;
-        side : sell_side_;
-        maker: _origin
+        side : side;
+        maker: buyer
       };
       msgs = one_msg msg_to_cancel;
       send msgs
@@ -1158,7 +1160,7 @@ transition FulfillOrder(
       (* Sender must not be the buyer *)
       RequireNotSelf buyer;
 
-      RequireEqualZILAmount sale_price;
+      (* RequireEqualZILAmount sale_price; *)
 
       HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side buyer;
       

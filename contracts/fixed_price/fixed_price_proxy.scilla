@@ -270,23 +270,53 @@ transition FulfillOrder(
   )
   RequireNotPaused;
   current_logic <- logic;
+  current_state <- state_contract;
   RequireNonZeroAddress current_logic;
-  accept;
-  msg_to_fullfillorder = {
-    _tag: "FulfillOrder";
-    _recipient: current_logic;
-    _amount: _amount;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price;
-    side: side;
-    dest: dest;
-    buyer: buyer;
-    seller: seller
-  };
-  msgs = one_msg msg_to_fullfillorder;
-  send msgs
+  RequireNonZeroAddress current_state;
+  is_state <- &current_state as ByStr20 with contract field sell_side: Uint32 end;
+  match is_state with
+  | Some some_state =>
+    sell_side_ <- &some_state.sell_side;
+    is_sell_order = builtin eq side sell_side_;
+    match is_sell_order with 
+    | True =>  
+      accept;
+      msg_to_fullfillorder = {
+        _tag: "FulfillOrder";
+        _recipient: current_logic;
+        _amount: _amount;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        side: side;
+        dest: dest;
+        buyer: buyer;
+        seller: seller
+      };
+      msgs = one_msg msg_to_fullfillorder;
+      send msgs
+    | False =>
+      msg_to_fullfillorder = {
+        _tag: "FulfillOrder";
+        _recipient: current_logic;
+        _amount: Uint128 0;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        side: side;
+        dest: dest;
+        buyer: buyer;
+        seller: seller
+      };
+      msgs = one_msg msg_to_fullfillorder;
+      send msgs
+    end
+  | None => 
+    error = InvalidStateContractError;
+    Throw error
+  end
 end
 
 (* @multi-sig *)

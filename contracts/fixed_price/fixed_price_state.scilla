@@ -260,7 +260,7 @@ transition FulfillOrder(
     delete sell_orders[token_address][token_id]
   | False =>
     delete sell_orders[token_address][token_id];
-    delete buy_orders[token_address][token_id][payment_token_address][sale_price]
+    delete buy_orders[token_address][token_id]
   end
 end
 
