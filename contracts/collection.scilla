@@ -76,7 +76,7 @@ let make_error =
       | OnlyRegisteredMarketplaceCanCall             => Int32 -16
       end
     in
-    { _exception: "Error"; code: result_code }
+    { _exception: "Error"; source : "collection"; code: result_code }
 
 
 contract Collections

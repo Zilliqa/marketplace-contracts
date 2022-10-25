@@ -179,7 +179,7 @@ let make_error =
       | NotSameAddressError                         => Int32 -33
       end
     in
-    { _exception : "Error"; source: "Logic"; code : result_code }
+    { _exception : "Error"; source: "logic"; code : result_code }
 
 (***************************************************)
 (*             The contract definition             *)
@@ -553,21 +553,6 @@ procedure ZRC6TransferFrom(
   send msgs
 end
 
-procedure SendZilIfNotZero(recipient : ByStr20, amount : Uint128)
-  is_zero = builtin eq amount zero_uint128;
-  match is_zero with
-  | False => 
-    msg = {
-      _tag: "AddFunds";
-      _recipient: recipient;
-      _amount: amount
-    };
-    msg = one_msg msg;
-    send msg
-  | True => (* do not send zero amounts *)
-  end
-end
-
 procedure HandleFulfillOrder(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -652,7 +637,13 @@ procedure HandleFulfillOrder(
     (* Paying out a commission if there is one *)
     match is_commission_fee with
     | True =>
-      SendZilIfNotZero brand_recipient brand_commission_fee;
+      msg_to_brand_recipient = {
+        _tag: "ZilOut";
+        _recipient: transfer_proxy;
+        _amount: Uint128 0;
+        to: brand_recipient;
+        amount: brand_commission_fee
+      };
 
       msg_to_collection_contract = {
         _tag: "TokenSaleCallback";
@@ -663,7 +654,7 @@ procedure HandleFulfillOrder(
         collection_id: collection_id;
         commission_fee: brand_commission_fee
       };
-      msgs2 = one_msg msg_to_collection_contract;
+      msgs2 = two_msgs msg_to_brand_recipient msg_to_collection_contract;
       send msgs2
 
     | False => (* No operation *)
@@ -971,62 +962,8 @@ procedure DoSetOrder(order: OrderParam)
             amount: sale_price
           };
           msgs = one_msg msg_to_send_zrc2;
-          send msgs;
-
-          msg_to_set_buyorder = {
-            _tag: "SetOrder";
-            _recipient: state;
-            _amount: Uint128 0;
-            side: side;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price;
-            sender: _origin;
-            expiration_bnum: expiration_bnum
-          };
-          msgs = one_msg msg_to_set_buyorder;
-          send msgs;
-    
-          e = {
-            _eventname : "SetOrder";
-            maker: _origin;
-            side: side;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price;
-            expiration_bnum: expiration_bnum
-          };
-          event e
+          send msgs
         | True =>
-          msg_to_set_buyorder = {
-            _tag: "SetOrder";
-            _recipient: state;
-            _amount: Uint128 0;
-            side: side;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price;
-            sender: _origin;
-            expiration_bnum: expiration_bnum
-          };
-          msgs = one_msg msg_to_set_buyorder;
-          send msgs;
-    
-          e = {
-            _eventname : "SetOrder";
-            maker: _origin;
-            side: side;
-            token_address: token_address;
-            token_id: token_id;
-            payment_token_address: payment_token_address;
-            sale_price: sale_price;
-            expiration_bnum: expiration_bnum
-          };
-          event e;
-
           accept;
           msg_to_send_zil = {
             _tag: "ZilIn";
@@ -1039,7 +976,34 @@ procedure DoSetOrder(order: OrderParam)
       | Some (somevalue) => 
         (* update the buy order *)
         RequireSelf _origin
-      end
+      end;
+      
+      msg_to_set_buyorder = {
+        _tag: "SetOrder";
+        _recipient: state;
+        _amount: Uint128 0;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        sender: _origin;
+        expiration_bnum: expiration_bnum
+      };
+      msgs = one_msg msg_to_set_buyorder;
+      send msgs;
+
+      e = {
+        _eventname : "SetOrder";
+        maker: _origin;
+        side: side;
+        token_address: token_address;
+        token_id: token_id;
+        payment_token_address: payment_token_address;
+        sale_price: sale_price;
+        expiration_bnum: expiration_bnum
+      };
+      event e
     end
   end
 end
@@ -1091,6 +1055,7 @@ transition FulfillOrder(
   seller: ByStr20,
   buyer: ByStr20
   )
+  RequireAllowedUser _origin;
   state <- state_contract;
   RequireNotPaused;
   RequireNonZeroAddress proxy;

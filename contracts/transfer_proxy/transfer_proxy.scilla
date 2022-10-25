@@ -37,7 +37,7 @@ let make_error =
       | NotMultiSigError                   => Int32 -23
       end
     in
-    { _exception : "Error"; code : result_code }
+    { _exception : "Error"; source : "transferproxy"; code : result_code }
 
 (***************************************************)
 (*             The contract definition             *)
