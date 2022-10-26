@@ -199,6 +199,13 @@ async function getState(privateKey, contract, token) {
   return state
 }
 
+async function getZRC2State(wallet, token) {
+  const tokenContract = zilliqa.contracts.at(token);
+  const tokenContractState = await tokenContract.getState();
+  const userBalance = new BigNumber(await tokenContractState.balances[wallet.toLowerCase()]);
+  return userBalance.toString();
+}
+
 async function signBatchTransaction(privateKey, addrs, totalTokens) {
   try {
     useKey(privateKey)
@@ -610,3 +617,4 @@ exports.signBatchTransaction = signBatchTransaction
 exports.getDeadlineBlock = getDeadlineBlock
 exports.setupBalancesOnAccounts = setupBalancesOnAccounts
 exports.clearBalancesOnAccounts = clearBalancesOnAccounts
+exports.getZRC2State = getZRC2State

@@ -166,23 +166,41 @@ procedure SetOrder_(token_address: ByStr20, token_id: Uint256, payment_token_add
         side: side;
         expiration_bnum: expiration_bnum
       };
-      msgs = one_msg msg_to_set_order;
-      send msgs
+      msgs1 = one_msg msg_to_set_order;
+      send msgs1
     | False =>
-      accept;
-      msg_to_set_order = {
-        _tag: "SetOrder";
-        _recipient: current_logic;
-        _amount: _amount;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price;
-        side: side;
-        expiration_bnum: expiration_bnum
-      };
-      msgs = one_msg msg_to_set_order;
-      send msgs
+      is_zero_address = builtin eq payment_token_address zero_address;
+      match is_zero_address with
+      | True =>
+        accept;
+        msg_to_set_order = {
+          _tag: "SetOrder";
+          _recipient: current_logic;
+          _amount: _amount;
+          token_address: token_address;
+          token_id: token_id;
+          payment_token_address: payment_token_address;
+          sale_price: sale_price;
+          side: side;
+          expiration_bnum: expiration_bnum
+        };
+        msgs2 = one_msg msg_to_set_order;
+        send msgs2
+      | False =>
+        msg_to_set_order = {
+          _tag: "SetOrder";
+          _recipient: current_logic;
+          _amount: Uint128 0;
+          token_address: token_address;
+          token_id: token_id;
+          payment_token_address: payment_token_address;
+          sale_price: sale_price;
+          side: side;
+          expiration_bnum: expiration_bnum
+        };
+        msgs3 = one_msg msg_to_set_order;
+        send msgs3
+      end
     end
   | None => 
     error = InvalidStateContractError;
@@ -279,23 +297,43 @@ transition FulfillOrder(
     sell_side_ <- &some_state.sell_side;
     is_sell_order = builtin eq side sell_side_;
     match is_sell_order with 
-    | True =>  
-      accept;
-      msg_to_fullfillorder = {
-        _tag: "FulfillOrder";
-        _recipient: current_logic;
-        _amount: _amount;
-        token_address: token_address;
-        token_id: token_id;
-        payment_token_address: payment_token_address;
-        sale_price: sale_price;
-        side: side;
-        dest: dest;
-        buyer: buyer;
-        seller: seller
-      };
-      msgs = one_msg msg_to_fullfillorder;
-      send msgs
+    | True =>
+      is_zero_address = builtin eq payment_token_address zero_address;
+      match is_zero_address with
+      | True =>
+        accept;
+        msg_to_fullfillorder = {
+          _tag: "FulfillOrder";
+          _recipient: current_logic;
+          _amount: _amount;
+          token_address: token_address;
+          token_id: token_id;
+          payment_token_address: payment_token_address;
+          sale_price: sale_price;
+          side: side;
+          dest: dest;
+          buyer: buyer;
+          seller: seller
+        };
+        msgs = one_msg msg_to_fullfillorder;
+        send msgs
+      | False =>
+        msg_to_fullfillorder = {
+          _tag: "FulfillOrder";
+          _recipient: current_logic;
+          _amount: Uint128 0;
+          token_address: token_address;
+          token_id: token_id;
+          payment_token_address: payment_token_address;
+          sale_price: sale_price;
+          side: side;
+          dest: dest;
+          buyer: buyer;
+          seller: seller
+        };
+        msgs = one_msg msg_to_fullfillorder;
+        send msgs
+      end
     | False =>
       msg_to_fullfillorder = {
         _tag: "FulfillOrder";

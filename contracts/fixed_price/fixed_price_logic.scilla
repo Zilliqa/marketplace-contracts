@@ -1084,14 +1084,20 @@ transition FulfillOrder(
       (* Sender must not be the seller *)
       RequireNotSelf seller;
 
-      accept;
-      msg_to_send_zil = {
-        _tag: "ZilIn";
-        _recipient: transfer_proxy;
-        _amount: _amount
-      };
-      msgs1 = one_msg msg_to_send_zil;
-      send msgs1;
+      is_zero_address = builtin eq payment_token_address zero_address;
+      
+      match is_zero_address with
+      | True =>
+        accept;
+        msg_to_send_zil = {
+          _tag: "ZilIn";
+          _recipient: transfer_proxy;
+          _amount: _amount
+        };
+        msgs1 = one_msg msg_to_send_zil;
+        send msgs1
+      | False =>
+      end;
 
       HandleFulfillOrder token_address token_id payment_token_address sale_price buyer seller side dest;
 

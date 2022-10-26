@@ -34,7 +34,7 @@ let make_error =
       | CodeNotOwner              => Int32 -4
       end
     in
-    { _exception : "Error"; code : result_code }
+    { _exception : "Error"; source: "wZIL"; code : result_code }
   
 let zero = Uint128 0
 
