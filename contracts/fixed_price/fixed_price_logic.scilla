@@ -135,10 +135,6 @@ type Error =
   | AllowedPaymentTokensContractNotFoundError
   | CollectionAddressNotFoundError
   | InvalidCollectionAddress
-  | InvalidStateContractError1
-  | InvalidStateContractError2
-  | InvalidStateContractError3
-  | InvalidStateContractError4
   | NotSameAddressError
   
 let make_error =
@@ -173,11 +169,7 @@ let make_error =
       | AllowedPaymentTokensContractNotFoundError   => Int32 -26
       | CollectionAddressNotFoundError              => Int32 -27
       | InvalidCollectionAddress                    => Int32 -28
-      | InvalidStateContractError1                  => Int32 -29
-      | InvalidStateContractError2                  => Int32 -30
-      | InvalidStateContractError3                  => Int32 -31
-      | InvalidStateContractError4                  => Int32 -32
-      | NotSameAddressError                         => Int32 -33
+      | NotSameAddressError                         => Int32 -29
       end
     in
     { _exception : "Error"; source: "logic"; code : result_code }
@@ -329,7 +321,7 @@ end
 
 procedure RequireValidRoyaltyFeeBPS(val_bps: Uint128)
   (* max: 25% (arbitrary number) *)
-  max = Uint128 2500;
+  max = Uint128 5000;
   is_gte_min = uint128_ge val_bps min_bps;
   is_lte_max = uint128_le val_bps max;
   
