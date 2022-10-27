@@ -10,6 +10,7 @@ library FixedPriceOrderbook_Logic
 
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_uint32 = Uint32 0
+let one_uint32 = Uint32 1
 let zero_uint128 = Uint128 0
 let false = False
 let true = True
@@ -192,6 +193,7 @@ contract FixedPriceOrderbook_Logic (
     field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 (Map ByStr20 BNum)))),
     field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 (Map ByStr20 BNum)))),
     field service_fee_bps: Uint128,
+    field allowed_payment_tokens: Map ByStr20 Uint32,
     field collection_address: ByStr20 with contract
       field token_collection: Map ByStr20 (Map Uint256 Uint32),
       field collection_owning_brand: Map Uint32 ByStr20,
@@ -223,6 +225,7 @@ field state_contract: ByStr20 with contract
   field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 (Map ByStr20 BNum)))),
   field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 (Map ByStr20 BNum)))),
   field service_fee_bps: Uint128,
+  field allowed_payment_tokens: Map ByStr20 Uint32,
   field collection_address: ByStr20 with contract
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
     field collection_owning_brand: Map Uint32 ByStr20,
@@ -373,21 +376,32 @@ end
 procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
   state <- state_contract;
   is_zero_address = builtin eq payment_token_address zero_address;
-  allowed_payment_tokens_exist <- &state as ByStr20 with contract field allowed_payment_tokens: Map ByStr20 Bool end;
-  match allowed_payment_tokens_exist with
-  | Some c =>
-    is_allowed_zrc2_address <- &c.allowed_payment_tokens[payment_token_address];
-    allowed_zrc2_address = option_bool true is_allowed_zrc2_address;
-    is_allowed = orb is_zero_address allowed_zrc2_address;
-    match is_allowed with
-    | True =>
-    | False =>
-      error = NotAllowedPaymentToken;
-      Throw error
+  match is_zero_address with 
+  | True => (* do nothing *)
+  | False =>
+    is_allowed_zrc2_address_value <- & state.allowed_payment_tokens[payment_token_address];
+    
+    match is_allowed_zrc2_address_value with
+      | None =>
+        error = NotAllowedPaymentToken;
+        Throw error
+      | Some some_value =>
+        is_allowed_zrc2_address_status = option_uint32 one_uint32 is_allowed_zrc2_address_value;
+        is_allowed = builtin eq is_allowed_zrc2_address_status one_uint32;
+        e = {
+          _eventname : "RequireAllowedPaymentToken";
+          is_allowed_zrc2_address_value: is_allowed_zrc2_address_value;
+          is_allowed_zrc2_address_status: is_allowed_zrc2_address_status;
+          is_allowed: is_allowed
+        };
+        event e;
+        match is_allowed with
+        | True =>
+        | False =>
+          error = NotAllowedPaymentToken;
+          Throw error
+        end
     end
-  | None => 
-    error = AllowedPaymentTokensContractNotFoundError;
-    Throw error
   end
 end
 
@@ -897,10 +911,6 @@ procedure DoSetOrder(order: OrderParam)
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
     state <- state_contract;
-    RequireNotExpired expiration_bnum;
-    RequireAllowedPaymentToken payment_token_address;
-    RequireThisToBeSpender token_address token_id;
-    RequireValidTotalFees token_address token_id;
     
     sell_side_ <- & state.sell_side;
     is_sell_order = builtin eq side sell_side_;
@@ -1033,6 +1043,10 @@ transition SetOrder(
   RequireNonZeroAddress state;
   RequireNonZeroAddress transfer_proxy;
   RequireAllowedUser _origin;
+  RequireNotExpired expiration_bnum;
+  RequireAllowedPaymentToken payment_token_address;
+  RequireThisToBeSpender token_address token_id;
+  RequireValidTotalFees token_address token_id;
   order = OrderParam token_address token_id payment_token_address sale_price side expiration_bnum;
   DoSetOrder order
 end

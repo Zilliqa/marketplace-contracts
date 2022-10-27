@@ -462,7 +462,6 @@ beforeEach(async () => {
   expect(txRegisterMarketplaceAddressLogic.receipt.success).toEqual(true);
 })
 
-// /*
 describe('Native ZIL', () => {
   beforeEach(async () => {
     // First we succesfully create a sell order
@@ -736,6 +735,9 @@ describe('Native ZIL', () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
     const fixedPriceState = zilliqa.contracts.at(_fixedPriceState)
 
+    const contractStateStart = await fixedPriceState.getState()
+    const contractStateStartSellOrders = contractStateStart.sell_orders;
+
     const tokenId = String(1)
     const salePrice = String(20000)
     const side = String(0)
@@ -797,7 +799,7 @@ describe('Native ZIL', () => {
           [1]: {
             [zero_address]: {
               "10000" : {
-                [__sellerAddress.toLowerCase()] : "21"
+                [__sellerAddress.toLowerCase()] : contractStateStartSellOrders[nftTokenAddress.toLowerCase()][1][zero_address.toLowerCase()][10000][__sellerAddress.toLowerCase()]
               },
               [salePrice] : {
                 [__sellerAddress.toLowerCase()] : `${expiryBlock}`
@@ -812,6 +814,9 @@ describe('Native ZIL', () => {
   test('SetOrder: Buyer creates buy order for token #1', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
     const fixedPriceState = zilliqa.contracts.at(_fixedPriceState)
+
+    const contractStateStart = await fixedPriceState.getState()
+    const contractStateStartBuyOrders = contractStateStart.buy_orders;
 
     const transferProxyStartBalance = await getBalance(_transferProxyContract)
     const buyerStartingBalance = await getBalance(accounts.nftBuyer.address)
@@ -893,7 +898,7 @@ describe('Native ZIL', () => {
           [1]: {
             [zero_address]: {
               "10000" : {
-                [__buyerAddress.toLowerCase()] : "21"
+                [__buyerAddress.toLowerCase()] : contractStateStartBuyOrders[nftTokenAddress.toLowerCase()][1][zero_address.toLowerCase()][10000][__buyerAddress.toLowerCase()]
               },
               [salePrice]: {
                 [__buyerAddress.toLowerCase()] : `${expiryBlock}`
@@ -1713,109 +1718,7 @@ describe('Native ZIL', () => {
       })
     );
   })
-  
-  // 🚫🚫🚫 Invalid Testcases, that exist in earlier version
-  // this case won't come, it will just create order for stranger
-  // test('SetOrder: throws NotSelfError (stranger must not update the order)', async () => {
-  //   // tx pass when it maybe shouldnt? Is a stranger allowed to do a SetOrder (buy) on a token not his?  
-
-  //   const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
-
-  //   // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-  //   const formattedAdtOrder = await createFixedPriceOrder(
-  //     fixedPriceAddress,
-  //     nftTokenAddress,
-  //     '1',
-  //     zero_address,
-  //     '10000',
-  //     '1',
-  //     String(globalBNum + 35)
-  //   )
-
-  //   const txSetOrder = await callContract(
-  //     accounts.stranger.privateKey,
-  //     fixedPriceContract,
-  //     'SetOrder',
-  //     [
-  //       {
-  //         vname: 'order',
-  //         type: `${fixedPriceAddress}.OrderParam`,
-  //         value: formattedAdtOrder
-  //       }
-  //     ],
-  //     0,
-  //     false,
-  //     false
-  //   )
-    
-  //   expect(txSetOrder.receipt.success).toEqual(true)
-  // })
-
-  // test('FulfillOrder: throws NotEqualAmountError', async () => {
-  //   const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
-  //   console.log('buy balance')
-  //   console.log(await getBalance(accounts.nftBuyer.address))
-
-  //   const tokenId = String(1)
-  //   const salePrice = String(10000)
-  //   const side = String(0)
-  //   const txAmount = 100 // this is less than the order amount, so expected to fail
-
-  //   const tx = await callContract(
-  //     accounts.nftBuyer.privateKey,
-  //     fixedPriceContract,
-  //     'FulfillOrder',
-  //     [
-  //       {
-  //         vname: 'token_address',
-  //         type: 'ByStr20',
-  //         value: nftTokenAddress
-  //       },
-  //       {
-  //         vname: 'token_id',
-  //         type: 'Uint256',
-  //         value: tokenId
-  //       },
-  //       {
-  //         vname: 'payment_token_address',
-  //         type: 'ByStr20',
-  //         value: zero_address
-  //       },
-  //       {
-  //         vname: 'sale_price',
-  //         type: 'Uint128',
-  //         value: salePrice
-  //       },
-  //       {
-  //         vname: 'side',
-  //         type: 'Uint32',
-  //         value: side
-  //       },
-  //       {
-  //         vname: 'dest',
-  //         type: 'ByStr20',
-  //         value: accounts.nftBuyer.address
-  //       },
-  //       {
-  //         vname: 'seller',
-  //         type: 'ByStr20',
-  //         value: accounts.nftSeller.address
-  //       },
-  //       {
-  //         vname: 'buyer',
-  //         type: 'ByStr20',
-  //         value: accounts.nftBuyer.address
-  //       }
-  //     ],
-  //     txAmount,
-  //     false,
-  //     false
-  //   )
-  //   console.log(tx.receipt)
-  //   expect(tx.receipt.success).toEqual(false)
-  // })
 })
-// */
 
 describe('Wrapped ZIL', () => {
   beforeEach(async () => {
@@ -1930,7 +1833,6 @@ describe('Wrapped ZIL', () => {
     console.log(txBuyOrderEvent);
   })
 
-  // /*
   test('SetOrder: throws NotTokenOwnerError (stranger creates sell order for token #1)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
@@ -1981,43 +1883,54 @@ describe('Wrapped ZIL', () => {
     ])
   })
 
-  // need to test again
-  // test('SetOrder: throws NotAllowedPaymentToken (seller creates sell order for token #2)', async () => {
-  //   const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+  test('SetOrder: throws NotAllowedPaymentToken (seller creates sell order for token #2)', async () => {
+    const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-  //   // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-  //   const formattedAdtOrder = await createFixedPriceOrder(
-  //     fixedPriceAddress,
-  //     nftTokenAddress,
-  //     '2',
-  //     notAcceptedPaymentTokenAddress,
-  //     '20000',
-  //     '0',
-  //     String(globalBNum + 35)
-  //   )
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      notAcceptedPaymentTokenAddress,
+      '20000',
+      '0',
+      String(globalBNum + 35)
+    )
 
-  //   console.log(formattedAdtOrder, "formattedAdtOrder");
+    console.log(formattedAdtOrder, "formattedAdtOrder");
 
-  //   const tx = await callContract(
-  //     accounts.nftSeller.privateKey,
-  //     fixedPriceContract,
-  //     'SetOrder',
-  //     [
-  //       {
-  //         vname: 'order',
-  //         type: `${fixedPriceAddress}.OrderParam`,
-  //         value: formattedAdtOrder
-  //       }
-  //     ],
-  //     0,
-  //     false,
-  //     false
-  //   )
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
     
-  //   console.log(tx.receipt);
-  //   expect(tx.receipt.success).toEqual(false)
-  //   // expect(tx.receipt.exceptions).toEqual()
-  // })
+    console.log(tx.receipt);
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -15))])'
+      },
+      { line: 1, message: 'Raised from RequireNotExpired' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from SetOrder' }
+    ])
+  })
 
   test('SetOrder: throws TokenOwnerError (seller must not create a buy order for token #1)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
@@ -2146,6 +2059,9 @@ describe('Wrapped ZIL', () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
     const fixedPriceState = zilliqa.contracts.at(_fixedPriceState)
 
+    const contractStateStart = await fixedPriceState.getState()
+    const contractStateStartSellOrders = contractStateStart.sell_orders;
+
     const tokenId = String(1)
     const salePrice = String(20000)
     const side = String(0)
@@ -2191,17 +2107,18 @@ describe('Wrapped ZIL', () => {
     expect(txEvent.params[6].value).toEqual(expiryBlock)
 
     // Confirming that our sell order was executed correctly by reading the contract state
-    const contractState = await fixedPriceState.getState()
+    const contractStateEnd = await fixedPriceState.getState()
+    console.log(contractStateEnd, "contractStateEnd");
 
     let __sellerAddress = accounts.nftSeller.address;
 
-    expect(JSON.stringify(contractState.sell_orders)).toBe(
+    expect(JSON.stringify(contractStateEnd.sell_orders)).toBe(
       JSON.stringify({
         [nftTokenAddress.toLowerCase()]: {
           [1]: {
             [paymentTokenAddress.toLowerCase()]: {
               "10000" : {
-                [__sellerAddress.toLowerCase()] : "21"
+                [__sellerAddress.toLowerCase()] : contractStateStartSellOrders[nftTokenAddress.toLowerCase()][1][paymentTokenAddress.toLowerCase()][10000][__sellerAddress.toLowerCase()]
               },
               [salePrice] : {
                 [__sellerAddress.toLowerCase()] : `${expiryBlock}`
@@ -2216,6 +2133,9 @@ describe('Wrapped ZIL', () => {
   test('SetOrder: Buyer creates buy order for token #1', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
     const fixedPriceState = zilliqa.contracts.at(_fixedPriceState)
+
+    const contractStateStart = await fixedPriceState.getState()
+    const contractStateStartBuyOrders = contractStateStart.buy_orders;
 
     const trasferProxyStartBalance = await getZRC2State(_transferProxyContract, paymentTokenAddress)
     console.log(trasferProxyStartBalance, "trasferProxyStartBalance");
@@ -2279,18 +2199,18 @@ describe('Wrapped ZIL', () => {
     expect(parseInt(buyerEndBalance)).toBe(parseInt(buyerStartBalance) - parseInt(salePrice))
 
     // Confirming that our buy order was executed correctly by reading the contract state
-    const contractState = await fixedPriceState.getState()
-    console.log(contractState.buy_orders, "contractState.buy_orders");
+    const contractStateEnd = await fixedPriceState.getState()
+    console.log(contractStateEnd.buy_orders, "contractStateEnd.buy_orders");
 
     let __buyerAddress = accounts.nftBuyer.address;
 
-    expect(JSON.stringify(contractState.buy_orders)).toBe(
+    expect(JSON.stringify(contractStateEnd.buy_orders)).toBe(
       JSON.stringify({
         [nftTokenAddress.toLowerCase()]: {
           [1]: {
             [paymentTokenAddress.toLowerCase()]: {
               "10000" : {
-                [__buyerAddress.toLowerCase()] : "21"
+                [__buyerAddress.toLowerCase()] : contractStateStartBuyOrders[nftTokenAddress.toLowerCase()][1][paymentTokenAddress.toLowerCase()][10000][__buyerAddress.toLowerCase()]
               },
               [salePrice]: {
                 [__buyerAddress.toLowerCase()] : `${expiryBlock}`
@@ -2301,7 +2221,7 @@ describe('Wrapped ZIL', () => {
       })
     );
   })
-  
+
   test('FulfillOrder: throws SellOrderNotFoundError', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
@@ -2884,43 +2804,4 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.success).toEqual(true)
   })
 
-  // */
-
-  /*
-    // Invalid test case, if a stranger try to update order, a new order will be created under stangers
-    test('SetOrder: throws NotSelfError (stranger must not update the order)', async () => {
-      const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
-
-      // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-      const formattedAdtOrder = await createFixedPriceOrder(
-        fixedPriceAddress,
-        nftTokenAddress,
-        '1',
-        paymentTokenAddress,
-        '10000',
-        '1',
-        String(globalBNum + 35)
-      )
-
-      const tx = await callContract(
-        accounts.stranger.privateKey,
-        fixedPriceContract,
-        'SetOrder',
-        [
-          {
-            vname: 'order',
-            type: `${fixedPriceAddress}.OrderParam`,
-            value: formattedAdtOrder
-          }
-        ],
-        0,
-        false,
-        false
-      )
-
-      console.log("SetOrder: throws NotSelfError", tx.receipt)
-      expect(tx.receipt.success).toEqual(false)
-      // expect(tx.receipt.exceptions).toEqual()
-    })
-  */
 })

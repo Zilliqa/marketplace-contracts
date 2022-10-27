@@ -11,6 +11,7 @@ library FixedPriceOrderbook_State
 let zero_address = 0x0000000000000000000000000000000000000000
 let false = False
 let true = True
+let one_uint32 = Uint32 1
 
 (* Error exceptions *)
 type Error =
@@ -96,7 +97,7 @@ field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr2
 field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum)))
 
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
-field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
+field allowed_payment_tokens: Map ByStr20 Uint32 = Emp ByStr20 Uint32
 
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
@@ -310,9 +311,10 @@ transition Unpause()
 end
 
 (* @multi-sig *)
+(* if accepted pass 1 *)
 transition AllowPaymentTokenAddress(address: ByStr20)
   RequireContractOwner;
-  allowed_payment_tokens[address] := true;
+  allowed_payment_tokens[address] := one_uint32;
   e = {
     _eventname : "AllowPaymentTokenAddress";
     payment_token_address: address
