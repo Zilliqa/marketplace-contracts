@@ -1526,7 +1526,7 @@ describe('Native ZIL', () => {
     expect(tx.receipt.success).toEqual(true)
   })
 
-  test('CancelOrder: throws NotAllowedToCancelOrder by stranger', async () => {
+  test('CancelOrder: throws BuyOrderNotFoundError by stranger', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
     const tokenId = String(1)
@@ -1572,7 +1572,19 @@ describe('Native ZIL', () => {
     //console.log(tx)
     console.log("CancelOrder: throws NotAllowedToCancelOrder by stranger", tx.receipt)
     expect(tx.receipt.success).toEqual(false)
-    // expect(tx.receipt.exceptions).toEqual()
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -7))])'
+      },
+      { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireProxy' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
+      { line: 1, message: 'Raised from CancelOrder' }
+    ])
   })
 
   test('CancelOrder: Buyer cancels buy order', async () => {
@@ -2802,6 +2814,226 @@ describe('Wrapped ZIL', () => {
     )
 
     expect(tx.receipt.success).toEqual(true)
+  })
+
+  test('CancelOrder: throws BuyOrderNotFoundError by stranger', async () => {
+    const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.stranger.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    console.log("CancelOrder: throws NotAllowedToCancelOrder by stranger", tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -7))])'
+      },
+      { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireProxy' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
+      { line: 1, message: 'Raised from CancelOrder' }
+    ])
+  })
+
+  test('CancelOrder: Buyer cancels buy order', async () => {
+    const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+    const fixedPriceState = zilliqa.contracts.at(_fixedPriceState)
+
+    const trasferProxyStartBalance = await getZRC2State(_transferProxyContract, paymentTokenAddress)
+    console.log(trasferProxyStartBalance, "trasferProxyStartBalance");
+
+    const buyerStartBalance = await getZRC2State(accounts.nftBuyer.address, paymentTokenAddress)
+    console.log(buyerStartBalance, "buyerStartBalance");
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(1)
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    console.log("CancelOrder: Buyer cancels buy order", tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter((e) => e._eventname === 'CancelOrder')[0]
+
+    //let tokenAddress = txEvent.params[2].value
+    //tokenAddress = tokenAddress.toLowerCase()
+
+    console.log(txEvent)
+
+    expect(txEvent.params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(txEvent.params[5].value).toEqual(salePrice)
+
+    // Confirming that our buy order was in fact updated correctly 
+    const contractState = await fixedPriceState.getState()
+    console.log("contractState.buy_orders", contractState.buy_orders);
+
+    const trasferProxybeEndBalance = await getZRC2State(_transferProxyContract, paymentTokenAddress)
+    console.log(trasferProxybeEndBalance, "trasferProxybeEndBalance");
+
+    const buyerEndBalance = await getZRC2State(accounts.nftBuyer.address, paymentTokenAddress)
+    console.log(buyerEndBalance, "buyerEndBalance");
+
+    expect(parseInt(trasferProxybeEndBalance)).toBe(parseInt(trasferProxyStartBalance) - parseInt(salePrice))
+    expect(parseInt(buyerEndBalance)).toBe(parseInt(buyerStartBalance) + parseInt(salePrice))
+
+    expect(JSON.stringify(contractState.buy_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: { [paymentTokenAddress.toLowerCase()]: {} },
+        },
+      })
+    );
+  })
+
+  test('CancelOrder: Seller cancels sell order', async () => {
+    const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+    const fixedPriceState = zilliqa.contracts.at(_fixedPriceState)
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(0)
+
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'CancelOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    //console.log(tx)
+    console.log("CancelOrder: Seller cancels sell order", tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter((e) => e._eventname === 'CancelOrder')[0]
+
+    //let tokenAddress = txEvent.params[2].value
+    //tokenAddress = tokenAddress.toLowerCase()
+
+    console.log(txEvent)
+
+    expect(txEvent.params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(txEvent.params[5].value).toEqual(salePrice)
+
+    // Confirming that our buy order was in fact updated correctly 
+    const contractState = await fixedPriceState.getState()
+    console.log("contractState.sell_orders",contractState.sell_orders);
+
+    expect(JSON.stringify(contractState.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: { [paymentTokenAddress.toLowerCase()]: {} },
+        },
+      })
+    );
   })
 
 })

@@ -388,13 +388,6 @@ procedure RequireAllowedPaymentToken(payment_token_address: ByStr20)
       | Some some_value =>
         is_allowed_zrc2_address_status = option_uint32 one_uint32 is_allowed_zrc2_address_value;
         is_allowed = builtin eq is_allowed_zrc2_address_status one_uint32;
-        e = {
-          _eventname : "RequireAllowedPaymentToken";
-          is_allowed_zrc2_address_value: is_allowed_zrc2_address_value;
-          is_allowed_zrc2_address_status: is_allowed_zrc2_address_status;
-          is_allowed: is_allowed
-        };
-        event e;
         match is_allowed with
         | True =>
         | False =>
@@ -1180,7 +1173,6 @@ transition CancelOrder(
   side: Uint32
 )
   state <- state_contract;
-  RequireProxy;
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
   RequireNonZeroAddress transfer_proxy;
