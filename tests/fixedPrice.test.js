@@ -1570,7 +1570,7 @@ describe('Native ZIL', () => {
     )
 
     //console.log(tx)
-    console.log("CancelOrder: throws NotAllowedToCancelOrder by stranger", tx.receipt)
+    console.log("CancelOrder: throws NotAllowedToCancelOrder by stranger Native ZIL", tx.receipt)
     expect(tx.receipt.success).toEqual(false)
     expect(tx.receipt.exceptions).toEqual([
       {
@@ -1582,7 +1582,6 @@ describe('Native ZIL', () => {
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
-      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from CancelOrder' }
     ])
   })
@@ -2860,7 +2859,7 @@ describe('Wrapped ZIL', () => {
     )
 
     //console.log(tx)
-    console.log("CancelOrder: throws NotAllowedToCancelOrder by stranger", tx.receipt)
+    console.log("CancelOrder: throws NotAllowedToCancelOrder by stranger ZRC2", tx.receipt)
     expect(tx.receipt.success).toEqual(false)
     expect(tx.receipt.exceptions).toEqual([
       {
@@ -2872,7 +2871,6 @@ describe('Wrapped ZIL', () => {
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
-      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from CancelOrder' }
     ])
   })
