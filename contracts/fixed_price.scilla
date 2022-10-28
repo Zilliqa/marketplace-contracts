@@ -788,6 +788,8 @@ procedure DoSetOrder(order: OrderParam)
           (* create a buy order *)
           match is_native_zil with 
           | False =>
+            ZRC2TransferFrom payment_token_address _sender _this_address sale_price
+            
           | True => 
             (* _amount must be equal to sale_price *)
             RequireEqualZILAmount sale_price;
@@ -1128,4 +1130,10 @@ end
 transition ZRC6_TransferFromCallback(from:ByStr20, to: ByStr20, token_id: Uint256)
 end
 transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 end
