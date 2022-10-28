@@ -187,16 +187,19 @@ transition Unpause()
 end
 
 transition ZRC2TransferFrom (token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+  RequireNotPaused;
   RequireOperator;
   ZRC2TransferFrom_ token_address from to amount
 end
 
 transition ZRC2Transfer (token_address: ByStr20, to: ByStr20, amount: Uint128)
+  RequireNotPaused;
   RequireOperator;
   ZRC2Transfer_ token_address to amount
 end
 
 transition ZilOut (to: ByStr20, amount: Uint128)
+  RequireNotPaused;
   RequireOperator;
   msg = {
     _tag: "AddFunds";
@@ -208,11 +211,13 @@ transition ZilOut (to: ByStr20, amount: Uint128)
 end
 
 transition ZRC6TransferFrom (token_address: ByStr20, to: ByStr20, token_id: Uint256)
+  RequireNotPaused;
   RequireOperator;
   ZRC6TransferFrom_ token_address to token_id
 end
 
 transition ZilIn ()
+  RequireNotPaused;
   RequireOperator;
   accept;
   msg = {

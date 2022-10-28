@@ -216,6 +216,7 @@ procedure SetBatchOrders_(order: OrderParam)
 end
 
 transition SetOrder(order: OrderParam)
+  RequireNotPaused;
   match order with
   | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
     SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum

@@ -16,8 +16,6 @@ let one_uint32 = Uint32 1
 (* Error exceptions *)
 type Error =
   | NotContractOwnerError
-  | NotPausedError
-  | PausedError
   | SelfError
   | NotContractOwnershipRecipientError
   | ZeroAddressError
@@ -28,12 +26,10 @@ let make_error =
     let result_code = 
       match result with
       | NotContractOwnerError              => Int32 -1
-      | NotPausedError                     => Int32 -2
-      | PausedError                        => Int32 -3
-      | SelfError                          => Int32 -4
-      | NotContractOwnershipRecipientError => Int32 -5
-      | ZeroAddressError                   => Int32 -6
-      | NotOperatorError                   => Int32 -7
+      | SelfError                          => Int32 -2
+      | NotContractOwnershipRecipientError => Int32 -3
+      | ZeroAddressError                   => Int32 -4
+      | NotOperatorError                   => Int32 -5
       end
     in
     { _exception : "Error"; source : "state"; code : result_code }
@@ -86,10 +82,6 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
 
-(* Emergency stop mechanism *)
-(* Defaults to False *)
-field is_paused: Bool = false
-
 (* token_address -> ( token_id -> ( payment_token_address -> (sale_price -> sell_order  ) ) *)
 field sell_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint128 Map ByStr20 BNum)))
 
@@ -120,28 +112,6 @@ procedure RequireContractOwner()
   | True => 
   | False =>
     error = NotContractOwnerError;
-    Throw error
-  end
-end
-
-procedure RequireNotPaused()
-  paused <- is_paused;
-  match paused with
-  | False =>
-  | True =>
-    (* Contract is paused *)
-    error = PausedError;
-    Throw error
-  end
-end
-
-procedure RequirePaused()
-  paused <- is_paused;
-  match paused with
-  | True =>
-  | False =>
-    (* Contract is paused *)
-    error = NotPausedError;
     Throw error
   end
 end
@@ -219,7 +189,6 @@ transition SetOrder(
     expiration_bnum: BNum,
     sender: ByStr20
 )
-  RequireNotPaused;
   RequireLogic;
   sell_side_ <- sell_side;
   is_sell_order = builtin eq side sell_side_;
@@ -252,7 +221,6 @@ transition FulfillOrder(
   sale_price: Uint128,
   side: Uint32
   )
-  RequireNotPaused;
   RequireLogic;
   sell_side_ <- sell_side;
   is_sell_order = builtin eq side sell_side_;
@@ -282,32 +250,6 @@ transition CancelOrder(
 )
   RequireLogic;
   Cancel token_address token_id payment_token_address sale_price side maker
-end
-
-(* @multi-sig *)
-(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
-transition Pause()
-  RequireNotPaused;
-  RequireContractOwner;
-  is_paused := true;
-  e = {
-    _eventname: "Pause";
-    is_paused: true
-  };
-  event e
-end
-
-(* @multi-sig *)
-(* Unpauses the contract. *)
-transition Unpause()
-  RequirePaused;
-  RequireContractOwner;
-  is_paused := false;
-  e = {
-    _eventname: "Unpause";
-    is_paused: false
-  };
-  event e
 end
 
 (* @multi-sig *)

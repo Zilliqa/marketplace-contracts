@@ -108,8 +108,6 @@ end Uint256 ByStr20 Uint128 Uint32 BNum
 (* Error exceptions *)
 type Error =
   | NotContractOwnerError
-  | NotPausedError
-  | PausedError
   | ZeroAddressDestinationError
   | ThisAddressDestinationError
   | SellOrderNotFoundError
@@ -142,34 +140,32 @@ let make_error =
     let result_code = 
       match result with
       | NotContractOwnerError                       => Int32 -1
-      | NotPausedError                              => Int32 -2
-      | PausedError                                 => Int32 -3
-      | ZeroAddressDestinationError                 => Int32 -4
-      | ThisAddressDestinationError                 => Int32 -5
-      | SellOrderNotFoundError                      => Int32 -6
-      | BuyOrderNotFoundError                       => Int32 -7
-      | NotSpenderError                             => Int32 -8
-      | NotTokenOwnerError                          => Int32 -9
-      | TokenOwnerError                             => Int32 -10
-      | ExpiredError                                => Int32 -11
-      | NotAllowedToCancelOrder                     => Int32 -12
-      | NotSelfError                                => Int32 -13
-      | SelfError                                   => Int32 -14
-      | NotAllowedPaymentToken                      => Int32 -15
-      | InvalidBPSError                             => Int32 -16
-      | NotEqualAmountError                         => Int32 -17
-      | NotContractOwnershipRecipientError          => Int32 -18
-      | NotAllowedUserError                         => Int32 -19
-      | TotalFeesTooHigh                            => Int32 -20
-      | InvalidRoyaltyFeeBPSError                   => Int32 -21
-      | NotProxyAdminError                          => Int32 -22
-      | ZeroAddressError                            => Int32 -23
-      | InvalidSellSideError                        => Int32 -24
-      | AllowListNotFoundError                      => Int32 -25
-      | AllowedPaymentTokensContractNotFoundError   => Int32 -26
-      | CollectionAddressNotFoundError              => Int32 -27
-      | InvalidCollectionAddress                    => Int32 -28
-      | NotSameAddressError                         => Int32 -29
+      | ZeroAddressDestinationError                 => Int32 -2
+      | ThisAddressDestinationError                 => Int32 -3
+      | SellOrderNotFoundError                      => Int32 -4
+      | BuyOrderNotFoundError                       => Int32 -5
+      | NotSpenderError                             => Int32 -6
+      | NotTokenOwnerError                          => Int32 -7
+      | TokenOwnerError                             => Int32 -8
+      | ExpiredError                                => Int32 -9
+      | NotAllowedToCancelOrder                     => Int32 -10
+      | NotSelfError                                => Int32 -11
+      | SelfError                                   => Int32 -12
+      | NotAllowedPaymentToken                      => Int32 -13
+      | InvalidBPSError                             => Int32 -14
+      | NotEqualAmountError                         => Int32 -15
+      | NotContractOwnershipRecipientError          => Int32 -16
+      | NotAllowedUserError                         => Int32 -17
+      | TotalFeesTooHigh                            => Int32 -18
+      | InvalidRoyaltyFeeBPSError                   => Int32 -19
+      | NotProxyAdminError                          => Int32 -20
+      | ZeroAddressError                            => Int32 -21
+      | InvalidSellSideError                        => Int32 -22
+      | AllowListNotFoundError                      => Int32 -23
+      | AllowedPaymentTokensContractNotFoundError   => Int32 -24
+      | CollectionAddressNotFoundError              => Int32 -25
+      | InvalidCollectionAddress                    => Int32 -26
+      | NotSameAddressError                         => Int32 -27
       end
     in
     { _exception : "Error"; source: "logic"; code : result_code }
@@ -205,10 +201,6 @@ field contract_owner: ByStr20 = initial_contract_owner
 (* Contract ownership recipient *)
 (* Defaults to `zero_address` *)
 field contract_ownership_recipient: ByStr20 = zero_address
-
-(* Emergency stop mechanism *)
-(* Defaults to False *)
-field is_paused: Bool = false
 
 (* State Contract *)
 (* Defaults to `initial_state_contract` *)
@@ -262,28 +254,6 @@ procedure RequireContractOwner()
   | True => 
   | False =>
     error = NotContractOwnerError;
-    Throw error
-  end
-end
-
-procedure RequireNotPaused()
-  paused <- is_paused;
-  match paused with
-  | False =>
-  | True =>
-    (* Contract is paused *)
-    error = PausedError;
-    Throw error
-  end
-end
-
-procedure RequirePaused()
-  paused <- is_paused;
-  match paused with
-  | True =>
-  | False =>
-    (* Contract is paused *)
-    error = NotPausedError;
     Throw error
   end
 end
@@ -1023,7 +993,6 @@ transition SetOrder(
   expiration_bnum: BNum
 )
   state <- state_contract;
-  RequireNotPaused;
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
   RequireNonZeroAddress transfer_proxy;
@@ -1056,7 +1025,6 @@ transition FulfillOrder(
   )
   RequireAllowedUser _origin;
   state <- state_contract;
-  RequireNotPaused;
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
   RequireNonZeroAddress transfer_proxy;
@@ -1174,42 +1142,10 @@ transition CancelOrder(
   
   match is_contract_owner with
   | True => 
-    (* the contract owner can cancel orders only if this contract is paused. *)
-    RequirePaused
   | False =>
-    (* - the makers can cancel their orders only if this contract is not paused. *)
-    RequireProxy;
-    RequireNotPaused
+    RequireProxy
   end;
   Cancel token_address token_id payment_token_address sale_price side
-end
-
-(* @multi-sig *)
-(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
-transition Pause()
-  RequireNotPaused;
-  RequireContractOwner;
-
-  is_paused := true;
-  e = {
-    _eventname: "Pause";
-    is_paused: true
-  };
-  event e
-end
-
-(* @multi-sig *)
-(* Unpauses the contract. *)
-transition Unpause()
-  RequirePaused;
-  RequireContractOwner;
-
-  is_paused := false;
-  e = {
-    _eventname: "Unpause";
-    is_paused: false
-  };
-  event e
 end
 
 (* @multi-sig *)
