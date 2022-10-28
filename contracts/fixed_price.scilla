@@ -481,6 +481,18 @@ procedure ZRC2TransferFrom(payment_token_address: ByStr20, from: ByStr20, to: By
   send msgs
 end
 
+procedure ZRC2Transfer(payment_token_address: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_zrc2 = {
+    _tag: "Transfer";
+    _recipient: payment_token_address;
+    _amount: Uint128 0;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_zrc2;
+  send msgs
+end
+
 procedure ZRC6TransferFrom(
   token_address: ByStr20,
   to: ByStr20,
@@ -714,6 +726,8 @@ procedure Cancel(
       is_native_zil = builtin eq payment_token_address zero_address;
       match is_native_zil with
         | False =>
+          ZRC2Transfer payment_token_address maker sale_price
+
         | True =>
           msg = {
             _tag: "AddFunds";

@@ -1762,6 +1762,9 @@ describe('Native ZIL', () => {
   test('CancelOrder: Buyer cancels buy order', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
+    const fixedPriceStartingBalance = await getBalance(fixedPriceAddress)
+    const buyerStartingBalance = await getBalance(accounts.nftBuyer.address)
+
     const tokenId = String(1)
     const salePrice = String(10000)
     const side = String(1)
@@ -1819,6 +1822,15 @@ describe('Native ZIL', () => {
 
     expect(txEvent.params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
     expect(txEvent.params[5].value).toEqual(salePrice)
+
+    const fixedPriceEndingBalance = await getBalance(fixedPriceAddress)
+    const buyerEndingBalance = await getBalance(accounts.nftBuyer.address)
+
+    console.log(fixedPriceStartingBalance, fixedPriceEndingBalance, salePrice);
+    console.log(buyerStartingBalance, buyerEndingBalance, salePrice);
+
+    expect(parseInt(fixedPriceEndingBalance)).toBe(parseInt(fixedPriceStartingBalance) - parseInt(salePrice))
+    // expect(parseInt(buyerEndingBalance)).toBe((salePrice) + parseInt(buyerStartingBalance))
 
     // Confirming that our buy order was in fact updated correctly 
     const contractState = await fixedPriceContract.getState()
@@ -3205,6 +3217,12 @@ describe('Wrapped ZIL', () => {
   test('CancelOrder: Buyer cancels buy order', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
+    const fixedPriceStartingBalance = await getZRC2State(fixedPriceAddress, paymentTokenAddress)
+    console.log(fixedPriceStartingBalance, "fixedPriceStartingBalance");
+
+    const buyerStartBalance = await getZRC2State(accounts.nftBuyer.address, paymentTokenAddress)
+    console.log(buyerStartBalance, "buyerStartBalance");
+
     const tokenId = String(1)
     const salePrice = String(10000)
     const side = String(1)
@@ -3246,8 +3264,17 @@ describe('Wrapped ZIL', () => {
     )
 
     //console.log(tx)
-    //console.log(tx.receipt)
+    console.log(tx.receipt)
     expect(tx.receipt.success).toEqual(true)
+
+    const fixedPriceEndingBalance = await getZRC2State(fixedPriceAddress, paymentTokenAddress)
+    console.log(fixedPriceEndingBalance, "fixedPriceEndingBalance");
+
+    const buyerEndBalance = await getZRC2State(accounts.nftBuyer.address, paymentTokenAddress)
+    console.log(buyerEndBalance, "buyerEndBalance");
+
+    expect(parseInt(fixedPriceEndingBalance)).toBe(parseInt(fixedPriceStartingBalance) - parseInt(salePrice))
+    expect(parseInt(buyerEndBalance)).toBe(parseInt(buyerStartBalance) + parseInt(salePrice))
 
     // Confirming that the order was executed correctly based on the emitted event
     const txEvent = tx.receipt.event_logs.filter(
