@@ -566,15 +566,6 @@ describe('Native ZIL', () => {
     const contractState = await fixedPriceContract.getState()
     const sellOrders = contractState.sell_orders
 
-    // expect(JSON.stringify(contractState.sell_orders)).toBe(
-    //   JSON.stringify({
-    //     [nftTokenAddress.toLowerCase()]: {
-    //       [1]: { [zero_address.toLowerCase()]: {} },
-    //     },
-    //   })
-    // );
-
-
     const newSellOrder = Object.keys(sellOrders).filter(
       (order) =>
         order.includes(1)
@@ -935,42 +926,6 @@ describe('Native ZIL', () => {
     expect(txEvent.params[3].value).toEqual(tokenId)
     expect(txEvent.params[5].value).toEqual(salePrice)
     expect(txEvent.params[6].value).toEqual(expiryBlock)
-
-    // Confirming that our sell order was executed correctly by reading the contract state
-    // const contractState = await fixedPriceContract.getState()
-
-
-    // const sellOrders = contractState.sell_orders
-
-    // const newBuyOrder = Object.keys(sellOrders).filter(
-    //   (order) => 
-    //   order.includes(2)
-    // )
-    // console.log(newBuyOrder)
-
-    // expect(JSON.stringify(contractState.sell_orders)).toBe(
-    //   JSON.stringify({
-    //     [nftTokenAddress.toLowerCase()]: {
-    //       [1]: {
-    //         [zero_address]: {
-    //           [String(10000)]: scillaJSONVal(
-    //             `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
-    //             [accounts.nftSeller.address, expiryBlock]
-    //           ),
-    //         },
-    //       },
-    //       [2]: 
-    //       {
-    //         [zero_address]: {
-    //           [salePrice]: scillaJSONVal(
-    //             `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
-    //             [accounts.nftSeller.address, expiryBlock]
-    //           ),
-    //         },
-    //       },
-    //     },
-    //   })
-    // );
   })
 
   test('SetOrder: Buyer creates buy order for token #1', async () => {
@@ -1067,7 +1022,7 @@ describe('Native ZIL', () => {
     );
   })
 
-  test('BatchSetOrder: throws PausedError', async () => {
+  test('SetBatchOrder: throws PausedError', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const orderList = []
@@ -1076,6 +1031,18 @@ describe('Native ZIL', () => {
     const salePrice = String(20000)
     const side = String(0)
     const expiryBlock = String(globalBNum + 35)
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
 
     // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
     const formattedAdtOrder = await createFixedPriceOrder(
@@ -1095,7 +1062,7 @@ describe('Native ZIL', () => {
     const tx = await callContract(
       accounts.nftSeller.privateKey,
       fixedPriceContract,
-      'BatchSetOrder',
+      'SetBatchOrder',
       [
         {
           vname: 'order_list',
@@ -2519,7 +2486,7 @@ describe('Wrapped ZIL', () => {
     );
   })
 
-  test('BatchSetOrder: throws PausedError', async () => {
+  test('SetBatchOrder: throws PausedError', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const orderList = []
@@ -2528,6 +2495,18 @@ describe('Wrapped ZIL', () => {
     const salePrice = String(20000)
     const side = String(0)
     const expiryBlock = String(globalBNum + 35)
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
 
     // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
     const formattedAdtOrder = await createFixedPriceOrder(
@@ -2547,7 +2526,7 @@ describe('Wrapped ZIL', () => {
     const tx = await callContract(
       accounts.nftSeller.privateKey,
       fixedPriceContract,
-      'BatchSetOrder',
+      'SetBatchOrder',
       [
         {
           vname: 'order_list',
@@ -2559,7 +2538,7 @@ describe('Wrapped ZIL', () => {
       false,
       false
     )
-    console.log(tx.receipt)
+    console.log("SetBatchOrder: throws PausedError",tx.receipt)
     expect(tx.receipt.success).toEqual(false)
   })
 
