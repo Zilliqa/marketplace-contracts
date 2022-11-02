@@ -1340,7 +1340,7 @@ Called by either fixed_price or auction contracts during an NFT sale to detect i
 
 #### 11. `SetMaxCommissionFeeBPS`
 
-An admin function that lets `contract_owner` update the `max_commission_fee_bps` value. It can not exceed a hardcoded value set to 5000 (25%).
+An admin function that lets `contract_owner` update the `max_commission_fee_bps` value. It can not exceed a hardcoded value set to 5000 (50%).
 
 **Arguments:**
 
