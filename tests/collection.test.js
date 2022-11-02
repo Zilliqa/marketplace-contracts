@@ -284,7 +284,8 @@ describe('User Transitions', () => {
       false,
       false
     )
-
+    
+    console.log("CreateCollection: throws CommissionFeeTooHigh" ,tx.receipt)
     expect(tx.receipt.success).toEqual(false)
     expect(tx.receipt.exceptions).toEqual([
       {
@@ -296,6 +297,78 @@ describe('User Transitions', () => {
     ])
 
     // Add validation for correct state changes
+  })
+
+  test('SetMaxCommissionFeeBPS: Sets a new commison fee BPS', async () => {
+    const collectionContract = await zilliqa.contracts.at(collectionContractAddress)
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      collectionContract,
+      'SetMaxCommissionFeeBPS',
+      [
+        {
+          vname: 'new_max_commission_fee_bps',
+          type: "Uint128",
+          value: "3000"
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    
+    console.log("SetMaxCommissionFeeBPS: Sets a new commison fee BPS" ,tx.receipt)
+    expect(tx.receipt.success).toEqual(true);
+
+    const txCreateCollection = await callContract(
+      accounts.stranger.privateKey,
+      collectionContract,
+      'CreateCollection',
+      [
+        {
+          vname: 'commission_fee',
+          type: "Uint128",
+          value: "3000"
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("SetMaxCommissionFeeBPS: CreateCollection with 3000 fee" ,txCreateCollection.receipt)
+    expect(txCreateCollection.receipt.success).toEqual(true)
+  })
+
+  test('SetMaxCommissionFeeBPS: throws InvalidMaxFeeBPS', async () => {
+    const collectionContract = await zilliqa.contracts.at(collectionContractAddress)
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      collectionContract,
+      'SetMaxCommissionFeeBPS',
+      [
+        {
+          vname: 'new_max_commission_fee_bps',
+          type: "Uint128",
+          value: "7000"
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    
+    console.log("SetMaxCommissionFeeBPS: throws InvalidMaxFeeBPS" ,tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -10))])'
+      },
+      { line: 1, message: 'Raised from RequireContractOwner' },
+      { line: 1, message: 'Raised from SetMaxCommissionFeeBPS' }
+    ])
   })
 
   test('CreateCollection: Brand creates a collection', async () => {
