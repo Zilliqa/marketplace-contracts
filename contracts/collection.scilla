@@ -227,7 +227,7 @@ procedure RequireValidBPS(val_bps: Uint128)
 end
 
 procedure RequireValidMaxBPS(val_bps: Uint128)
-  (* max: 25% (arbitrary number) *)
+  (* max: 50% (arbitrary number) *)
   max <- max_allowed_commission_fee_bps_constant;
   is_lte_max = uint128_le val_bps max;
   
