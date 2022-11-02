@@ -1617,6 +1617,179 @@ describe('Native ZIL', () => {
 
   })
 
+  test('FulfillOrder: throws RequireValidRoyaltyFeeBPS error', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const nftTokenContract = await zilliqa.contracts.at(nftTokenAddress)
+    const collectionContract = await zilliqa.contracts.at(collectionContractAddress)
+
+    const royaltyFee = "5000";
+    const brandComission = "5000";
+
+    // Royalty fee on NFT contract
+    const setRoyaltyFee = await callContract(
+      accounts.nftSeller.privateKey,
+      nftTokenContract,
+      'SetRoyaltyFeeBPS',
+      [
+        {
+          vname: 'fee_bps',
+          type: 'Uint128',
+          value: royaltyFee
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log(setRoyaltyFee.receipt)
+    expect(setRoyaltyFee.receipt.success).toEqual(true)
+    
+    // Brand commission Fee
+    const txSetMaxCommission = await callContract(
+      accounts.contractOwner.privateKey,
+      collectionContract,
+      'SetMaxCommissionFeeBPS',
+      [
+        {
+          vname: 'new_max_commission_fee_bps',
+          type: "Uint128",
+          value: brandComission
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    
+    console.log("SetMaxCommissionFeeBPS" ,txSetMaxCommission.receipt)
+    expect(txSetMaxCommission.receipt.success).toEqual(true);
+
+    const tokenId = String(1)
+    const salePrice = String(10000)
+    const side = String(0)
+
+    const createCollectionTx = await callContract(
+      accounts.address01.privateKey,
+      collectionContract,
+      'CreateCollection',
+      [
+        {
+          vname: "commission_fee",
+          type: "Uint128",
+          value: "5000"
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(createCollectionTx.receipt.success).toEqual(true)
+
+    const collectionItem = await createCollectionItemParam(
+      collectionContractAddress,
+      nftTokenAddress,
+      "1",
+      "1"
+    )
+
+    const sendRequestTx = await callContract(
+      accounts.address01.privateKey,
+      collectionContract,
+      'RequestTokenToCollection',
+      [
+        {
+          vname: 'request',
+          type: `${collectionContractAddress}.CollectionItemParam`,
+          value: collectionItem
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(sendRequestTx.receipt.success).toEqual(true)
+
+    const acceptRequestTx = await callContract(
+      accounts.nftSeller.privateKey,
+      collectionContract,
+      'AcceptCollectionRequest',
+      [
+        {
+          vname: 'request',
+          type: `${collectionContractAddress}.CollectionItemParam`,
+          value: collectionItem
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    expect(acceptRequestTx.receipt.success).toEqual(true)
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress.toLowerCase()
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: '0x0000000000000000000000000000000000000000'
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      salePrice,
+      false,
+      false
+    )
+
+    console.log("FulfillOrder: throws RequireValidRoyaltyFeeBPS error", tx.receipt)
+    console.log(tx.receipt.transitions)
+    expect(tx.receipt.success).toEqual(false)
+
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -21))])'
+      },
+      { line: 1, message: 'Raised from RequireEqualZILAmount' },
+      { line: 1, message: 'Raised from RequireNotSelf' },
+      { line: 1, message: 'Raised from RequireNotExpired' },
+      { line: 1, message: 'Raised from RequireValidDestination' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from FulfillOrder' }
+    ])
+  })
+
   test('FulfillOrder: Seller fullfills buy order', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
