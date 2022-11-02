@@ -301,6 +301,7 @@ describe('User Transitions', () => {
 
   test('SetMaxCommissionFeeBPS: Sets a new commison fee BPS', async () => {
     const collectionContract = await zilliqa.contracts.at(collectionContractAddress)
+    const newCommission = "3000";
 
     const tx = await callContract(
       accounts.contractOwner.privateKey,
@@ -310,7 +311,7 @@ describe('User Transitions', () => {
         {
           vname: 'new_max_commission_fee_bps',
           type: "Uint128",
-          value: "3000"
+          value: newCommission
         }
       ],
       0,
@@ -321,6 +322,11 @@ describe('User Transitions', () => {
     console.log("SetMaxCommissionFeeBPS: Sets a new commison fee BPS" ,tx.receipt)
     expect(tx.receipt.success).toEqual(true);
 
+    const contractStateAfter = await collectionContract.getState();
+    const commistionFeeAfter = contractStateAfter.max_commission_fee_bps;
+
+    expect(commistionFeeAfter.toString()).toBe(newCommission.toString());
+
     const txCreateCollection = await callContract(
       accounts.stranger.privateKey,
       collectionContract,
@@ -329,7 +335,7 @@ describe('User Transitions', () => {
         {
           vname: 'commission_fee',
           type: "Uint128",
-          value: "3000"
+          value: newCommission
         }
       ],
       0,
@@ -338,6 +344,15 @@ describe('User Transitions', () => {
     )
     console.log("SetMaxCommissionFeeBPS: CreateCollection with 3000 fee" ,txCreateCollection.receipt)
     expect(txCreateCollection.receipt.success).toEqual(true)
+
+    const txEvent = txCreateCollection.receipt.event_logs.filter((e) => e._eventname === 'CollectionCreated')[0]
+    expect(txEvent.params[2].value).toEqual(newCommission)
+
+    const contractUpdatedState = await collectionContract.getState();
+    
+    expect(JSON.stringify(contractUpdatedState.collection_commission_fee)).toBe(
+      JSON.stringify({ '1': '200', '2': newCommission })
+    );
   })
 
   test('SetMaxCommissionFeeBPS: throws InvalidMaxFeeBPS', async () => {
