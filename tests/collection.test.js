@@ -323,9 +323,9 @@ describe('User Transitions', () => {
     expect(tx.receipt.success).toEqual(true);
 
     const contractStateAfter = await collectionContract.getState();
-    const commistionFeeAfter = contractStateAfter.max_commission_fee_bps;
+    const commissionFeeAfter = contractStateAfter.max_commission_fee_bps;
 
-    expect(commistionFeeAfter.toString()).toBe(newCommission.toString());
+    expect(commissionFeeAfter.toString()).toBe(newCommission.toString());
 
     const txCreateCollection = await callContract(
       accounts.stranger.privateKey,
