@@ -122,6 +122,9 @@ field has_had_first_sale: Map ByStr20 (Map Uint256 Bool) = Emp ByStr20 (Map Uint
 (* Can be updated by `contract_owner` with the transition `SetMaxCommissionFeeBPS` *)
 field max_commission_fee_bps: Uint128 = Uint128 250
 
+(* This is the max allowed commission fee, this can't be changed *)
+field max_allowed_commission_fee_bps_constant: Uint128 = Uint128 5000
+
 (* Emit Errors *)
 procedure Throw(error: Error)
   e = make_error error;
@@ -224,8 +227,8 @@ procedure RequireValidBPS(val_bps: Uint128)
 end
 
 procedure RequireValidMaxBPS(val_bps: Uint128)
-  (* max: 25% (arbitrary number) *)
-  max = Uint128 2500;
+  (* max: 50% (arbitrary number) *)
+  max <- max_allowed_commission_fee_bps_constant;
   is_lte_max = uint128_le val_bps max;
   
   match is_lte_max with 
