@@ -1211,6 +1211,7 @@ describe('Native ZIL', () => {
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -19))])'
       },
       { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
   })
@@ -1274,6 +1275,7 @@ describe('Native ZIL', () => {
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
         { line: 1, message: 'Raised from FulfillOrder' }
       ]
     )
@@ -1338,6 +1340,7 @@ describe('Native ZIL', () => {
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from RequireSignedOrderDisabled' },        
         { line: 1, message: 'Raised from FulfillOrder' }
       ]
     )
@@ -1404,6 +1407,7 @@ describe('Native ZIL', () => {
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
   })
@@ -1473,6 +1477,7 @@ describe('Native ZIL', () => {
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
         { line: 1, message: 'Raised from FulfillOrder' }
       ]
     )
@@ -2012,6 +2017,7 @@ describe('Native ZIL', () => {
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
   })
@@ -3072,6 +3078,7 @@ describe('Wrapped ZIL', () => {
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -19))])'
       },
       { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
   })
@@ -3135,6 +3142,7 @@ describe('Wrapped ZIL', () => {
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
         { line: 1, message: 'Raised from FulfillOrder' }
       ]
     )
@@ -3199,6 +3207,7 @@ describe('Wrapped ZIL', () => {
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireAllowedUser' },
         { line: 1, message: 'Raised from RequireNotPaused' },
+        { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
         { line: 1, message: 'Raised from FulfillOrder' }
       ]
     )
@@ -3265,6 +3274,7 @@ describe('Wrapped ZIL', () => {
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireNotPaused' },
+      { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
   })
