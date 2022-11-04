@@ -607,8 +607,7 @@ procedure IsBlockNumberWithinRange(blocknum_data : Uint128)
   end
 end
 
-procedure RequireValidVerifer()
-  pub_key <- verifier_pub_key;
+procedure RequireValidVerifier(pub_key : ByStr33)
   is_zero_pubkey = builtin eq pub_key zero_pubkey;
   match is_zero_pubkey with
   | False =>
@@ -628,10 +627,10 @@ procedure RequireValidVerifierSignature(
   message: ByStr,
   signature: ByStr64
 )
-  RequireValidVerifer;
 
   (* Verify if signature is valid *)
   pub_key <- verifier_pub_key;
+  RequireValidVerifier pub_key;
   is_valid = builtin ecdsa_verify pub_key message signature;
 
   match is_valid with
@@ -1461,6 +1460,7 @@ end
 transition EnableSignedOrder(pub_key: ByStr33)
   RequireContractOwner;
   RequireSignedOrderDisabled;
+  RequireValidVerifier pub_key;
 
   is_signed_order_mode := true;
   verifier_pub_key := pub_key;

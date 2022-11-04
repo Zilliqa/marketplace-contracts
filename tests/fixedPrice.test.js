@@ -2,7 +2,7 @@
 require('dotenv').config({ path: './.env' })
 const { BN } = require('@zilliqa-js/util')
 const { scillaJSONVal } = require("@zilliqa-js/scilla-json-utils");
-const { getAddressFromPrivateKey, schnorr } = require('@zilliqa-js/crypto')
+const { getAddressFromPrivateKey, getPubKeyFromPrivateKey, schnorr } = require('@zilliqa-js/crypto')
 const { deployAllowlistContract } = require('../scripts/marketplace/deployAllowlistContract.js')
 const { deployFixedPriceContract } = require('../scripts/marketplace/deployFixedPriceContract.js')
 const { deployFungibleToken } = require('../scripts/deployFungibleToken.js')
@@ -15,8 +15,15 @@ const { setupBalancesOnAccounts, clearBalancesOnAccounts, } = require('../script
 const { callContract, getBalance, getZRC2State } = require('../scripts/utils/call.js')
 const { getBlockNumber } = require('../scripts/utils/helper')
 const { zilliqa } = require('../scripts/utils/zilliqa.js');
+const { bytes } = require('@zilliqa-js/util');
+var EC = require('elliptic').ec;
+const { SHA256, enc } = require('crypto-js')
+
+
+
 
 const zero_address = "0x0000000000000000000000000000000000000000"
+const zero_pubkey = "0x000000000000000000000000000000000000000000000000000000000000000000"
 
 const accounts = {
   'contractOwner': {
@@ -55,6 +62,10 @@ const accounts = {
     'address': getAddressFromPrivateKey(process.env.N_04_PRIVATE_KEY),
     'privateKey': process.env.N_04_PRIVATE_KEY
   },
+  'verifier' : {
+    'privateKey' : process.env.MASTER_PRIVATE_KEY,
+    'address': getAddressFromPrivateKey(process.env.MASTER_PRIVATE_KEY)
+  }
 }
 
 let paymentTokenAddress;
@@ -504,6 +515,311 @@ async function createOrder(_tokenId, _salePrice, _side, _expiryBlock, _paymentTo
   expect(tx.receipt.success).toEqual(true)
   return tx;
 }
+
+async function enableSignedOrder(
+  fixedPriceContractAddress,
+  privateKey,
+  publicKey,
+) {
+  tx = callContract (
+    privateKey,
+    fixedPriceContractAddress,
+    'EnableSignedOrder',
+    [
+      {
+        "vname":"pub_key",
+        "type":"ByStr33",    
+        "value" : publicKey     
+      }
+    ],
+    0,
+    false,
+    false
+  )
+  return tx
+}
+
+async function disableSignedOrder(
+  fixedPriceContractAddress,
+  privateKey
+) {
+  tx = callContract (
+    privateKey,
+    fixedPriceContractAddress,
+    'DisableSignedOrder',
+    [],
+    0,
+    false,
+    false
+  )
+  return tx
+}
+
+async function createFixedPriceOrderInZil(
+  privateKey, 
+  fixedPriceAddress,
+  nftTokenAddress,
+  tokenId,
+  side,
+  price
+){
+  const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+
+  paymentToken = zero_address
+  expiryBlock = String(globalBNum + 20)
+
+  // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+  const formattedSaleAdtOrder = await createFixedPriceOrder(
+    fixedPriceAddress,
+    nftTokenAddress,
+    tokenId,
+    paymentToken,
+    price,
+    side,
+    expiryBlock
+  )
+
+  amount = side == '0' ? 0 : price
+
+  const tx = await callContract(
+    privateKey,
+    fixedPriceContract,
+    'SetOrder',
+    [
+      {
+        vname: 'order',
+        type: `${fixedPriceAddress}.OrderParam`,
+        value: formattedSaleAdtOrder
+      }
+    ],
+    amount,
+    false,
+    false
+  )  
+  return tx
+}
+
+function trimHex(s) {
+    return s.startsWith('0x') ? s.substring(2) : s;
+}
+
+function toHexArray(num, size){
+    return bytes.intToHexArray(parseInt(num), size);
+}
+
+async function serializeMessage(tokenAddr, tokenId, dest, side, price, payment_token_addr, bnum)
+{
+    // Concat data to serialize
+    msg = [trimHex(tokenAddr)]                      
+            .concat(toHexArray(tokenId, 64))    // 256 bits->32 bytes->64 chars as hex
+            .concat([trimHex(dest)])                
+            .concat(toHexArray(side, 8))        // 32 bits->4 bytes->8 chars as hex
+            .concat(toHexArray(price, 32))      // 128 bits->16 bytes->32 chars as hex
+            .concat([trimHex(payment_token_addr)])  
+            .concat(toHexArray(bnum, 32))       // 128 bits->16 bytes->32 chars as hex
+            .join('');
+
+    msg = '0x' + msg
+    console.log('serialized msg ' + msg)
+    return msg
+}
+
+async function signMessage(privkey, msg)
+{
+    var ec = new EC('secp256k1');
+    const keyPair = ec.keyFromPrivate(trimHex(privkey));
+
+    //create a digest from the message
+    digest = SHA256(enc.Hex.parse(trimHex(msg)))
+
+    //signature must be in canonical form
+    sigder = keyPair.sign(digest.toString(), 'hex', {canonical: true})
+
+    // Verify signature
+    // console.log(keyPair.verify(digest.toString(), signature));
+
+    //flatten the signature
+    const sigrs = Buffer.concat([
+        sigder.r.toArrayLike(Buffer, 'be', 32),
+        sigder.s.toArrayLike(Buffer, 'be', 32),
+    ]);
+
+    signature = "0x" + sigrs.toString('hex')
+    console.log('signature ' + signature)
+
+    return signature
+
+}
+
+async function fulfillOrderUnsigned(
+  privateKey,
+  fixedPriceAddress,
+  nftTokenAddress,
+  tokenId,
+  side,
+  price,
+  destinationAddress
+) {
+  const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+
+  paymentToken = zero_address
+  amount = side == '0' ?  price : 0
+
+  const tx = await callContract(
+    privateKey,
+    fixedPriceContract,
+    'FulfillOrder',
+    [
+      {
+        vname: 'token_address',
+        type: 'ByStr20',
+        value: nftTokenAddress
+      },
+      {
+        vname: 'token_id',
+        type: 'Uint256',
+        value: tokenId
+      },
+      {
+        vname: 'payment_token_address',
+        type: 'ByStr20',
+        value: zero_address
+      },
+      {
+        vname: 'sale_price',
+        type: 'Uint128',
+        value: price
+      },
+      {
+        vname: 'side',
+        type: 'Uint32',
+        value: side
+      },
+      {
+        vname: 'dest',
+        type: 'ByStr20',
+        value: destinationAddress
+      }
+    ],
+    amount,
+    false,
+    false
+  )
+  return tx
+}
+
+async function fulfillOrderSignedWithSignature(
+  privateKey,
+  fixedPriceAddress,
+  nftTokenAddress,
+  tokenId,
+  side,
+  price,
+  paymentToken,
+  destinationAddress,
+  msg,
+  signature
+) {
+
+  const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
+
+  amount = side == '0' ?  price : 0
+
+  const tx = await callContract(
+    privateKey,
+    fixedPriceContract,
+    'FulfillOrderSigned',
+    [
+      {
+        vname: 'token_address',
+        type: 'ByStr20',
+        value: nftTokenAddress
+      },
+      {
+        vname: 'token_id',
+        type: 'Uint256',
+        value: tokenId
+      },
+      {
+        vname: 'payment_token_address',
+        type: 'ByStr20',
+        value: paymentToken
+      },
+      {
+        vname: 'sale_price',
+        type: 'Uint128',
+        value: price
+      },
+      {
+        vname: 'side',
+        type: 'Uint32',
+        value: side
+      },
+      {
+        vname: 'dest',
+        type: 'ByStr20',
+        value: destinationAddress
+      },
+      {
+        vname: "message",
+        type: "ByStr",
+        value: msg
+      },        
+      {
+          vname: "signature",
+          type: "ByStr64",
+          value: signature
+      }        
+    ],
+    amount,
+    false,
+    false
+  )
+
+  return tx
+
+}
+
+async function fulfillOrderSigned(
+  signer,
+  privateKey,
+  fixedPriceAddress,
+  nftTokenAddress,
+  tokenId,
+  side,
+  price,
+  paymentToken,
+  destinationAddress
+) {
+
+  const msg = await serializeMessage(
+    nftTokenAddress,
+    tokenId,
+    destinationAddress,
+    side,
+    price,
+    paymentToken,
+    globalBNum
+  )
+
+  const signature = await signMessage(signer, msg)
+
+  const tx = await fulfillOrderSignedWithSignature(
+    privateKey,
+    fixedPriceAddress,
+    nftTokenAddress,
+    tokenId,
+    side,
+    price,
+    paymentToken,
+    destinationAddress,
+    msg,
+    signature
+  )
+
+  return tx
+}
+
 
 describe('Native ZIL', () => {
   beforeEach(async () => {
@@ -3992,6 +4308,589 @@ describe('Wrapped ZIL', () => {
   })
 })
 
+describe ('Signed Order', () => {
+
+  const tokenId = String(1)
+  const salePrice = String(10000)
+  const side = String(0)
+
+  beforeEach(async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const tx = await createFixedPriceOrderInZil(
+      accounts.nftSeller.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress,
+      tokenId,
+      side,
+      salePrice
+    )
+
+  })
+
+  test('EnabledSignedOrder and DisableSignedOrder', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    
+    //Call with non contract owner, this should fail
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.forbidden.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.forbidden.privateKey)
+    )
+
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -1))])'
+      },
+      { line: 1, message: 'Raised from EnableSignedOrder' }
+    ])    
+
+    //Use invalid public key
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.contractOwner.privateKey,
+      zero_pubkey
+    )
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -28))])'
+      },
+      { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
+      { line: 1, message: 'Raised from RequireContractOwner' },
+      { line: 1, message: 'Raised from EnableSignedOrder' }
+    ])    
+
+
+    //Call with contract owner, this should be good
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.verifier.privateKey)
+    )
+    expect(tx.receipt.success).toEqual(true)
+
+
+    //Enable again, this should fail
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.verifier.privateKey)
+    )
+
+    console.log(tx.receipt.exceptions)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -30))])'
+      },
+      { line: 1, message: 'Raised from RequireContractOwner' },
+      { line: 1, message: 'Raised from EnableSignedOrder' }
+    ])  
+
+
+    //Call with non contract owner, this should fail since it's already enabled
+    tx = await disableSignedOrder(
+      fixedPriceContract,
+      accounts.forbidden.privateKey,
+    )
+
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -1))])'
+      },
+      { line: 1, message: 'Raised from DisableSignedOrder' }
+    ])    
+
+
+    //Disable signed order mode, this should be good
+    tx = await disableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey
+    )
+    expect(tx.receipt.success).toEqual(true)    
+
+    //Disable again, this should fail since it's already disabled
+    tx = await disableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+    )
+
+    console.log(tx.receipt.exceptions)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -29))])'
+      },
+      { line: 1, message: 'Raised from RequireContractOwner' },
+      { line: 1, message: 'Raised from DisableSignedOrder' }
+    ])  
+
+  })
+
+  test('FulfillOrderSigned: Successful case, sell side', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    //enable and set verifier key
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.verifier.privateKey)
+    )
+    expect(tx.receipt.success).toEqual(true)
+        
+    tx = await fulfillOrderSigned(
+      accounts.verifier.privateKey,
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+
+  })
+
+  test('FulfillOrderSigned: Successful case, buy side', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    //enable and set verifier key
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.verifier.privateKey)
+    )
+    expect(tx.receipt.success).toEqual(true)
+
+    buySide = String(1)
+    tx = await createFixedPriceOrderInZil(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress,
+      tokenId,
+      buySide,
+      salePrice
+    )    
+        
+    tx = await fulfillOrderSigned(
+      accounts.verifier.privateKey,
+      accounts.nftSeller.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      buySide,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+
+  })
+
+
+
+  test('FulfillOrder: Wrong mode', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    //Call fulfillOrderSigned but the signed mode is not set
+    tx = await fulfillOrderSigned(
+      accounts.verifier.privateKey,
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address
+    )
+    console.log(tx.receipt.exceptions)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -29))])'
+      },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+    //Now enable the signed mode
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.contractOwner.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.contractOwner.privateKey)
+    )
+    expect(tx.receipt.success).toEqual(true)
+
+    //Call fulfillOrder but the signed mode is set
+    tx = await fulfillOrderUnsigned(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      accounts.nftBuyer.address
+    )
+    console.log(tx.receipt.exceptions)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -30))])'
+      },
+      { line: 1, message: 'Raised from FulfillOrder' }
+    ])  
+
+
+  })
+
+  test('FulfillOrder: Invalid verifier', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    //enable and set verifier key
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.verifier.privateKey)
+    )
+    expect(tx.receipt.success).toEqual(true)
+        
+    tx = await fulfillOrderSigned(
+      accounts.forbidden.privateKey,
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -22))])'
+      },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+  })
+
+  test('FulfillOrder: Invalid messages', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    //enable and set verifier key
+    tx = await enableSignedOrder(
+      fixedPriceContract,
+      accounts.verifier.privateKey,
+      '0x' + getPubKeyFromPrivateKey(accounts.verifier.privateKey)
+    )
+    expect(tx.receipt.success).toEqual(true)
+
+    //mismatched NFT address
+    msg = await serializeMessage(
+      zero_address, //invalid nft
+      tokenId,
+      accounts.nftBuyer.address,
+      side,
+      salePrice,
+      zero_address,
+      globalBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+      },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+
+    //mismatched token ID
+    otherId = String(2)
+    msg = await serializeMessage(
+      nftTokenAddress.toLowerCase(),
+      otherId,
+      accounts.nftBuyer.address,
+      side,
+      salePrice,
+      zero_address,
+      globalBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+      },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+    //mismatched destination
+    msg = await serializeMessage(
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      zero_address,
+      side,
+      salePrice,
+      zero_address,
+      globalBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+      },
+      { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+    //mismatched side
+    wrongSide = String(1)
+    msg = await serializeMessage(
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      accounts.nftBuyer.address,
+      wrongSide,
+      salePrice,
+      zero_address,
+      globalBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+      },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+    //mismatched price
+    wrongPrice = String(20000)
+    msg = await serializeMessage(
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      accounts.nftBuyer.address,
+      side,
+      wrongPrice,
+      zero_address,
+      globalBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+      },
+      { line: 1, message: 'Raised from RequireSideInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+
+    //mismatched token address
+    wrongPaymentToken =  nftTokenAddress.toLowerCase()
+    msg = await serializeMessage(
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      accounts.nftBuyer.address,
+      side,
+      salePrice,
+      wrongPaymentToken,
+      globalBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+      },
+      { line: 1, message: 'Raised from RequirePriceInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireSideInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+    //expired block number
+    wrongBNum = globalBNum-10
+    msg = await serializeMessage(
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      accounts.nftBuyer.address,
+      side,
+      salePrice,
+      zero_address,
+      wrongBNum
+    )
+    signature = await signMessage(accounts.verifier.privateKey, msg)
+    
+    tx = await fulfillOrderSignedWithSignature(
+      accounts.nftBuyer.privateKey,
+      fixedPriceAddress,
+      nftTokenAddress.toLowerCase(),
+      tokenId,
+      side,
+      salePrice,
+      zero_address,
+      accounts.nftBuyer.address,
+      msg,
+      signature
+    )
+    console.log(tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -27))])'
+      },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequirePriceInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireSideInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
+      { line: 1, message: 'Raised from RequireValidVerifier' },
+      { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
+      { line: 1, message: 'Raised from FulfillOrderSigned' }
+    ])  
+
+
+  })
+
+
+})
 describe('Native ZIL & ZRC2', () => {
   beforeEach(async () => {
     const paymentTokenContract = await zilliqa.contracts.at(paymentTokenAddress)
