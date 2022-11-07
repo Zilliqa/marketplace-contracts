@@ -538,107 +538,98 @@ procedure HandleFulfillOrder(
   side: Uint32,
   buy_dest: ByStr20
   )
-  
-  (* Assume this marketplace support royalty *)
-  royalty_fee_bps <- & token_address.royalty_fee_bps;
-  RequireValidRoyaltyFeeBPS royalty_fee_bps;
-  royalty_amount = portion sale_price royalty_fee_bps;
+  is_sale_price_zero = builtin eq sale_price zero_uint128;
 
-  (* Calculating the Service Fee *)
-  fee_bps <- service_fee_bps;
-  svc_fee = portion sale_price fee_bps;
-
-  (* Calculating the optional commission fee *)
-  collections_contract <- collection_address;
-  
-  opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
-  collection_id = option_uint32 zero_uint32 opt_collection_id;
-  commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
-  has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
-  
-  brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
-  is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
-
-  (* The brand recipient to pay commission to *)
-  opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
-  brand_recipient = option_address zero_address opt_brand_recipient;
-
-  profit = builtin sub sale_price royalty_amount;
-  profit_after_commission = builtin sub profit brand_commission_fee;
-  seller_profit = builtin sub profit_after_commission svc_fee;
-
-  royalty_recipient <- & token_address.royalty_recipient;
-  RequireAllowedUser royalty_recipient;
-
-  svc_fee_recipient <- service_fee_recipient;
-  RequireAllowedUser svc_fee_recipient;
-
-  (* The currency is ZIL if the payment_token_address is zero address *)
-  is_native_zil = builtin eq payment_token_address zero_address;
-  match is_native_zil with
+  match is_sale_price_zero with
   | True =>
-    msg_to_royalty_recipient = {
-      _tag: "AddFunds";
-      _recipient: royalty_recipient;
-      _amount: royalty_amount
+    (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
+    ZRC6TransferFrom token_address buy_dest token_id;
+
+    e = {
+      _eventname : "FulfillOrder";
+      taker: _sender;
+      side: side;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price;
+      seller: seller;
+      buyer: buyer;
+      asset_recipient: buy_dest;
+      payment_tokens_recipient: seller;
+      royalty_recipient: zero_address;
+      royalty_amount: zero_uint128;
+      service_fee: zero_uint128
     };
-
-    msg_to_svc_fee_recipient = {
-      _tag: "AddFunds";
-      _recipient: svc_fee_recipient;
-      _amount: svc_fee
-    };
-    
-    msg_to_seller = {
-      _tag: "AddFunds";
-      _recipient: seller;
-      _amount: seller_profit
-    };
-    
-    msgs = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
-    send msgs;
-    
-    (* Paying out a commission if there is one *)
-    match is_commission_fee with
-    | True =>
-      SendZilIfNotZero brand_recipient brand_commission_fee;
-
-      msg_to_collection_contract = {
-        _tag: "TokenSaleCallback";
-        _recipient: collections_contract; 
-        _amount: zero_uint128;
-        token_address: token_address;
-        token_id: token_id;
-        collection_id: collection_id;
-        commission_fee: brand_commission_fee
-      };
-      msgs = one_msg msg_to_collection_contract;
-      send msgs
-
-    | False => (* No operation *)
-    end
-
+    event e
   | False =>
-    (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
+    (* Assume this marketplace support royalty *)
+    royalty_fee_bps <- & token_address.royalty_fee_bps;
+    RequireValidRoyaltyFeeBPS royalty_fee_bps;
+    royalty_amount = portion sale_price royalty_fee_bps;
 
-    (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
-    ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;
+    (* Calculating the Service Fee *)
+    fee_bps <- service_fee_bps;
+    svc_fee = portion sale_price fee_bps;
 
-    (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
-    ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
+    (* Calculating the optional commission fee *)
+    collections_contract <- collection_address;
 
-    (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
-    ZRC2TransferFrom payment_token_address buyer seller seller_profit;
+    opt_collection_id <- & collections_contract.token_collection[token_address][token_id];
+    collection_id = option_uint32 zero_uint32 opt_collection_id;
+    commission_fee_bps <- & collections_contract.collection_commission_fee[collection_id];
+    has_had_first_sale <- & exists collections_contract.has_had_first_sale[token_address][token_id];
 
-    (* Paying out a commission if there is one *)
-    match is_commission_fee with
-      | False => (* No Operation *)
-      | True => 
-        ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee;
+    brand_commission_fee = compute_commission_fee sale_price commission_fee_bps has_had_first_sale;
+    is_commission_fee = uint128_gt brand_commission_fee zero_uint128;
+
+    (* The brand recipient to pay commission to *)
+    opt_brand_recipient <- & collections_contract.collection_owning_brand[collection_id];
+    brand_recipient = option_address zero_address opt_brand_recipient;
+
+    profit = builtin sub sale_price royalty_amount;
+    profit_after_commission = builtin sub profit brand_commission_fee;
+    seller_profit = builtin sub profit_after_commission svc_fee;
+
+    royalty_recipient <- & token_address.royalty_recipient;
+    RequireAllowedUser royalty_recipient;
+
+    svc_fee_recipient <- service_fee_recipient;
+    RequireAllowedUser svc_fee_recipient;
+
+    (* The currency is ZIL if the payment_token_address is zero address *)
+    is_native_zil = builtin eq payment_token_address zero_address;
+    match is_native_zil with
+    | True =>
+      msg_to_royalty_recipient = {
+        _tag: "AddFunds";
+        _recipient: royalty_recipient;
+        _amount: royalty_amount
+      };
+
+      msg_to_svc_fee_recipient = {
+        _tag: "AddFunds";
+        _recipient: svc_fee_recipient;
+        _amount: svc_fee
+      };
+  
+      msg_to_seller = {
+        _tag: "AddFunds";
+        _recipient: seller;
+        _amount: seller_profit
+      };
+
+      msgs = three_msgs msg_to_royalty_recipient msg_to_svc_fee_recipient msg_to_seller;
+      send msgs;
+
+      (* Paying out a commission if there is one *)
+      match is_commission_fee with
+      | True =>
+        SendZilIfNotZero brand_recipient brand_commission_fee;
 
         msg_to_collection_contract = {
           _tag: "TokenSaleCallback";
-          _recipient: collections_contract; 
+          _recipient: collections_contract;
           _amount: zero_uint128;
           token_address: token_address;
           token_id: token_id;
@@ -647,30 +638,61 @@ procedure HandleFulfillOrder(
         };
         msgs = one_msg msg_to_collection_contract;
         send msgs
-    end
-  end;
 
+      | False => (* No operation *)
+      end
+    | False =>
+      (* marketplace is the spender for both ZRC2 and ZRC6 tokens *)
 
-  (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
-  ZRC6TransferFrom token_address buy_dest token_id;
+      (* On behalf of buyer, marketplace transfers royalty fee to the royalty_recipient *)
+      ZRC2TransferFrom payment_token_address buyer royalty_recipient royalty_amount;
 
-  e = {
-    _eventname : "FulfillOrder";
-    taker: _sender;
-    side: side;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    sale_price: sale_price;
-    seller: seller;
-    buyer: buyer;
-    asset_recipient: buy_dest;
-    payment_tokens_recipient: seller;
-    royalty_recipient: royalty_recipient;
-    royalty_amount: royalty_amount;
-    service_fee: svc_fee
-  };
-  event e
+      (* On behalf of buyer, marketplace transfers service fee to this marketplace owner *)
+      ZRC2TransferFrom payment_token_address buyer svc_fee_recipient svc_fee;
+
+      (* On behalf of buyer, marketplace transfers the seller_profit to seller *)
+      ZRC2TransferFrom payment_token_address buyer seller seller_profit;
+
+      (* Paying out a commission if there is one *)
+      match is_commission_fee with
+        | False => (* No Operation *)
+        | True =>
+          ZRC2TransferFrom payment_token_address buyer brand_recipient brand_commission_fee;
+
+          msg_to_collection_contract = {
+            _tag: "TokenSaleCallback";
+            _recipient: collections_contract; 
+            _amount: zero_uint128;
+            token_address: token_address;
+            token_id: token_id;
+            collection_id: collection_id;
+            commission_fee: brand_commission_fee
+          };
+          msgs = one_msg msg_to_collection_contract;
+          send msgs
+      end
+    end;
+    (* On behalf of seller, marketplace transfers the zrc6 token to buy_dest *)
+    ZRC6TransferFrom token_address buy_dest token_id;
+
+    e = {
+      _eventname : "FulfillOrder";
+      taker: _sender;
+      side: side;
+      token_address: token_address;
+      token_id: token_id;
+      payment_token_address: payment_token_address;
+      sale_price: sale_price;
+      seller: seller;
+      buyer: buyer;
+      asset_recipient: buy_dest;
+      payment_tokens_recipient: seller;
+      royalty_recipient: royalty_recipient;
+      royalty_amount: royalty_amount;
+      service_fee: svc_fee
+    };
+    event e
+  end
 end
 
 procedure Cancel(

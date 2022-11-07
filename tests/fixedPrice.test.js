@@ -928,6 +928,82 @@ describe('Native ZIL', () => {
     expect(txEvent.params[6].value).toEqual(expiryBlock)
   })
 
+  test('SetOrder: Seller creates sell order for token #1 with Zero native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const contractStateStart = await fixedPriceContract.getState()
+    console.log("contractStateStart", JSON.stringify(contractStateStart.sell_orders));
+    let oldExpiryBlock = contractStateStart.sell_orders[nftTokenAddress.toLowerCase()][1][zero_address.toLowerCase()]["10000"].arguments[1]
+    console.log("oldExpiryBlock", oldExpiryBlock)
+
+    const tokenId = String(1)
+    const salePrice = String(0)
+    const side = String(0)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      tokenId,
+      zero_address,
+      salePrice,
+      side,
+      expiryBlock
+    )
+
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(tx.receipt.success).toEqual(true)
+
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter((e) => e._eventname === 'SetOrder')[0]
+
+    let tokenAddress = txEvent.params[2].value
+    tokenAddress = tokenAddress.toLowerCase()
+
+    expect(txEvent.params[1].value).toEqual(side)
+    expect(txEvent.params[3].value).toEqual(tokenId)
+    expect(txEvent.params[5].value).toEqual(salePrice)
+    expect(txEvent.params[6].value).toEqual(expiryBlock)
+
+    const contractState = await fixedPriceContract.getState()
+    console.log("Sell orders:", JSON.stringify(contractState.sell_orders))
+
+    expect(JSON.stringify(contractState.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: {
+            [zero_address.toLowerCase()]: {
+              [String(10000)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, oldExpiryBlock]
+              ),
+              [String(0)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, expiryBlock]
+              ),
+            },
+          }
+        },
+      })
+    );
+  })
+
   test('SetOrder: Buyer creates buy order for token #1', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
@@ -1400,6 +1476,156 @@ describe('Native ZIL', () => {
         { line: 1, message: 'Raised from FulfillOrder' }
       ]
     )
+  })
+
+  test('FulfillOrder: Buyer fullfills sell order with Zero ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const nftContract = await zilliqa.contracts.at(nftTokenAddress)
+
+    const contractStateStart = await fixedPriceContract.getState()
+    console.log("contractStateStart", JSON.stringify(contractStateStart.sell_orders));
+    let oldExpiryBlock = contractStateStart.sell_orders[nftTokenAddress.toLowerCase()][1][zero_address.toLowerCase()]["10000"].arguments[1]
+    console.log("oldExpiryBlock", oldExpiryBlock)
+
+    const tokenId = String(1)
+    const salePrice = String(0)
+    const side = String(0)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      tokenId,
+      zero_address,
+      salePrice,
+      side,
+      expiryBlock
+    )
+
+    const txSellOrder = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(txSellOrder.receipt.success).toEqual(true)
+
+    // Confirming that the order was executed correctly based on the emitted event
+    const txSellEvent = txSellOrder.receipt.event_logs.filter((e) => e._eventname === 'SetOrder')[0]
+
+    let tokenAddress = txSellEvent.params[2].value
+    tokenAddress = tokenAddress.toLowerCase()
+
+    expect(txSellEvent.params[1].value).toEqual(side)
+    expect(txSellEvent.params[3].value).toEqual(tokenId)
+    expect(txSellEvent.params[5].value).toEqual(salePrice)
+    expect(txSellEvent.params[6].value).toEqual(expiryBlock)
+
+    const contractState = await fixedPriceContract.getState()
+    console.log("Sell orders:", JSON.stringify(contractState.sell_orders))
+
+    expect(JSON.stringify(contractState.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: {
+            [zero_address.toLowerCase()]: {
+              [String(10000)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, oldExpiryBlock]
+              ),
+              [String(0)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, expiryBlock]
+              ),
+            },
+          }
+        },
+      })
+    );
+    const setRoyaltyFee = await callContract(
+      accounts.nftSeller.privateKey,
+      nftContract,
+      'SetRoyaltyFeeBPS',
+      [
+        {
+          vname: 'fee_bps',
+          type: 'Uint128',
+          value: "2211"
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log(setRoyaltyFee.receipt)
+    expect(setRoyaltyFee.receipt.success).toEqual(true)
+
+    const txBuyOrder = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress.toLowerCase()
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("FulfillOrder: Buyer fullfills sell order with Zero ZIL",txBuyOrder.receipt)
+    expect(txBuyOrder.receipt.success).toEqual(true)
+
+    const txBuyOrderEvent = txBuyOrder.receipt.event_logs.filter((e) => e._eventname === 'FulfillOrder')[0]
+
+    expect(txBuyOrderEvent.params[1].value).toEqual(side)
+    expect(txBuyOrderEvent.params[3].value).toEqual(tokenId)
+    expect(txBuyOrderEvent.params[5].value).toEqual(salePrice)
+
+    const nftContractState = await nftContract.getState()
+    console.log("nftContractState", JSON.stringify(nftContractState));
+
+    expect((nftContractState.token_owners[tokenId]).toLowerCase()).toEqual((accounts.nftBuyer.address).toLowerCase())
   })
 
   test('FulfillOrder: Buyer fullfills sell order (not collection item)', async () => {
@@ -2561,6 +2787,82 @@ describe('Wrapped ZIL', () => {
     );
   })
 
+  test('SetOrder: Seller creates sell order for token #1 with Zero ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const contractStateStart = await fixedPriceContract.getState()
+    console.log("contractStateStart", JSON.stringify(contractStateStart.sell_orders));
+    let oldExpiryBlock = contractStateStart.sell_orders[nftTokenAddress.toLowerCase()][1][paymentTokenAddress.toLowerCase()]["10000"].arguments[1]
+    console.log("oldExpiryBlock", oldExpiryBlock)
+
+    const tokenId = String(1)
+    const salePrice = String(0)
+    const side = String(0)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      tokenId,
+      paymentTokenAddress,
+      salePrice,
+      side,
+      expiryBlock
+    )
+
+    const tx = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(tx.receipt.success).toEqual(true)
+
+    // Confirming that the order was executed correctly based on the emitted event
+    const txEvent = tx.receipt.event_logs.filter((e) => e._eventname === 'SetOrder')[0]
+
+    let tokenAddress = txEvent.params[2].value
+    tokenAddress = tokenAddress.toLowerCase()
+
+    expect(txEvent.params[1].value).toEqual(side)
+    expect(txEvent.params[3].value).toEqual(tokenId)
+    expect(txEvent.params[5].value).toEqual(salePrice)
+    expect(txEvent.params[6].value).toEqual(expiryBlock)
+
+    const contractState = await fixedPriceContract.getState()
+    console.log("Sell orders:", JSON.stringify(contractState.sell_orders))
+
+    expect(JSON.stringify(contractState.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: {
+            [paymentTokenAddress.toLowerCase()]: {
+              [String(10000)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, oldExpiryBlock]
+              ),
+              [String(0)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, expiryBlock]
+              ),
+            },
+          }
+        },
+      })
+    );
+  })
+
   test('SetOrder: Buyer creates buy order for token #1', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
@@ -2965,6 +3267,156 @@ describe('Wrapped ZIL', () => {
       { line: 1, message: 'Raised from RequireNotPaused' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
+  })
+
+  test('FulfillOrder: Buyer fullfills sell order with Zero ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const nftContract = await zilliqa.contracts.at(nftTokenAddress)
+
+    const contractStateStart = await fixedPriceContract.getState()
+    console.log("contractStateStart", JSON.stringify(contractStateStart.sell_orders));
+    let oldExpiryBlock = contractStateStart.sell_orders[nftTokenAddress.toLowerCase()][1][paymentTokenAddress.toLowerCase()]["10000"].arguments[1]
+    console.log("oldExpiryBlock", oldExpiryBlock)
+
+    const tokenId = String(1)
+    const salePrice = String(0)
+    const side = String(0)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      tokenId,
+      paymentTokenAddress,
+      salePrice,
+      side,
+      expiryBlock
+    )
+
+    const txSellOrder = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    expect(txSellOrder.receipt.success).toEqual(true)
+
+    // Confirming that the order was executed correctly based on the emitted event
+    const txSellEvent = txSellOrder.receipt.event_logs.filter((e) => e._eventname === 'SetOrder')[0]
+
+    let tokenAddress = txSellEvent.params[2].value
+    tokenAddress = tokenAddress.toLowerCase()
+
+    expect(txSellEvent.params[1].value).toEqual(side)
+    expect(txSellEvent.params[3].value).toEqual(tokenId)
+    expect(txSellEvent.params[5].value).toEqual(salePrice)
+    expect(txSellEvent.params[6].value).toEqual(expiryBlock)
+
+    const contractState = await fixedPriceContract.getState()
+    console.log("Sell orders:", JSON.stringify(contractState.sell_orders))
+
+    expect(JSON.stringify(contractState.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [1]: {
+            [paymentTokenAddress.toLowerCase()]: {
+              [String(10000)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, oldExpiryBlock]
+              ),
+              [String(0)]: scillaJSONVal(
+                `${fixedPriceAddress}.Order.Order.of.ByStr20.BNum`,
+                [accounts.nftSeller.address, expiryBlock]
+              ),
+            },
+          }
+        },
+      })
+    );
+    const setRoyaltyFee = await callContract(
+      accounts.nftSeller.privateKey,
+      nftContract,
+      'SetRoyaltyFeeBPS',
+      [
+        {
+          vname: 'fee_bps',
+          type: 'Uint128',
+          value: "2211"
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log(setRoyaltyFee.receipt)
+    expect(setRoyaltyFee.receipt.success).toEqual(true)
+
+    const txBuyOrder = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'FulfillOrder',
+      [
+        {
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress.toLowerCase()
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'dest',
+          type: 'ByStr20',
+          value: accounts.nftBuyer.address
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("FulfillOrder: Buyer fullfills sell order with Zero ZRC2",txBuyOrder.receipt)
+    expect(txBuyOrder.receipt.success).toEqual(true)
+
+    const txBuyOrderEvent = txBuyOrder.receipt.event_logs.filter((e) => e._eventname === 'FulfillOrder')[0]
+
+    expect(txBuyOrderEvent.params[1].value).toEqual(side)
+    expect(txBuyOrderEvent.params[3].value).toEqual(tokenId)
+    expect(txBuyOrderEvent.params[5].value).toEqual(salePrice)
+
+    const nftContractState = await nftContract.getState()
+    console.log("nftContractState", JSON.stringify(nftContractState));
+
+    expect((nftContractState.token_owners[tokenId]).toLowerCase()).toEqual((accounts.nftBuyer.address).toLowerCase())
   })
 
   test('FulfillOrder: Buyer fullfills sell order (not collection item)', async () => {
