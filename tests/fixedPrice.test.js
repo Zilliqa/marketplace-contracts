@@ -820,6 +820,17 @@ async function fulfillOrderSigned(
   return tx
 }
 
+async function getTokenOwnerFromContract(
+  nftTokenAddress,
+  tokenId
+) {
+  const zrc6Contract = await zilliqa.contracts.at(nftTokenAddress.toLowerCase())
+  const substate = await zrc6Contract.getSubState("token_owners", [tokenId])
+
+  // { '1': '0x10200e3da08ee88729469d6eabc055cb225821e7' }
+  return Object.entries(substate.token_owners)[0][1]
+}
+
 
 describe('Native ZIL', () => {
   beforeEach(async () => {
@@ -4460,6 +4471,20 @@ describe ('Signed Order', () => {
     console.log(tx.receipt)
     expect(tx.receipt.success).toEqual(true)
 
+    //Verify received event parameters
+    const txEvent = tx.receipt.event_logs.filter((e) => e._eventname === 'FulfillOrder')[0]
+    console.log(txEvent)
+
+    expect(txEvent.params[1].value).toEqual(side)
+    expect(txEvent.params[2].value).toEqual(nftTokenAddress.toLowerCase())
+    expect(txEvent.params[3].value).toEqual(tokenId)
+    expect(txEvent.params[4].value).toEqual(zero_address)
+    expect(txEvent.params[5].value).toEqual(salePrice)
+    expect(txEvent.params[8].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+
+    //check if the token owner is correct
+    owner = await(getTokenOwnerFromContract(nftTokenAddress, tokenId))
+    expect(owner).toEqual(accounts.nftBuyer.address.toLowerCase())
 
   })
 
@@ -4497,6 +4522,22 @@ describe ('Signed Order', () => {
     )
     console.log(tx.receipt)
     expect(tx.receipt.success).toEqual(true)
+
+    //Verify received event parameters
+    const txEvent = tx.receipt.event_logs.filter((e) => e._eventname === 'FulfillOrder')[0]
+    console.log(txEvent)
+
+    expect(txEvent.params[1].value).toEqual(buySide)
+    expect(txEvent.params[2].value).toEqual(nftTokenAddress.toLowerCase())
+    expect(txEvent.params[3].value).toEqual(tokenId)
+    expect(txEvent.params[4].value).toEqual(zero_address)
+    expect(txEvent.params[5].value).toEqual(salePrice)
+    expect(txEvent.params[8].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+
+    //check if the token owner is correct
+    owner = await(getTokenOwnerFromContract(nftTokenAddress, tokenId))
+    expect(owner).toEqual(accounts.nftBuyer.address.toLowerCase())
+
 
 
   })
