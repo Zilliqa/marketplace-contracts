@@ -200,11 +200,11 @@ let make_error =
       | TotalFeesTooHigh                   => Int32 -20
       | InvalidRoyaltyFeeBPSError          => Int32 -21
       | InvalidSignature                   => Int32 -22
-      | OrderNotAuthorized                 => Int32 -26
-      | OrderExpired                       => Int32 -27
-      | InvalidVerifier                    => Int32 -28  
-      | NotSignedOrderModeEnabled          => Int32 -29
-      | NotSignedOrderModeDisabled         => Int32 -30
+      | OrderNotAuthorized                 => Int32 -23
+      | OrderExpired                       => Int32 -24
+      | InvalidVerifier                    => Int32 -25  
+      | NotSignedOrderModeEnabled          => Int32 -26
+      | NotSignedOrderModeDisabled         => Int32 -27
 
       end
     in

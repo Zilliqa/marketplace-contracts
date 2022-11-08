@@ -4357,7 +4357,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -28))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -25))])'
       },
       { line: 1, message: 'Raised from RequireSignedOrderDisabled' },
       { line: 1, message: 'Raised from RequireContractOwner' },
@@ -4386,7 +4386,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -30))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -27))])'
       },
       { line: 1, message: 'Raised from RequireContractOwner' },
       { line: 1, message: 'Raised from EnableSignedOrder' }
@@ -4427,7 +4427,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -29))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
       },
       { line: 1, message: 'Raised from RequireContractOwner' },
       { line: 1, message: 'Raised from DisableSignedOrder' }
@@ -4523,7 +4523,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -29))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
       },
       { line: 1, message: 'Raised from FulfillOrderSigned' }
     ])  
@@ -4551,7 +4551,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -30))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -27))])'
       },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])  
@@ -4635,7 +4635,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -23))])'
       },
       { line: 1, message: 'Raised from RequireValidVerifier' },
       { line: 1, message: 'Raised from RequireSignedOrderEnabled' },
@@ -4673,7 +4673,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -23))])'
       },
       { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
       { line: 1, message: 'Raised from RequireValidVerifier' },
@@ -4710,7 +4710,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -23))])'
       },
       { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
       { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
@@ -4749,7 +4749,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -23))])'
       },
       { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
       { line: 1, message: 'Raised from RequireTokenIdInMessageToMatch' },
@@ -4789,7 +4789,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -23))])'
       },
       { line: 1, message: 'Raised from RequireSideInMessageToMatch' },
       { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
@@ -4831,7 +4831,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -26))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -23))])'
       },
       { line: 1, message: 'Raised from RequirePriceInMessageToMatch' },
       { line: 1, message: 'Raised from RequireSideInMessageToMatch' },
@@ -4873,7 +4873,7 @@ describe ('Signed Order', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -27))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -24))])'
       },
       { line: 1, message: 'Raised from RequireAddrInMessageToMatch' },
       { line: 1, message: 'Raised from RequirePriceInMessageToMatch' },
