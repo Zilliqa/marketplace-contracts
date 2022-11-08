@@ -44,8 +44,20 @@ To get back the payment tokens, buyers must cancel their offers.
 Store order information about buy and sell orders.
 
 ```
-| Order of ByStr20 (* maker *)
-           BNum    (* expiration block number *)
+ Order of ByStr20 BNum
+```
+
+**`OrderParam`**
+
+Stores order parameters.
+
+```
+| OrderParam of ByStr20 with contract 
+field royalty_recipient: ByStr20, 
+field royalty_fee_bps: Uint128, 
+field spenders: Map Uint256 ByStr20, 
+field token_owners: Map Uint256 ByStr20 
+end Uint256 ByStr20 Uint128 Uint32 BNum
 ```
 
 ### C1. Mutable Fields
@@ -61,6 +73,10 @@ Store order information about buy and sell orders.
 | `allowed_payment_tokens`       | `Map ByStr20 Bool`                             | An allowlist for the ZRC-2 payment tokens.  |
 | `service_fee_bps`              | `Uint128`                                      | A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee. service fee BPS (e.g. 250 = 2.5%) |
 | `service_fee_recipient`        | `ByStr20`                                      | Wallet owned by Zilliqa used to collect the sales commission. If `allowlist_contract` is used, this wallet address must be whitelisted in the `allowlist_contract` as well. |
+| `is_signed_order_mode`        | `Bool`                                      | `True` if the signed order mode is enabled. Otherwise, `False`. `is_signed_order_mode` defaults to `False`. |
+| `verifier_pub_key`        | `ByStr33`                                      | The public key of the registered verife. `verifier_pub_key` defaults to `zero_pubkey`. |
+
+
 
 ### D1. Error Codes
 
@@ -77,32 +93,46 @@ Store order information about buy and sell orders.
 | `NotTokenOwnerError`                 | `Int32` | `-9`  | Emit when the address is not a token owner.                                                   |
 | `TokenOwnerError`                    | `Int32` | `-10` | Emit when the address is the token owner.                                                     |           
 | `ExpiredError`                       | `Int32` | `-11` | Emit when the sell order or buy order has expired.                                            |
-| `NotMakerError`                      | `Int32` | `-12` | Emit when the address is not the `maker`. *(Not used.)*                                       |
-| `NotAllowedToCancelOrder`            | `Int32` | `-13` | Emit when the address is not allowed to cancel the specific order.                            |
-| `NotSelfError`                       | `Int32` | `-14` | Emit when the address is not the `_sender`.                                                   |
-| `SelfError`                          | `Int32` | `-15` | Emit when the address is the same as `_sender`.                                               |
-| `NotAllowedPaymentToken`             | `Int32` | `-16` | Emit when the payment token is not allowed.                                                   |
-| `InvalidBPSError`                    | `Int32` | `-17` | Emit when the `fee_bps` exceeds the allowable range.                                          |
-| `NotEqualAmountError`                | `Int32` | `-18` | Emit when the required ZIL amount does not match the offer amount when paying by native ZILs. |
-| `NotContractOwnershipRecipientError` | `Int32` | `-19` | Emit when the address is not a contract ownership recipient.                                  |
-| `NotAllowedUserError`                | `Int32` | `-20` | Emit when the address is not listed in `allowlist_address` contract.                          |
+| `NotAllowedToCancelOrder`            | `Int32` | `-12` | Emit when the address is not allowed to cancel the specific order.                            |
+| `NotSelfError`                       | `Int32` | `-13` | Emit when the address is not the `_sender`.                                                   |
+| `SelfError`                          | `Int32` | `-14` | Emit when the address is the same as `_sender`.                                               |
+| `NotAllowedPaymentToken`             | `Int32` | `-15` | Emit when the payment token is not allowed.                                                   |
+| `InvalidBPSError`                    | `Int32` | `-16` | Emit when the `fee_bps` exceeds the allowable range.                                          |
+| `NotEqualAmountError`                | `Int32` | `-17` | Emit when the required ZIL amount does not match the offer amount when paying by native ZILs. |
+| `NotContractOwnershipRecipientError` | `Int32` | `-18` | Emit when the address is not a contract ownership recipient.                                  |
+| `NotAllowedUserError`                | `Int32` | `-19` | Emit when the address is not listed in `allowlist_address` contract.                          |
+| `TotalFeesTooHigh`                   | `Int32` | `-20` | Emit when the address is not listed in `allowlist_address` contract.                          |
+| `InvalidRoyaltyFeeBPSError`          | `Int32` | `-21` | Emit when the royalty fee is higher the maximum allowed royalty fee.                          |
+| `InvalidSignature`                   | `Int32` | `-22` | Emit when the signature for the order is not valid, applicable to signed orders.              |
+| `OrderNotAuthorized`                 | `Int32` | `-23` | Emit when any of the message parameters does not match the order parameters, applicable to signed orders.                          |
+| `OrderExpired`                       | `Int32` | `-24` | Emit when the the signature for the order is exired, applicable to signed orders.             |
+| `InvalidVerifier`                    | `Int32` | `-25` | Emit when verifier public key is not valid.                                                   |
+| `NotSignedOrderModeEnabled`          | `Int32` | `-26` | Emit when the signed order more is not enabled.                                               |
+| `NotSignedOrderModeDisabled`         | `Int32` | `-27` | Emit when the signed order mode is not disabled.                                              |
+
 
 ### E1. Transitions
 
 |    | Transition |
 | -- | ---------- |
-| 1   | `SetOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, expiration_bnum: BNum)` |
-| 2   | `FulfillOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, dest: ByStr20)` |
-| 3   | `CancelOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)` |
-| 4   | `Pause()` |
-| 5   | `Unpause()` |
-| 6   | `AllowPaymentTokenAddress(address: ByStr20 with contract)` |
-| 7   | `DisallowPaymentTokenAddress(address: ByStr20 with contract)` |
-| 8   | `SetServiceFeeBPS(fee_bps: Uint128)` |
-| 9   | `SetServiceFeeRecipient(to: ByStr20)` |
-| 10  | `SetAllowlist(address: ByStr20)` |
-| 11  | `SetContractOwnershipRecipient(to: ByStr20)` |
-| 12  | `AcceptContractOwnership()` |
+| 1   | `SetOrder(order: OrderParam)` |
+| 2   | `SetBatchOrder(order_list: List OrderParam)` |
+| 3   | `FulfillOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, dest: ByStr20)` |
+| 4   | `FulfillOrderSigned(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, dest: ByStr20), message: ByStr, signature: ByStr64` |
+| 5   | `CancelOrder(token_address: ByStr20 with contract, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32)` |
+| 6   | `Pause()` |
+| 7   | `Unpause()` |
+| 8   | `AllowPaymentTokenAddress(address: ByStr20 with contract)` |
+| 9   | `DisallowPaymentTokenAddress(address: ByStr20 with contract)` |
+| 10  | `SetServiceFeeBPS(fee_bps: Uint128)` |
+| 11  | `SetServiceFeeRecipient(to: ByStr20)` |
+| 12  | `SetAllowlist(address: ByStr20)` |
+| 13  | `UpdateCollectionContract(address: ByStr20)` |
+| 14  | `SetContractOwnershipRecipient(to: ByStr20)` |
+| 15  | `AcceptContractOwnership()` |
+| 16  | `EnableSignedOrder(pub_key: ByStr33)` |
+| 17  | `DisableSignedOrder()` |
+
 
 #### 1. `SetOrder`
 
@@ -116,12 +146,7 @@ Amount is locked with fixed price contract until buyers choose to cancel their o
 
 | Name | Type | Description |
 | ---- | ---- | ----------- |
-| `token_address`            | `ByStr20 with contract`    | ZRC-6 token contract address |
-| `token_id`                 | `Uint256`                  | token ID |
-| `payment_token_address`    | `ByStr20`                  | Payment mode that buyers should pay in; leave it as `zero_address` to pay in native ZILs. |
-| `sale_price`               | `Uint128`                  | seller's asking price |
-| `side`                     | `Uint32`                   | `0` indicates that it is a sell order, `1` is a buy order |
-| `expiration_bnum`          | `BNum`                     | Block number that this listing would expired on. |
+| `order`            | `OrderParam`    | Order parameters |
 
 **Requirements:**
 
@@ -146,7 +171,27 @@ Amount is locked with fixed price contract until buyers choose to cancel their o
 }
 ```
 
-#### 2. `FulfillOrder`
+#### 2. `SetBatchOrder`
+Allows a list of orders to be created. 
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `order`            | `List OrderParam`    | List of order parameters |
+
+
+**Requirements:**
+
+Similar to `SetOrder`
+
+**Events:**
+
+Similar to `SetOrder`
+
+
+
+#### 3. `FulfillOrder`
 
 Sellers can fulfill buy orders (accept buyers offers).
 
@@ -166,6 +211,7 @@ Buyers can fulfill sell orders (purchase the item at the seller's asking price).
 **Requirements:**
 
 - The contract must not be paused.
+- The contract must not be in `signed order` mode
 - `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
 - `dest` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
 - `payment_token_address` must be a valid payment token method.
@@ -192,7 +238,65 @@ Buyers can fulfill sell orders (purchase the item at the seller's asking price).
 }
 ```
 
-#### 3. `CancelOrder`
+#### 4. `FulfillOrderSigned`
+
+Sellers can fulfill buy orders (accept buyers offers). Orders must be signed by a valid verifier.
+
+Buyers can fulfill sell orders (purchase the item at the seller's asking price). Orders must be signed by a valid verifier.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `token_address`            | `ByStr20 with contract`    | ZRC-6 token contract address |
+| `token_id`                 | `Uint256`                  | token ID |
+| `payment_token_address`    | `ByStr20`                  | Payment mode that buyers should pay in; leave it as `zero_address` to pay in native ZILs. |
+| `sale_price`               | `Uint128`                  | either the seller's asking price or the buyer's offer price depending on `side` |
+| `side`                     | `Uint32`                   | `0` indicates that it is a sell order, `1` is a buy order |
+| `dest`                     | `ByStr20`                  | Enables buyers to set an address to receive the asset when fulfilling a sell order. Usually defaults to buyers' wallet. Only meaningful for buyers at the moment. |
+| `message`                  | `ByStr`                   | Byte string consisting of token address, token id, destination address, side, price, payment token address and the block number when the signature was generated. These parameters should match the order parameters and the signature must not be expired. The order should be submitted within 5 blocks from the time the signature was generated.  |
+| `signature`                | `ByStr64`                  | Signature of the registered verifier based on the above message. |
+
+
+
+
+**Requirements:**
+
+- The contract must not be paused.
+- The contract must not be in `signed order` mode
+- `_sender` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `dest` must be listed in `allowlist_address` contract if `allowlist_address` is non-zero address.
+- `payment_token_address` must be a valid payment token method.
+- buyers must pay the `sale_price` amount if fulfilling sell order.
+- The fields in the message should match the parameters in the order
+- The signature should be generated by the registered verifier. The signature should follow the ECDSA signature scheme.
+- The signature should not be expired. The order should be submitted within 5 blocks from the time the signature was generated.
+
+**Events:**
+
+```
+{
+    _eventname : "FulfillOrder";
+    taker: ByStr20;
+    side: Uint32;
+    token_address: ByStr20;
+    token_id: Uint256;
+    payment_token_address: ByStr20;
+    sale_price: Uint128;
+    seller: ByStr20;
+    buyer: ByStr20;
+    asset_recipient: ByStr20;
+    payment_tokens_recipient: ByStr20;
+    royalty_recipient: ByStr20;
+    royalty_amount: Uint128;
+    service_fee: Uint128
+}
+```
+
+
+
+
+#### 5. `CancelOrder`
 
 Sellers can cancel their sell orders.
 
@@ -224,7 +328,7 @@ Buyers can cancel their buy orders, locked payment tokens is automatically credi
     sale_price: Uint128
 ```
 
-#### 4. `Pause`
+#### 6. `Pause`
 
 Pauses the contract. Use this when things are going wrong ('circuit breaker').
 
@@ -242,7 +346,7 @@ Pauses the contract. Use this when things are going wrong ('circuit breaker').
 }
 ```
 
-#### 5. `Unpause`
+#### 7. `Unpause`
 
 Unpauses the contract.
 
@@ -260,7 +364,7 @@ Unpauses the contract.
 }
 ```
 
-#### 6. `AllowPaymentTokenAddress`
+#### 8. `AllowPaymentTokenAddress`
 
 Allow a specific ZRC-2 token address to be used as payment token.
 
@@ -283,7 +387,7 @@ Allow a specific ZRC-2 token address to be used as payment token.
 }
 ```
 
-#### 7. `DisallowPaymentTokenAddress`
+#### 9. `DisallowPaymentTokenAddress`
 
 Remove a specific ZRC-2 token address as payment token.
 
@@ -306,7 +410,7 @@ Remove a specific ZRC-2 token address as payment token.
 }
 ```
 
-#### 8. `SetServiceFeeBPS`
+#### 10. `SetServiceFeeBPS`
 
 Sets the `service_fee_bps` field.
 
@@ -330,7 +434,7 @@ Sets the `service_fee_bps` field.
 }
 ```
 
-#### 9. `SetServiceFeeRecipient`
+#### 11. `SetServiceFeeRecipient`
 
 Sets the `service_fee_recipient` field.
 
@@ -354,7 +458,7 @@ Sets the `service_fee_recipient` field.
 }
 ```
 
-#### 10. `SetAllowlist`
+#### 12. `SetAllowlist`
 
 Updates the `allowlist_address`, for the whitelisting of wallets on contract level.
 
@@ -379,7 +483,32 @@ Set to `zero_address` to remove wallets restriction.
 }
 ```
 
-#### 11. `SetContractOwnershipRecipient`
+#### 13. `UpdateCollectionContract`
+
+Updates the `collection_address`, for managing collections on contract level.
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `address` | `ByStr20` | New collection address |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+
+**Events:**
+
+```
+{
+    eventname: "UpdateCollectionContract";
+    address: ByStr20
+}
+```
+
+
+
+#### 14. `SetContractOwnershipRecipient`
 
 Set the `contract_ownership_recipient` field, for changing the contract owner.
 
@@ -405,7 +534,7 @@ To reset `contract_ownership_recipient`, use `zero_address`.
 }
 ```
 
-#### 12. `AcceptContractOwnership`
+#### 15. `AcceptContractOwnership`
 
 Accepts the contract ownership transfer. `contract_owner` is replaced.
 
@@ -419,6 +548,55 @@ Accepts the contract ownership transfer. `contract_owner` is replaced.
 {
     eventname: "AcceptContractOwnership";
     contract_owner: ByStr20
+}
+```
+
+#### 16. `EnableSignedOrder`
+
+Switches to  "signed order mode". If this mode is enabled, the `FulfillOrderSigned` transition should be called.
+
+
+**Arguments:**
+
+| Name | Type | Description |
+| ---- | ---- | ----------- |
+| `pub_key` | `ByStr33` | Public key of the verifier |
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- The "signed order mode" must be disabled prior to this call
+- `pub_key` should be a valid secp256k1 public key.
+
+**Events:**
+
+```
+{
+    eventname: "EnableSignedOrder";
+    is_signed_order_mode: true;
+    verifier_pub_key: pub_key
+}
+```
+
+#### 17. `DisableSignedOrder`
+
+Disabled the "signed order mode". If this mode is disabled, the `FulfillOrder` transition should be called.
+
+The registered public key will be cleared as part of this transition.
+
+
+**Requirements:**
+
+- `_sender` must be contract owner.
+- The "signed order mode" must be enabled prior to this call.
+
+**Events:**
+
+```
+{
+    eventname: "DisableSignedOrder";
+    is_signed_order_mode: false;
+    verifier_pub_key: zero_pubkey
 }
 ```
 
