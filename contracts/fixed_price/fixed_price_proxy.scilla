@@ -231,42 +231,32 @@ end
 
 (* @multi-sig *)
 transition UpdateLogic(to: ByStr20)
+  RequireContractOwner;
   RequireNonZeroAddress to;
-  is_valid = builtin eq initial_contract_owner _sender;
-  match is_valid with
-  | False =>
-    error = NotMultiSigError;
-    Throw error
-  | True =>
-    current_block_number <- & BLOCKNUMBER;
-    logic := to;
-    e = { 
-      _eventname: "ProxyUpdated";
-      address: to;
-      when: current_block_number
-    };
-    event e
-  end
+  RequireNotSelf to;
+  current_block_number <- & BLOCKNUMBER;
+  logic := to;
+  e = { 
+    _eventname: "ProxyUpdated";
+    address: to;
+    when: current_block_number
+  };
+  event e
 end
 
 (* @multi-sig *)
 transition UpdateState(to: ByStr20)
+  RequireContractOwner;
   RequireNonZeroAddress to;
-  is_valid = builtin eq initial_contract_owner _sender;
-  match is_valid with
-  | False =>
-    error = NotMultiSigError;
-    Throw error
-  | True =>
-    current_block_number <- & BLOCKNUMBER;
-    state_contract := to;
-    e = { 
-      _eventname: "StateContractUpdated";
-      address: to;
-      when: current_block_number
-    };
-    event e
-  end
+  RequireNotSelf to;
+  current_block_number <- & BLOCKNUMBER;
+  state_contract := to;
+  e = { 
+    _eventname: "StateContractUpdated";
+    address: to;
+    when: current_block_number
+  };
+  event e
 end
 
 (* Fulfills orders *)
