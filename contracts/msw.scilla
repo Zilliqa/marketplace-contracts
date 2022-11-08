@@ -32,6 +32,9 @@ type MultiSigTransition =
   | UpdateCollectionContract of (ByStr20)
   | CancelOrder of (ByStr20) (Uint256) (ByStr20) (Uint128) (Uint32)
   | Cancel of (ByStr20) (Uint256)
+  | EnableSignedOrder of (ByStr33)
+  | DisableSignedOrder
+
 
 let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => let msg = match t with 
   | SetMaxCommissionFeeBPS new_max_commission_fee_bps => {
@@ -102,6 +105,13 @@ let custom_transaction_msg = fun (r: ByStr20) => fun (t: MultiSigTransition) => 
     token_address: token_address;
     token_id: token_id;
     _tag: "Cancel"; _amount: Uint128 0; _recipient: r
+  }
+  | EnableSignedOrder pub_key => {
+    pub_key: pub_key;
+    _tag: "EnableSignedOrder"; _amount: Uint128 0; _recipient: r
+  }
+| DisableSignedOrder => {
+    _tag: "DisableSignedOrder"; _amount: Uint128 0; _recipient: r
   }
   end in one_msg msg
 (* --- gen end --- *)
@@ -407,6 +417,19 @@ transition SubmitCancelTransaction(contract_address: ByStr20, token_address: ByS
   tx = CustomTransaction contract_address transaction;
   SubmitTransaction tx
 end
+
+transition SubmitDisableSignedOrderTransaction(contract_address: ByStr20)
+  transaction = DisableSignedOrder;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
+transition SubmitEnableSignedTransaction(contract_address: ByStr20, pub_key: ByStr33)
+  transaction = EnableSignedOrder pub_key;
+  tx = CustomTransaction contract_address transaction;
+  SubmitTransaction tx
+end
+
 
 transition SignTransaction(transaction_id: Uint32)
   (* Only owners are allowed to sign off transactions *)
