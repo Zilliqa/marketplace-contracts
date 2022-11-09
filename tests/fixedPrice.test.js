@@ -4885,7 +4885,6 @@ describe ('Signed Order', () => {
     ])  
 
     //expired block number
-    wrongBNum = globalBNum-10
     msg = await serializeMessage(
       nftTokenAddress.toLowerCase(),
       tokenId,
@@ -4893,10 +4892,13 @@ describe ('Signed Order', () => {
       side,
       salePrice,
       zero_address,
-      wrongBNum
+      globalBNum
     )
     signature = await signMessage(accounts.verifier.privateKey, msg)
     
+    //increase block number so that signature will expire, signature is only valid for 5 blocks
+    await zilliqa.provider.send("IncreaseBlocknum", 1000);
+
     tx = await fulfillOrderSignedWithSignature(
       accounts.nftBuyer.privateKey,
       fixedPriceAddress,
