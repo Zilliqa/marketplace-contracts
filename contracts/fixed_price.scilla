@@ -143,6 +143,16 @@ field spenders: Map Uint256 ByStr20,
 field token_owners: Map Uint256 ByStr20 
 end Uint256 ByStr20 Uint128 Uint32 BNum
 
+(* for batch cancel transitions *)
+(* token_address, token_id, payment_token_address, sale_price, side *)
+type CancelOrderParam =
+| CancelOrderParam of ByStr20 with contract 
+  field royalty_recipient: ByStr20, 
+  field royalty_fee_bps: Uint128, 
+  field spenders: Map Uint256 ByStr20, 
+  field token_owners: Map Uint256 ByStr20 
+end Uint256 ByStr20 Uint128 Uint32
+
 (* Error exceptions *)
 type Error =
   | NotContractOwnerError
@@ -1106,6 +1116,23 @@ procedure Cancel(
   end
 end
 
+procedure BatchCancelOrder_(order: CancelOrderParam)
+  match order with
+  | CancelOrderParam token_address token_id payment_token_address sale_price side =>
+    cur_owner <- contract_owner;
+    is_contract_owner = builtin eq cur_owner _sender;
+    match is_contract_owner with
+    | True => 
+      (* the contract owner can cancel orders only if this contract is paused. *)
+      RequirePaused
+    | False =>
+      (* - the makers can cancel their orders only if this contract is not paused. *)
+      RequireNotPaused
+    end;
+    Cancel token_address token_id payment_token_address sale_price side
+  end
+end
+
 (* Sets sell and buy orders. *)
 (* - Sellers can set sell orders (listings) *)
 (* - Buyers can set buy orders (offers) *)
@@ -1281,6 +1308,12 @@ transition CancelOrder(
   end;
 
   Cancel token_address token_id payment_token_address sale_price side
+end
+
+(* Batch cancel order *)
+transition BatchCancelOrder(cancel_order_list: List CancelOrderParam)
+  RequireAllowedUser _sender;
+  forall cancel_order_list BatchCancelOrder_
 end
 
 (* @multi-sig *)
