@@ -212,7 +212,7 @@ let make_error =
       | InvalidSignature                   => Int32 -22
       | OrderNotAuthorized                 => Int32 -23
       | OrderExpired                       => Int32 -24
-      | InvalidVerifier                    => Int32 -25  
+      | InvalidVerifier                    => Int32 -25
       | NotSignedOrderModeEnabled          => Int32 -26
       | NotSignedOrderModeDisabled         => Int32 -27
 
@@ -291,6 +291,9 @@ field is_signed_order_mode: Bool = false
 (* Public key used to verify signed fulfill order *)
 field verifier_pub_key : ByStr33 = zero_pubkey
 
+(* Batchcancel Operator *)
+(* Defaults to `zero_address` *)
+field operator: ByStr20 = zero_address
 
 (* Procedures *)
 procedure Throw(error : Error)
@@ -435,9 +438,13 @@ end
 procedure RequireAccessToCancel(maker_address: ByStr20)
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
+  cur_operator <- operator;
+  is_operator = builtin eq cur_operator _sender;
   is_maker = builtin eq maker_address _sender;
+  is_maker_owner = orb is_maker is_contract_owner;
+  is_operator_owner = orb is_maker is_operator;
+  is_allowed_to_cancel_order = orb is_maker_owner is_operator_owner;
 
-  is_allowed_to_cancel_order = orb is_maker is_contract_owner;
   match is_allowed_to_cancel_order with
   | True =>
   | False =>
@@ -1116,12 +1123,15 @@ procedure Cancel(
   end
 end
 
-procedure BatchCancelOrder_(order: CancelOrderParam)
+procedure BatchCancelOrder_(order: CancelOrderParam)  
   match order with
   | CancelOrderParam token_address token_id payment_token_address sale_price side =>
     cur_owner <- contract_owner;
     is_contract_owner = builtin eq cur_owner _sender;
-    match is_contract_owner with
+    cur_operator <- operator;
+    is_operator = builtin eq cur_operator _sender;
+    is_valid = orb is_contract_owner is_operator;
+    match is_valid with
     | True => 
       (* the contract owner can cancel orders only if this contract is paused. *)
       RequirePaused
@@ -1297,8 +1307,11 @@ transition CancelOrder(
 )
   cur_owner <- contract_owner;
   is_contract_owner = builtin eq cur_owner _sender;
+  cur_operator <- operator;
+  is_operator = builtin eq cur_operator _sender;
+  is_valid = orb is_contract_owner is_operator;
   
-  match is_contract_owner with
+  match is_valid with
   | True => 
     (* the contract owner can cancel orders only if this contract is paused. *)
     RequirePaused
@@ -1312,7 +1325,6 @@ end
 
 (* Batch cancel order *)
 transition BatchCancelOrder(cancel_order_list: List CancelOrderParam)
-  RequireAllowedUser _sender;
   forall cancel_order_list BatchCancelOrder_
 end
 
@@ -1424,6 +1436,15 @@ transition SetAllowlist(
     _eventname: "SetAllowlist";
     address: address
   };
+  event e
+end
+
+(* @multi-sig *)
+transition SetOperator(to: ByStr20)
+  RequireContractOwner;
+  RequireValidDestination to;
+  operator := to;
+  e = { _eventname: "UpdatedOperator"; operator: to };
   event e
 end
 

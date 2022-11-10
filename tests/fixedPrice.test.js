@@ -45,11 +45,11 @@ const accounts = {
   },
   'address01': {
     'address': getAddressFromPrivateKey(process.env.TOKEN1_PRIVATE_KEY),
-    'privateKey': process.env.N_01_PRIVATE_KEY
+    'privateKey': process.env.TOKEN1_PRIVATE_KEY
   },
   'address02': {
     'address': getAddressFromPrivateKey(process.env.TOKEN2_PRIVATE_KEY),
-    'privateKey': process.env.N_02_PRIVATE_KEY
+    'privateKey': process.env.TOKEN2_PRIVATE_KEY
   },
   'address03': {
     'address': getAddressFromPrivateKey(process.env.N_03_PRIVATE_KEY),
@@ -2414,7 +2414,7 @@ describe('Native ZIL', () => {
 
   })
 
-  test('CancelOrder: throws NotAllowedToCancelOrder by stranger', async () => {
+  test('CancelOrder: throws NotAllowedToCancelOrder by stranger Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const tokenId = String(1)
@@ -2471,7 +2471,7 @@ describe('Native ZIL', () => {
 
   })
 
-  test('CancelOrder: Buyer cancels buy order', async () => {
+  test('CancelOrder: Buyer cancels buy order Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const fixedPriceStartingBalance = await getBalance(fixedPriceAddress)
@@ -2557,7 +2557,7 @@ describe('Native ZIL', () => {
 
   })
 
-  test('CancelOrder: Seller cancels sell order', async () => {
+  test('CancelOrder: Seller cancels sell order Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const tokenId = String(1)
@@ -2631,7 +2631,7 @@ describe('Native ZIL', () => {
 
   })
 
-  test('BatchCancelOrder: Seller cancels sell orders', async () => {
+  test('BatchCancelOrder: Seller cancels sell orders Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const side = String(0)
@@ -2748,7 +2748,288 @@ describe('Native ZIL', () => {
 
   })
 
-  test('BatchCancelOrder: Stranger cancels sell orders throw NotAllowedToCancelOrder Error', async () => {
+  test('BatchCancelOrder: Admin cancels sell orders Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Admin cancels sell orders - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Admin cancels sell orders - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Admin cancels sell orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(2)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+  })
+
+  test('BatchCancelOrder: Operator cancels sell orders Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Operator cancels sell orders - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Operator cancels sell orders - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
+
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    console.log(accounts.address01.privateKey);
+    console.log(accounts.stranger.privateKey);
+    console.log(getAddressFromPrivateKey(accounts.address01.privateKey))
+    console.log(getAddressFromPrivateKey(accounts.stranger.privateKey))
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Seller cancels sell orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(2)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+  })
+
+  test('BatchCancelOrder: Stranger cancels sell orders throw NotAllowedToCancelOrder Error Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const side = String(0)
@@ -2856,140 +3137,11 @@ describe('Native ZIL', () => {
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -12))])'
       },
       { line: 1, message: 'Raised from RequireNotPaused' },
-      { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from BatchCancelOrder' }
     ])
   })
 
-  test('BatchCancelOrder: Buyer cancels buy orders', async () => {
-    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
-    const fixedPriceStartingBalance = await getBalance(fixedPriceAddress)
-
-    const side = String(1)
-    const expiryBlock = String(globalBNum + 35)
-
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder1 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      zero_address,
-      '100000',
-      side,
-      expiryBlock
-    )
-
-    const txBuyOrder1 = await callContract(
-      accounts.nftBuyer.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder1
-        }
-      ],
-      "100000",
-      false,
-      false
-    )
-
-    console.log(txBuyOrder1.receipt)
-    expect(txBuyOrder1.receipt.success).toEqual(true)
-
-    const formattedAdtOrder2 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '2',
-      zero_address,
-      '200000',
-      side,
-      expiryBlock
-    )
-
-    const txBuyOrder2 = await callContract(
-      accounts.nftBuyer.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder2
-        }
-      ],
-      "200000",
-      false,
-      false
-    )
-
-    console.log(txBuyOrder2.receipt)
-    expect(txBuyOrder2.receipt.success).toEqual(true)
-
-    const fixedPriceAfterPlacingOrderBalance = await getBalance(fixedPriceAddress)
-
-    expect(fixedPriceAfterPlacingOrderBalance).toEqual(String(310000));
-
-    let orderList = [];
-
-    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "1",
-      zero_address,
-      "100000",
-      side
-    )
-
-    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "2",
-      zero_address,
-      "200000",
-      side
-    )
-
-    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
-
-    console.log(orderList);
-
-    const tx = await callContract(
-      accounts.nftBuyer.privateKey,
-      fixedPriceContract,
-      'BatchCancelOrder',
-      [
-        {
-          vname: 'cancel_order_list',
-          type: `List ${fixedPriceAddress}.CancelOrderParam`,
-          value: orderList
-        }
-      ],
-      0,
-      false,
-      false
-    )
-    console.log("BatchCancelOrder: Buyer cancels buy orders - 3",tx.receipt)
-    expect(tx.receipt.success).toEqual(true)
-
-    let events = tx.receipt.event_logs;
-    expect(events.length).toEqual(2)
-
-    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
-    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
-
-    expect(events[0].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
-    expect(events[0].params[5].value).toEqual("200000")
-
-    expect(events[1].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
-    expect(events[1].params[5].value).toEqual("100000")
-
-    const fixedPriceEndingBalance = await getBalance(fixedPriceAddress)
-    expect(fixedPriceEndingBalance).toEqual(fixedPriceStartingBalance);
-  })
-
-  test('BatchCancelOrder: Admin cancels sell orders', async () => {
+  test('BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
 
     const side = String(0)
@@ -3020,7 +3172,7 @@ describe('Native ZIL', () => {
       false
     )
   
-    console.log("BatchCancelOrder: Seller cancels sell orders - 1",txSetOrder1.receipt)
+    console.log("BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error Native ZIL - 1",txSetOrder1.receipt)
     expect(txSetOrder1.receipt.success).toEqual(true)
 
     const formattedAdtOrder2 = await createFixedPriceOrder(
@@ -3049,136 +3201,7 @@ describe('Native ZIL', () => {
       false
     )
 
-    console.log("BatchCancelOrder: Seller cancels sell orders - 2", txSetOrder2.receipt)
-    expect(txSetOrder2.receipt.success).toEqual(true)
-
-    let orderList = [];
-
-    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "1",
-      zero_address,
-      "100000",
-      side
-    )
-
-    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "2",
-      zero_address,
-      "200000",
-      side
-    )
-
-    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
-
-    const pauseTx = await callContract(
-      accounts.contractOwner.privateKey,
-      fixedPriceContract,
-      "Pause",
-      [],
-      0,
-      false,
-      false
-    );
-
-    expect(pauseTx.receipt.success).toEqual(true);
-
-    const tx = await callContract(
-      accounts.contractOwner.privateKey,
-      fixedPriceContract,
-      'BatchCancelOrder',
-      [
-        {
-          vname: 'cancel_order_list',
-          type: `List ${fixedPriceAddress}.CancelOrderParam`,
-          value: orderList
-        }
-      ],
-      0,
-      false,
-      false
-    )
-    console.log("BatchCancelOrder: Seller cancels sell orders - 3",tx.receipt)
-    expect(tx.receipt.success).toEqual(true)
-
-    let events = tx.receipt.event_logs;
-    expect(events.length).toEqual(2)
-
-    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
-    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
-
-    expect(events[0].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
-    expect(events[0].params[5].value).toEqual("200000")
-
-    expect(events[1].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
-    expect(events[1].params[5].value).toEqual("100000")
-
-  })
-
-  test('BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error', async () => {
-    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
-
-    const side = String(0)
-
-    const formattedAdtOrder1 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      zero_address,
-      '100000',
-      side,
-      String(globalBNum + 35)
-    )
-  
-    const txSetOrder1 = await callContract(
-      accounts.nftSeller.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder1
-        }
-      ],
-      0,
-      false,
-      false
-    )
-  
-    console.log("BatchCancelOrder: Admin cancels sell orders - 1",txSetOrder1.receipt)
-    expect(txSetOrder1.receipt.success).toEqual(true)
-
-    const formattedAdtOrder2 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '2',
-      zero_address,
-      '200000',
-      side,
-      String(globalBNum + 35)
-    )
-
-    const txSetOrder2 = await callContract(
-      accounts.nftSeller.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder2
-        }
-      ],
-      0,
-      false,
-      false
-    )
-
-    console.log("BatchCancelOrder: Admin cancels sell orders - 2", txSetOrder2.receipt)
+    console.log("BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error Native ZIL - 2", txSetOrder2.receipt)
     expect(txSetOrder2.receipt.success).toEqual(true)
 
     let orderList = [];
@@ -3218,20 +3241,277 @@ describe('Native ZIL', () => {
       false,
       false
     )
-    console.log("BatchCancelOrder: Admin cancels sell orders - 3",tx.receipt)
+    console.log("BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error Native ZIL - 3",tx.receipt)
     expect(tx.receipt.success).toEqual(false)
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
       },
-      { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from BatchCancelOrder' }
     ])
 
   })
 
-  test('BatchCancelOrder: Admin cancels buy orders', async () => {
+  test('BatchCancelOrder: Operator cancels sell orders without Pausing contract throws NotPausedError Error Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("Operator cancels sell orders without Pausing contract throws NotPausedError Error - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("Operator cancels sell orders without Pausing contract throws NotPausedError Error - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+    
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("Operator cancels sell orders without Pausing contract throws NotPausedError Error - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
+
+  })
+
+  test('BatchCancelOrder: Buyer cancels buy orders Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const fixedPriceStartingBalance = await getBalance(fixedPriceAddress)
+
+    const side = String(1)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder1 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      "100000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder1.receipt)
+    expect(txBuyOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder2 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      "200000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder2.receipt)
+    expect(txBuyOrder2.receipt.success).toEqual(true)
+
+    const fixedPriceAfterPlacingOrderBalance = await getBalance(fixedPriceAddress)
+
+    expect(fixedPriceAfterPlacingOrderBalance).toEqual(String(310000));
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const tx = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Buyer cancels buy orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(2)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+    const fixedPriceEndingBalance = await getBalance(fixedPriceAddress)
+    expect(fixedPriceEndingBalance).toEqual(fixedPriceStartingBalance);
+  })
+
+  test('BatchCancelOrder: Admin cancels buy orders Native ZIL', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
     const fixedPriceStartingBalance = await getBalance(fixedPriceAddress)
 
@@ -3369,6 +3649,420 @@ describe('Native ZIL', () => {
 
     const fixedPriceEndingBalance = await getBalance(fixedPriceAddress)
     expect(fixedPriceEndingBalance).toEqual(fixedPriceStartingBalance);
+  })
+
+  test('BatchCancelOrder: Operator cancels buy orders Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const fixedPriceStartingBalance = await getBalance(fixedPriceAddress)
+
+    const side = String(1)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder1 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      "100000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder1.receipt)
+    expect(txBuyOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder2 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      "200000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder2.receipt)
+    expect(txBuyOrder2.receipt.success).toEqual(true)
+
+    const fixedPriceAfterPlacingOrderBalance = await getBalance(fixedPriceAddress)
+
+    expect(fixedPriceAfterPlacingOrderBalance).toEqual(String(310000));
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Buyer cancels buy orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(2)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+    const fixedPriceEndingBalance = await getBalance(fixedPriceAddress)
+    expect(fixedPriceEndingBalance).toEqual(fixedPriceStartingBalance);
+  })
+
+  test('BatchCancelOrder: Admin cancels buy orders without Pausing contract throws NotPausedError Error Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const side = String(1)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder1 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      "100000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder1.receipt)
+    expect(txBuyOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder2 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      "200000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder2.receipt)
+    expect(txBuyOrder2.receipt.success).toEqual(true)
+
+    const fixedPriceAfterPlacingOrderBalance = await getBalance(fixedPriceAddress)
+
+    expect(fixedPriceAfterPlacingOrderBalance).toEqual(String(310000));
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Admin cancels buy orders without Pausing contract throws NotPausedError Error Native ZIL - 1",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
+  })
+
+  test('BatchCancelOrder: Operator cancels buy orders without Pausing contract throws NotPausedError Error Native ZIL', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const side = String(1)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      zero_address,
+      '100000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder1 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      "100000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder1.receipt)
+    expect(txBuyOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      zero_address,
+      '200000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder2 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      "200000",
+      false,
+      false
+    )
+
+    console.log(txBuyOrder2.receipt)
+    expect(txBuyOrder2.receipt.success).toEqual(true)
+
+    const fixedPriceAfterPlacingOrderBalance = await getBalance(fixedPriceAddress)
+
+    expect(fixedPriceAfterPlacingOrderBalance).toEqual(String(310000));
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      zero_address,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      zero_address,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Operator cancels buy orders without Pausing contract throws NotPausedError Error Native ZIL - 1",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
   })
 })
 
@@ -5188,6 +5882,528 @@ describe('Wrapped ZIL', () => {
 
   })
 
+  test('BatchCancelOrder: Admin cancels sell orders ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Seller cancels sell orders - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Seller cancels sell orders - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Seller cancels sell orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(2)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+  })
+
+  test('BatchCancelOrder: Operator cancels sell orders ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Operator cancels sell orders ZRC2 - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Operator cancels sell orders ZRC2 - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Operator cancels sell orders ZRC2 - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(2)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+  })
+
+  test('BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error ZRC2 - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error ZRC2 - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Admin cancels sell orders without Pausing contract throws NotPausedError Error ZRC2 - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
+
+  })
+
+  test('BatchCancelOrder: Operator cancels sell orders without Pausing contract throws NotPausedError Error ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Operator cancels sell orders without Pausing contract throws NotPausedError Error ZRC2 - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Operator cancels sell orders without Pausing contract throws NotPausedError Error ZRC2 - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Operator cancels sell orders without Pausing contract throws NotPausedError Error ZRC2 - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
+
+  })
+
   test('BatchCancelOrder: Stranger cancels sell orders ZRC2 throw NotAllowedToCancelOrder Error', async () => {
     const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
     const side = String(0)
@@ -5218,7 +6434,7 @@ describe('Wrapped ZIL', () => {
       false
     )
   
-    console.log("BatchCancelOrder: Stranger cancels sell orders - 1",txSetOrder1.receipt)
+    console.log("BatchCancelOrder: Stranger cancels sell orders ZRC2 throw NotAllowedToCancelOrder Error - 1",txSetOrder1.receipt)
     expect(txSetOrder1.receipt.success).toEqual(true)
 
     const formattedAdtOrder2 = await createFixedPriceOrder(
@@ -5247,7 +6463,7 @@ describe('Wrapped ZIL', () => {
       false
     )
 
-    console.log("BatchCancelOrder: Stranger cancels sell orders - 2", txSetOrder2.receipt)
+    console.log("BatchCancelOrder: Stranger cancels sell orders ZRC2 throw NotAllowedToCancelOrder Error - 2", txSetOrder2.receipt)
     expect(txSetOrder2.receipt.success).toEqual(true)
 
     let orderList = [];
@@ -5289,7 +6505,7 @@ describe('Wrapped ZIL', () => {
       false,
       false
     )
-    console.log("BatchCancelOrder: Stranger cancels sell orders - 3",tx.receipt)
+    console.log("BatchCancelOrder: Stranger cancels sell orders ZRC2 throw NotAllowedToCancelOrder Error - 3",tx.receipt)
     expect(tx.receipt.success).toEqual(false)
     expect(tx.receipt.exceptions).toEqual([
       {
@@ -5297,7 +6513,6 @@ describe('Wrapped ZIL', () => {
         message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -12))])'
       },
       { line: 1, message: 'Raised from RequireNotPaused' },
-      { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from BatchCancelOrder' }
     ])
   })
@@ -5442,250 +6657,6 @@ describe('Wrapped ZIL', () => {
 
     expect(parseInt(fixedPriceEndingBalance)).toBe(parseInt(fixedPriceStartingBalance))
     expect(parseInt(buyerEndBalance)).toBe(parseInt(buyerStartBalance))
-  })
-
-  test('BatchCancelOrder: Admin cancels sell orders ZRC2', async () => {
-    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
-    const side = String(0)
-
-    const formattedAdtOrder1 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      paymentTokenAddress,
-      '100000',
-      side,
-      String(globalBNum + 35)
-    )
-  
-    const txSetOrder1 = await callContract(
-      accounts.nftSeller.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder1
-        }
-      ],
-      0,
-      false,
-      false
-    )
-  
-    console.log("BatchCancelOrder: Seller cancels sell orders - 1",txSetOrder1.receipt)
-    expect(txSetOrder1.receipt.success).toEqual(true)
-
-    const formattedAdtOrder2 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '2',
-      paymentTokenAddress,
-      '200000',
-      side,
-      String(globalBNum + 35)
-    )
-
-    const txSetOrder2 = await callContract(
-      accounts.nftSeller.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder2
-        }
-      ],
-      0,
-      false,
-      false
-    )
-
-    console.log("BatchCancelOrder: Seller cancels sell orders - 2", txSetOrder2.receipt)
-    expect(txSetOrder2.receipt.success).toEqual(true)
-
-    let orderList = [];
-
-    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "1",
-      paymentTokenAddress,
-      "100000",
-      side
-    )
-
-    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "2",
-      paymentTokenAddress,
-      "200000",
-      side
-    )
-
-    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
-
-    console.log(orderList);
-
-    const pauseTx = await callContract(
-      accounts.contractOwner.privateKey,
-      fixedPriceContract,
-      "Pause",
-      [],
-      0,
-      false,
-      false
-    );
-
-    expect(pauseTx.receipt.success).toEqual(true);
-
-    const tx = await callContract(
-      accounts.contractOwner.privateKey,
-      fixedPriceContract,
-      'BatchCancelOrder',
-      [
-        {
-          vname: 'cancel_order_list',
-          type: `List ${fixedPriceAddress}.CancelOrderParam`,
-          value: orderList
-        }
-      ],
-      0,
-      false,
-      false
-    )
-    console.log("BatchCancelOrder: Seller cancels sell orders - 3",tx.receipt)
-    expect(tx.receipt.success).toEqual(true)
-
-    let events = tx.receipt.event_logs;
-    expect(events.length).toEqual(2)
-
-    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
-    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
-
-    expect(events[0].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
-    expect(events[0].params[5].value).toEqual("200000")
-
-    expect(events[1].params[0].value).toEqual(accounts.nftSeller.address.toLowerCase())
-    expect(events[1].params[5].value).toEqual("100000")
-
-  })
-
-  test('BatchCancelOrder: Admin cancels sell orders ZRC2  without Pausing contract throws NotPausedError Error', async () => {
-    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
-    const side = String(0)
-
-    const formattedAdtOrder1 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      paymentTokenAddress,
-      '100000',
-      side,
-      String(globalBNum + 35)
-    )
-  
-    const txSetOrder1 = await callContract(
-      accounts.nftSeller.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder1
-        }
-      ],
-      0,
-      false,
-      false
-    )
-  
-    console.log("BatchCancelOrder: Admin cancels sell orders - 1",txSetOrder1.receipt)
-    expect(txSetOrder1.receipt.success).toEqual(true)
-
-    const formattedAdtOrder2 = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '2',
-      paymentTokenAddress,
-      '200000',
-      side,
-      String(globalBNum + 35)
-    )
-
-    const txSetOrder2 = await callContract(
-      accounts.nftSeller.privateKey,
-      fixedPriceContract,
-      'SetOrder',
-      [
-        {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder2
-        }
-      ],
-      0,
-      false,
-      false
-    )
-
-    console.log("BatchCancelOrder: Admin cancels sell orders - 2", txSetOrder2.receipt)
-    expect(txSetOrder2.receipt.success).toEqual(true)
-
-    let orderList = [];
-
-    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "1",
-      paymentTokenAddress,
-      "100000",
-      side
-    )
-
-    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      "2",
-      paymentTokenAddress,
-      "200000",
-      side
-    )
-
-    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
-
-    console.log(orderList);
-
-    const tx = await callContract(
-      accounts.contractOwner.privateKey,
-      fixedPriceContract,
-      'BatchCancelOrder',
-      [
-        {
-          vname: 'cancel_order_list',
-          type: `List ${fixedPriceAddress}.CancelOrderParam`,
-          value: orderList
-        }
-      ],
-      0,
-      false,
-      false
-    )
-    console.log("BatchCancelOrder: Admin cancels sell orders - 3",tx.receipt)
-    expect(tx.receipt.success).toEqual(false)
-    expect(tx.receipt.exceptions).toEqual([
-      {
-        line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
-      },
-      { line: 1, message: 'Raised from RequireAllowedUser' },
-      { line: 1, message: 'Raised from BatchCancelOrder' }
-    ])
-
   })
 
   test('BatchCancelOrder: Admin cancels buy orders ZRC2', async () => {
@@ -5840,6 +6811,422 @@ describe('Wrapped ZIL', () => {
 
     expect(parseInt(fixedPriceEndingBalance)).toBe(parseInt(fixedPriceStartingBalance))
     expect(parseInt(buyerEndBalance)).toBe(parseInt(buyerStartBalance))
+  })
+
+  test('BatchCancelOrder: Operator cancels buy orders ZRC2', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+
+    const fixedPriceStartingBalance = await getZRC2State(fixedPriceAddress, paymentTokenAddress)
+    const buyerStartBalance = await getZRC2State(accounts.nftBuyer.address, paymentTokenAddress)
+
+    const side = String(1)
+    const expiryBlock = String(globalBNum + 35)
+
+    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      expiryBlock
+    )
+
+    console.log(formattedAdtOrder1, "formattedAdtOrder1");
+
+    const txBuyOrder1 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Operator cancels buy orders ZRC2 - 1",txBuyOrder1.receipt)
+    expect(txBuyOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      expiryBlock
+    )
+
+    const txBuyOrder2 = await callContract(
+      accounts.nftBuyer.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Operator cancels buy orders ZRC2 - 2",txBuyOrder2.receipt)
+    expect(txBuyOrder2.receipt.success).toEqual(true)
+
+    const fixedPriceAfterPlacingOrderBalance = await getZRC2State(fixedPriceAddress, paymentTokenAddress)
+
+    expect(fixedPriceAfterPlacingOrderBalance).toEqual(String(310000));
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      "1"
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      "1"
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const pauseTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "Pause",
+      [],
+      0,
+      false,
+      false
+    );
+
+    expect(pauseTx.receipt.success).toEqual(true);
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Operator cancels buy orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(true)
+
+    let events = tx.receipt.event_logs;
+    expect(events.length).toEqual(4)
+
+    expect(events[0]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[1]._eventname == 'CancelOrder').toEqual(true);
+    expect(events[2]._eventname == 'TransferSuccess').toEqual(true);
+    expect(events[3]._eventname == 'TransferSuccess').toEqual(true);
+
+    expect(events[0].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(events[0].params[5].value).toEqual("200000")
+
+    expect(events[1].params[0].value).toEqual(accounts.nftBuyer.address.toLowerCase())
+    expect(events[1].params[5].value).toEqual("100000")
+
+    const fixedPriceEndingBalance = await getZRC2State(fixedPriceAddress, paymentTokenAddress)
+    const buyerEndBalance = await getZRC2State(accounts.nftBuyer.address, paymentTokenAddress)
+
+    console.log("fixedPriceStartingBalance", fixedPriceStartingBalance)
+    console.log("fixedPriceEndingBalance", fixedPriceEndingBalance)
+    console.log("buyerStartBalance", buyerStartBalance)
+    console.log("buyerEndBalance", buyerEndBalance)
+
+    expect(parseInt(fixedPriceEndingBalance)).toBe(parseInt(fixedPriceStartingBalance))
+    expect(parseInt(buyerEndBalance)).toBe(parseInt(buyerStartBalance))
+  })
+
+  test('BatchCancelOrder: Admin cancels sell orders ZRC2  without Pausing contract throws NotPausedError Error', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Admin cancels sell orders ZRC2  without Pausing contract throws NotPausedError Error - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Admin cancels sell orders ZRC2  without Pausing contract throws NotPausedError Error - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const tx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Admin cancels sell orders ZRC2  without Pausing contract throws NotPausedError Error - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
+
+  })
+
+  test('BatchCancelOrder: Operator cancels sell orders ZRC2  without Pausing contract throws NotPausedError Error', async () => {
+    const fixedPriceContract = await zilliqa.contracts.at(fixedPriceAddress)
+    const side = String(0)
+
+    const formattedAdtOrder1 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '1',
+      paymentTokenAddress,
+      '100000',
+      side,
+      String(globalBNum + 35)
+    )
+  
+    const txSetOrder1 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder1
+        }
+      ],
+      0,
+      false,
+      false
+    )
+  
+    console.log("BatchCancelOrder: Operator cancels sell orders - 1",txSetOrder1.receipt)
+    expect(txSetOrder1.receipt.success).toEqual(true)
+
+    const formattedAdtOrder2 = await createFixedPriceOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      '2',
+      paymentTokenAddress,
+      '200000',
+      side,
+      String(globalBNum + 35)
+    )
+
+    const txSetOrder2 = await callContract(
+      accounts.nftSeller.privateKey,
+      fixedPriceContract,
+      'SetOrder',
+      [
+        {
+          vname: 'order',
+          type: `${fixedPriceAddress}.OrderParam`,
+          value: formattedAdtOrder2
+        }
+      ],
+      0,
+      false,
+      false
+    )
+
+    console.log("BatchCancelOrder: Operator cancels sell orders - 2", txSetOrder2.receipt)
+    expect(txSetOrder2.receipt.success).toEqual(true)
+
+    let orderList = [];
+
+    const formattedBatchCancelOrder1 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "1",
+      paymentTokenAddress,
+      "100000",
+      side
+    )
+
+    const formattedBatchCancelOrder2 = await createBatchCancelOrder(
+      fixedPriceAddress,
+      nftTokenAddress,
+      "2",
+      paymentTokenAddress,
+      "200000",
+      side
+    )
+
+    orderList = [formattedBatchCancelOrder1, formattedBatchCancelOrder2];
+
+    console.log(orderList);
+
+    const setOperatorTx = await callContract(
+      accounts.contractOwner.privateKey,
+      fixedPriceContract,
+      "SetOperator",
+      [
+        {
+          vname: 'to',
+          type: "ByStr20",
+          value: accounts.address01.address
+        }
+      ],
+      0,
+      false,
+      false
+    );
+
+    expect(setOperatorTx.receipt.success).toEqual(true);
+
+    const tx = await callContract(
+      accounts.address01.privateKey,
+      fixedPriceContract,
+      'BatchCancelOrder',
+      [
+        {
+          vname: 'cancel_order_list',
+          type: `List ${fixedPriceAddress}.CancelOrderParam`,
+          value: orderList
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    console.log("BatchCancelOrder: Operator cancels sell orders - 3",tx.receipt)
+    expect(tx.receipt.success).toEqual(false)
+    expect(tx.receipt.exceptions).toEqual([
+      {
+        line: 1,
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (code : (Int32 -2))])'
+      },
+      { line: 1, message: 'Raised from BatchCancelOrder' }
+    ])
+
   })
 })
 
