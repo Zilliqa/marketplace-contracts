@@ -1123,17 +1123,17 @@ procedure Cancel(
   end
 end
 
-procedure BatchCancelOrder_(order: CancelOrderParam)  
+procedure DoBatchCancelOrder(order: CancelOrderParam)  
   match order with
   | CancelOrderParam token_address token_id payment_token_address sale_price side =>
     cur_owner <- contract_owner;
     is_contract_owner = builtin eq cur_owner _sender;
     cur_operator <- operator;
     is_operator = builtin eq cur_operator _sender;
-    is_valid = orb is_contract_owner is_operator;
-    match is_valid with
+    is_owner_operator = orb is_contract_owner is_operator;
+    match is_owner_operator with
     | True => 
-      (* the contract owner can cancel orders only if this contract is paused. *)
+      (* the contract owner/operator can cancel orders only if this contract is paused. *)
       RequirePaused
     | False =>
       (* - the makers can cancel their orders only if this contract is not paused. *)
@@ -1309,11 +1309,11 @@ transition CancelOrder(
   is_contract_owner = builtin eq cur_owner _sender;
   cur_operator <- operator;
   is_operator = builtin eq cur_operator _sender;
-  is_valid = orb is_contract_owner is_operator;
+  is_owner_operator = orb is_contract_owner is_operator;
   
-  match is_valid with
+  match is_owner_operator with
   | True => 
-    (* the contract owner can cancel orders only if this contract is paused. *)
+    (* the contract owner/operator can cancel orders only if this contract is paused. *)
     RequirePaused
   | False =>
     (* - the makers can cancel their orders only if this contract is not paused. *)
@@ -1325,7 +1325,7 @@ end
 
 (* Batch cancel order *)
 transition BatchCancelOrder(cancel_order_list: List CancelOrderParam)
-  forall cancel_order_list BatchCancelOrder_
+  forall cancel_order_list DoBatchCancelOrder
 end
 
 (* @multi-sig *)
@@ -1445,6 +1445,14 @@ transition SetOperator(to: ByStr20)
   RequireValidDestination to;
   operator := to;
   e = { _eventname: "UpdatedOperator"; operator: to };
+  event e
+end
+
+(* @multi-sig *)
+transition ClearOperator()
+  RequireContractOwner;
+  operator := zero_address;
+  e = { _eventname: "ClearOperator" };
   event e
 end
 
