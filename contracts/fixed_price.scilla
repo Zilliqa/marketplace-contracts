@@ -1126,19 +1126,6 @@ end
 procedure DoBatchCancelOrder(order: CancelOrderParam)  
   match order with
   | CancelOrderParam token_address token_id payment_token_address sale_price side =>
-    cur_owner <- contract_owner;
-    is_contract_owner = builtin eq cur_owner _sender;
-    cur_operator <- operator;
-    is_operator = builtin eq cur_operator _sender;
-    is_owner_operator = orb is_contract_owner is_operator;
-    match is_owner_operator with
-    | True => 
-      (* the contract owner/operator can cancel orders only if this contract is paused. *)
-      RequirePaused
-    | False =>
-      (* - the makers can cancel their orders only if this contract is not paused. *)
-      RequireNotPaused
-    end;
     Cancel token_address token_id payment_token_address sale_price side
   end
 end
@@ -1325,6 +1312,19 @@ end
 
 (* Batch cancel order *)
 transition BatchCancelOrder(cancel_order_list: List CancelOrderParam)
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  cur_operator <- operator;
+  is_operator = builtin eq cur_operator _sender;
+  is_owner_operator = orb is_contract_owner is_operator;
+  match is_owner_operator with
+  | True => 
+    (* the contract owner/operator can cancel orders only if this contract is paused. *)
+    RequirePaused
+  | False =>
+    (* - the makers can cancel their orders only if this contract is not paused. *)
+    RequireNotPaused
+  end;
   forall cancel_order_list DoBatchCancelOrder
 end
 
