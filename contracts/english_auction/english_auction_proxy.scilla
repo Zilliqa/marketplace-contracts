@@ -40,12 +40,12 @@ let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | NotPausedError                      => Int32 -1
-      | PausedError                         => Int32 -2
-      | NotContractOwnerError               => Int32 -3
-      | ZeroAddressError                    => Int32 -4
-      | SelfError                           => Int32 -5
-      | NotContractOwnershipRecipientError  => Int32 -6
+      | NotPausedError                      => "NotPausedError"
+      | PausedError                         => "PausedError"
+      | NotContractOwnerError               => "NotContractOwnerError"
+      | ZeroAddressError                    => "ZeroAddressError"
+      | SelfError                           => "SelfError"
+      | NotContractOwnershipRecipientError  => "NotContractOwnershipRecipientError"
       end
     in
     { _exception : "Error"; source: "proxy"; code : result_code }
@@ -136,66 +136,6 @@ procedure RequirePaused()
   end
 end
 
-procedure BidWithNativeZILs(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256,
-  start_amount: Uint128,
-  dest: ByStr20
-)
-  RequireNotPaused;
-  current_logic <- logic;
-  RequireNonZeroAddress current_logic;
-  msg_to_bid_zil = {
-    _tag: "BidWithNativeZILs";
-    _recipient: current_logic;
-    _amount: _amount;
-    token_address: token_address;
-    token_id: token_id;
-    start_amount: start_amount;
-    dest: dest
-  };
-  msgs = one_msg msg_to_bid_zil;
-  send msgs
-end
-
-procedure BidWithZRC2(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256,
-  payment_token_address: ByStr20 with contract 
-    field allowances: Map ByStr20 (Map ByStr20 Uint128)
-  end,
-  amount: Uint128,
-  start_amount: Uint128,
-  dest: ByStr20
-)
-  RequireNotPaused;
-  current_logic <- logic;
-  RequireNonZeroAddress current_logic;
-  msg_to_bid_zrc2 = {
-    _tag: "BidWithZRC2";
-    _recipient: current_logic;
-    _amount: Uint128 0;
-    token_address: token_address;
-    token_id: token_id;
-    payment_token_address: payment_token_address;
-    amount: amount;
-    start_amount: start_amount;
-    dest: dest
-  };
-  msgs = one_msg msg_to_bid_zrc2;
-  send msgs
-end
-
 procedure CancelAuction(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -219,7 +159,15 @@ procedure CancelAuction(
   send msgs
 end
 
-procedure DoStart(token_address: ByStr20, token_id: Uint256, payment_token_address: ByStr20, start_amount: Uint128, expiration_bnum: BNum)
+procedure DoStart(
+  token_address: ByStr20 with contract 
+    field royalty_fee_bps: Uint128
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  start_amount: Uint128,
+  expiration_bnum: BNum
+)
   current_logic <- logic;
   current_state <- state_contract;
   RequireNonZeroAddress current_logic;
@@ -271,11 +219,12 @@ transition Bid(
   end,
   token_id: Uint256,
   amount: Uint128,
-  payment_token_address: ByStr20,
-  seller: ByStr20,
-  buyer: ByStr20,
+  payment_token_address: ByStr20 with contract
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end,
   (* `dest` enables buyers to set an address to receive the asset when fulfilling a sell order. *)
-  dest: ByStr20
+  dest: ByStr20,
+  expiration_bnum: BNum
   )
   RequireNotPaused;
   current_logic <- logic;
@@ -292,8 +241,7 @@ transition Bid(
       token_id: token_id;
       amount: amount;
       payment_token_address: payment_token_address;
-      seller: seller;
-      buyer: buyer;
+      expiration_bnum: expiration_bnum;
       dest: dest
     };
     msgs1 = one_msg msg_to_bid1;
@@ -307,8 +255,7 @@ transition Bid(
       token_id: token_id;
       amount: amount;
       payment_token_address: payment_token_address;
-      seller: seller;
-      buyer: buyer;
+      expiration_bnum: expiration_bnum;
       dest: dest
     };
     msgs2 = one_msg msg_to_bid2;
@@ -331,7 +278,7 @@ transition Cancel(
   current_logic <- logic;
   RequireNonZeroAddress current_logic;
   msg_to_cancel = {
-    _tag: "CancelOrder";
+    _tag: "Cancel";
     _recipient: current_logic;
     _amount: Uint128 0;
     token_address: token_address;

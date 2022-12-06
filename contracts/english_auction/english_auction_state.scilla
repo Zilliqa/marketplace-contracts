@@ -83,15 +83,25 @@ let compute_commission_fee =
           portion sale_price brand_commission_fee
     end
 
+(*type SellOrder = *)
+(*| SellOrder of ByStr20 (* maker *)*)
+(*               BNum    (* expiration_blocknumber *)*)
+(*               ByStr20 (* payment_token_address *)*)
+(*               Uint128 (* start_amount *)*)
+(*               ByStr20 (* royalty_recipient *)*)
+(*               Uint128 (* royalty_fee_bps *)*)
+(*               ByStr20 (* service_fee_recipient *)*)
+(*               Uint128 (* service_fee_bps *)*)
+
+(* split sell order into two parts,
+  1. only order info
+  2. royalty  & service fee info
+*)
 type SellOrder = 
 | SellOrder of ByStr20 (* maker *)
                BNum    (* expiration_blocknumber *)
                ByStr20 (* payment_token_address *)
                Uint128 (* start_amount *)
-               ByStr20 (* royalty_recipient *)
-               Uint128 (* royalty_fee_bps *)
-               ByStr20 (* service_fee_recipient *)
-               Uint128 (* service_fee_bps *)
 
 (* maker, amount, dest, bid count *)
 type BuyOrder = 
@@ -135,37 +145,41 @@ type Error =
   | InvalidRoyaltyFeeBPSError
   | InvalidServiceFeeBPSError
   | TotalFeesTooHigh
+  | ZeroAddressError
+  | NotOperatorError
 
 let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | NotPausedError                      => Int32 -1
-      | PausedError                         => Int32 -2
-      | NotContractOwnerError               => Int32 -3
-      | ZeroAddressDestinationError         => Int32 -4
-      | ThisAddressDestinationError         => Int32 -5
-      | SellOrderNotFoundError              => Int32 -6
-      | SellOrderFoundError                 => Int32 -7
-      | NotSpenderError                     => Int32 -8
-      | NotTokenOwnerError                  => Int32 -9
-      | NotAllowedToCancelOrder             => Int32 -10
-      | SelfError                           => Int32 -11
-      | LessThanMinBidError                 => Int32 -12
-      | InsufficientAllowanceError          => Int32 -13
-      | NotExpiredError                     => Int32 -14
-      | ExpiredError                        => Int32 -15
-      | AccountNotFoundError                => Int32 -16
-      | AssetNotFoundError                  => Int32 -18
-      | NotAllowedToEndError                => Int32 -19
-      | NotAllowedPaymentToken              => Int32 -20
-      | NotEqualAmountError                 => Int32 -21
-      | NotContractOwnershipRecipientError  => Int32 -22
-      | NotAllowedUserError                 => Int32 -23
-      | InvalidBidIncrementBPSError         => Int32 -24
-      | InvalidRoyaltyFeeBPSError           => Int32 -25
-      | InvalidServiceFeeBPSError           => Int32 -26
-      | TotalFeesTooHigh                    => Int32 -27
+      | NotPausedError                      => "NotPausedError"
+      | PausedError                         => "PausedError"
+      | NotContractOwnerError               => "NotContractOwnerError"
+      | ZeroAddressDestinationError         => "ZeroAddressDestinationError"
+      | ThisAddressDestinationError         => "ThisAddressDestinationError"
+      | SellOrderNotFoundError              => "SellOrderNotFoundError"
+      | SellOrderFoundError                 => "SellOrderFoundError"
+      | NotSpenderError                     => "NotSpenderError"
+      | NotTokenOwnerError                  => "NotTokenOwnerError"
+      | NotAllowedToCancelOrder             => "NotAllowedToCancelOrder"
+      | SelfError                           => "SelfError"
+      | LessThanMinBidError                 => "LessThanMinBidError"
+      | InsufficientAllowanceError          => "InsufficientAllowanceError"
+      | NotExpiredError                     => "NotExpiredError"
+      | ExpiredError                        => "ExpiredError"
+      | AccountNotFoundError                => "AccountNotFoundError"
+      | AssetNotFoundError                  => "AssetNotFoundError"
+      | NotAllowedToEndError                => "NotAllowedToEndError"
+      | NotAllowedPaymentToken              => "NotAllowedPaymentToken"
+      | NotEqualAmountError                 => "NotEqualAmountError"
+      | NotContractOwnershipRecipientError  => "NotContractOwnershipRecipientError"
+      | NotAllowedUserError                 => "NotAllowedUserError"
+      | InvalidBidIncrementBPSError         => "InvalidBidIncrementBPSError"
+      | InvalidRoyaltyFeeBPSError           => "InvalidRoyaltyFeeBPSError"
+      | InvalidServiceFeeBPSError           => "InvalidServiceFeeBPSError"
+      | TotalFeesTooHigh                    => "TotalFeesTooHigh"
+      | ZeroAddressError                    => "ZeroAddressError"
+      | NotOperatorError                    => "NotOperatorError"
       end
     in
     { _exception : "Error"; source: "state"; code : result_code }
@@ -184,6 +198,9 @@ contract EnglishAuctionOrderbook_State
     field collection_commission_fee: Map Uint32 Uint128
   end
 )
+
+(* Logic Contract Address  *)
+field logic: ByStr20 = zero_address
 
 (* Allowlist Contract Address *)
 (* Defaults to `zero_address` *)
@@ -215,9 +232,32 @@ field is_paused: Bool = false
   - token ID
 *)
 
-(* token_address -> ( token_id -> order ) *)
-field sell_orders: Map ByStr20 (Map Uint256 SellOrder) = Emp ByStr20 (Map Uint256 SellOrder)
-field buy_orders: Map ByStr20 (Map Uint256 BuyOrder) = Emp ByStr20 (Map Uint256 BuyOrder)
+(* token_address -> (token_id -> seller) *)
+field sell_orders: Map ByStr20 (Map Uint256 ByStr20) = Emp ByStr20 (Map Uint256 ByStr20)
+
+(* token_address -> (token_id -> payment_token) *)
+field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20) = Emp ByStr20 (Map Uint256 ByStr20)
+
+(* token_address -> (token_id -> expired_block) *)
+field sell_order_expired_block : Map ByStr20 (Map Uint256 BNum) = Emp ByStr20 (Map Uint256 BNum)
+
+(* token_address -> (token_id -> start_amount) *)
+field sell_order_start_amount : Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* token_address -> (token_id -> no.of total bids) *)
+field buy_orders_count: Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* token_address -> (token_id -> (bidder -> beneficiary)) *)
+field buy_orders_beneficiary: Map ByStr20 (Map Uint256 (Map ByStr20 ByStr20)) = Emp ByStr20 (Map Uint256 (Map ByStr20 ByStr20))
+
+(* token_address -> (token_id -> current_bidder) *)
+field buy_orders_current_bidder: Map ByStr20 (Map Uint256 ByStr20) = Emp ByStr20 (Map Uint256 ByStr20)
+
+(* token_address -> (token_id -> current_bidder) *)
+field buy_orders_current_bid_amount: Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* token_address -> ( token_id -> (maker -> (amount -> (dest -> bid count)))) *)
+field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint256 (Map ByStr20 Uint128)))) = Emp ByStr20 (Map Uint256 (Map ByStr20 (Map Uint256 (Map ByStr20 Uint128))))
 
 (* owner -> ( token_address -> token set ) *)
 field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)) = Emp ByStr20 (Map ByStr20 (Map Uint256 Bool))
@@ -500,7 +540,7 @@ procedure RequireThisToBeSpender(token_address: ByStr20 with contract field spen
   end
 end
 
-procedure AddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, amount: Uint128)
+procedure DoAddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, amount: Uint128)
   maybe_bal <- payment_tokens[to][payment_token_address];
   
   new_bal = 
@@ -602,7 +642,7 @@ procedure BidWithNativeZILs(
     | False =>      
       (* marketplace pays back the old bidder the current amount *)
       (* Use zero address for native ZILs *)
-      AddToPaymentTokenBalance old_buyer zero_address cur_amount;
+      DoAddToPaymentTokenBalance old_buyer zero_address cur_amount;
 
       (* Update the buy order with new buyer *)
       new_bid_count = builtin add bid_count one_uint128;
@@ -678,7 +718,7 @@ procedure BidWithZRC2(
           Throw error
         | False =>      
           (* marketplace pays back the old bidder the current amount *)
-          AddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
+          DoAddToPaymentTokenBalance old_buyer payment_token_address cur_amount;
 
           (* Update the buy order with new buyer *)
           new_bid_count = builtin add bid_count one_uint128;
@@ -690,125 +730,44 @@ procedure BidWithZRC2(
   end
 end
 
-procedure CancelAuction(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256
-  )
-  (* Check the sell order does exist *)
-  maybe_sell_order <- sell_orders[token_address][token_id];
-  match maybe_sell_order with 
-  | None =>
-    (* Sell order doesn't exist *)
-    error = SellOrderNotFoundError;
+procedure RequireNonZeroAddress(to: ByStr20)
+  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
+  is_zero_address = builtin eq to zero_address;
+  match is_zero_address with
+  | False =>
+  | True =>
+    error = ZeroAddressError;
     Throw error
-  | Some (SellOrder seller expiration_bnum payment_token_address start_amount _ _ _ _)  => 
-    (* Check the sell order is not expired *)
-    (* An auction cannot be cancelled once it has been expired. *)
-    RequireNotExpired expiration_bnum;
-    (* Only seller must be able to cancel the sell order *)
-    RequireAccessToCancel seller;
-
-    (* Asset for the seller  *)
-    (* When auction has been cancelled, the seller can withdraw the asset. *)
-    assets[seller][token_address][token_id] := true;
-    delete sell_orders[token_address][token_id];
-    
-    (* Check if the buy order exist *)
-    maybe_buy_order <- buy_orders[token_address][token_id];
-    match maybe_buy_order with 
-    | None =>
-      (* noop *)
-    | Some (BuyOrder buyer cur_amount buy_dest _) =>  
-      (* When auction has been cancelled, the buyer can withdraw *)
-      (* the current bid amount of the payment tokens. *)
-      (* marketplace pays back the old bidder the current amount *)
-      AddToPaymentTokenBalance buyer payment_token_address cur_amount;
-      delete buy_orders[token_address][token_id]
-    end
   end
 end
 
-procedure DoStart(order: OrderParam)
-  match order with
-  | OrderParam token_address token_id payment_token_address start_amount expiration_bnum =>
-    RequireNotExpired expiration_bnum;
-    RequireAllowedPaymentToken payment_token_address;
-
-    RequireValidTotalFees token_address token_id;
-
-    has_sell_order <- exists sell_orders[token_address][token_id];
-    match has_sell_order with 
-    | True => 
-      (* It's already listed *)
-      error = SellOrderFoundError;
-      Throw error
-    | False => 
-      RequireSenderToBeTokenOwner token_address token_id;
-      RequireThisToBeSpender token_address token_id;
-      (* lock up token by holding it *)
-      ZRC6TransferFrom token_address _this_address token_id;
-
-      royalty_recipient <- & token_address.royalty_recipient;
-      RequireAllowedUser royalty_recipient;
-
-      royalty_fee_bps <- & token_address.royalty_fee_bps;
-      RequireValidRoyaltyFeeBPS royalty_fee_bps;
-
-      svc_fee_recipient <- service_fee_recipient;
-      RequireAllowedUser svc_fee_recipient;
-
-      (* service_fee_bps is already validated by SetServiceFeeBPS *)
-      svc_fee_bps <- service_fee_bps;
-
-      (* create a sell order *)
-      new_order = SellOrder 
-        _sender 
-        expiration_bnum 
-        payment_token_address 
-        start_amount 
-        royalty_recipient 
-        royalty_fee_bps 
-        svc_fee_recipient 
-        svc_fee_bps;
-
-      sell_orders[token_address][token_id] := new_order
-    end;
-    
-    e = {
-      _eventname : "Start";
-      maker: _sender;
-      token_address: token_address;
-      token_id: token_id;
-      payment_token_address: payment_token_address;
-      start_amount: start_amount;
-      expiration_bnum: expiration_bnum
-    };
-    event e
+procedure RequireLogic()
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  is_logic = builtin eq current_logic _sender;
+  match is_logic with
+  | True =>
+  | False =>
+    error = NotOperatorError;
+    Throw error
   end
 end
 
 (* Starts an individual auction *)
-transition Start(order: OrderParam)
-  (* 
-    - Seller can start an auction for an asset only if the asset has no ongoing auction. 
-  *)
-  RequireNotPaused;
-  RequireAllowedUser _sender;
-
-  DoStart order
-end
-
-(* batch starting auctions *)
-transition BatchStart(order_list: List OrderParam)
-  RequireNotPaused;
-  RequireAllowedUser _sender;
-
-  forall order_list DoStart
+transition Start(
+  token_address: ByStr20 with contract 
+    field royalty_fee_bps: Uint128
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  start_amount: Uint128,
+  expiration_bnum: BNum
+)
+  RequireLogic;
+  sell_orders[token_address][token_id] := _origin;
+  sell_order_payment_token[token_address][token_id] := payment_token_address;
+  sell_order_expired_block[token_address][token_id] := expiration_bnum;
+  sell_order_start_amount[token_address][token_id] := start_amount
 end
 
 (* Bids on an item *)
@@ -884,37 +843,6 @@ transition Bid(
       end
     end
   end
-end
-
-(* @multi-sig *)
-(* Cancels an auction *)
-transition Cancel(
-  token_address: ByStr20 with contract 
-    field royalty_recipient: ByStr20, 
-    field royalty_fee_bps: Uint128, 
-    field spenders: Map Uint256 ByStr20, 
-    field token_owners: Map Uint256 ByStr20 
-  end,
-  token_id: Uint256
-  )
-  cur_owner <- contract_owner;
-  is_contract_owner = builtin eq cur_owner _sender;
-  
-  match is_contract_owner with
-  | True => 
-    (* the contract owner can cancel orders only if this contract is paused. *)
-    RequirePaused
-  | False =>
-    (* - the makers can cancel their orders only if this contract is not paused. *)
-    RequireNotPaused
-  end;
-  CancelAuction token_address token_id;
-  e = {
-    _eventname : "Cancel";
-    token_address: token_address;
-    token_id: token_id
-  };
-  event e
 end
 
 (* Finalizes an auction *)
@@ -1038,21 +966,21 @@ transition End(
         seller_profit = builtin sub profit_after_commission service_fee;
 
         (* royalties for the royalty recipient *)
-        AddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
+        DoAddToPaymentTokenBalance royalty_recipient payment_token_address royalty_amount;
 
         (* payment tokens for the service fee recipient *)
-        AddToPaymentTokenBalance svc_fee_recipient payment_token_address service_fee;
+        DoAddToPaymentTokenBalance svc_fee_recipient payment_token_address service_fee;
 
         (* Asset for buy_dest *)
         assets[buy_dest][token_address][token_id] := true;
 
         (* payment tokens for the seller *)
-        AddToPaymentTokenBalance seller payment_token_address seller_profit;
+        DoAddToPaymentTokenBalance seller payment_token_address seller_profit;
 
         (* Paying out a commission if there is one *)
         match is_commission_fee with
           | True =>
-            AddToPaymentTokenBalance brand_recipient payment_token_address brand_commission_fee;
+            DoAddToPaymentTokenBalance brand_recipient payment_token_address brand_commission_fee;
 
             msg_to_collection_contract = {
               _tag: "TokenSaleCallback";
@@ -1090,64 +1018,6 @@ transition End(
         event e
       end
     end
-  end
-end
-
-(* Withraws payment tokens *)
-transition WithdrawPaymentTokens(payment_token_address: ByStr20)
-  RequireNotPaused;
-  RequireAllowedUser _sender;
-
-  maybe_balance <- payment_tokens[_sender][payment_token_address];
-  match maybe_balance with
-  | None =>
-    error = AccountNotFoundError;
-    Throw error
-  | Some balance =>
-    is_native_zil = builtin eq payment_token_address zero_address;
-    match is_native_zil with
-    | True =>
-      (* marketplace transfers the native ZILs to _sender *)
-      AddFunds _sender balance
-    | False =>
-      (* marketplace transfers the payment tokens to _sender *)
-      ZRC2Transfer payment_token_address _sender balance
-    end;
-
-    delete payment_tokens[_sender][payment_token_address];
-    e = {
-      _eventname : "WithdrawPaymentTokens";
-      recipient: _sender;
-      payment_token_address: payment_token_address;
-      amount: balance
-    };
-    event e
-  end
-end
-
-(* Withraws assets *)
-transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
-  RequireNotPaused;
-  RequireAllowedUser _sender;
-  
-  has_token <- exists assets[_sender][token_address][token_id];
-  match has_token with
-  | False =>
-    error = AssetNotFoundError;
-    Throw error
-  | True =>
-    (* marketplace transfers the zrc6 token to buyer *)
-    ZRC6TransferFrom token_address _sender token_id;
-    
-    delete assets[_sender][token_address][token_id];
-
-    e = {
-      _eventname : "WithdrawAsset";
-      recipient: _sender;
-      token_address: token_address;
-      token_id: token_id
-    };
-    event e
   end
 end
 
@@ -1278,6 +1148,54 @@ transition UpdateCollectionContract(
   event e
 end
 
+(* Update assert status called by Logic *)
+transition UpdateAssert(seller: ByStr20, token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  assets[seller][token_address][token_id] := true
+end
+
+(* Update assert status called by Logic *)
+transition DeleteAssert(seller: ByStr20, token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  delete assets[seller][token_address][token_id]
+end
+
+(* Update Payment Token Balance for Bidders / sellers *)
+transition AddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, amount: Uint128)
+  RequireLogic;
+  DoAddToPaymentTokenBalance to payment_token_address amount
+end
+
+(* Delete Sell Orders called by Logic *)
+transition DeleteSellOrder(token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  delete sell_orders[token_address][token_id];
+  delete sell_order_payment_token[token_address][token_id];
+  delete sell_order_expired_block[token_address][token_id];
+  delete sell_order_start_amount[token_address][token_id]
+end
+
+(* Delete Buy Order after cancel order, called by Logic *)
+transition DeleteBuyOrder(token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  delete buy_orders_count[token_address][token_id];
+  delete buy_orders_beneficiary[token_address][token_id];
+  delete buy_orders_current_bidder[token_address][token_id];
+  delete buy_orders_current_bid_amount[token_address][token_id]
+end
+
+transition UpdateBuyOrder(token_address: ByStr20, token_id: Uint256, buyer: ByStr20, beneficiary: ByStr20, bid_amount: Uint128)
+  RequireLogic;
+  buy_orders_count[token_address][token_id] := one_uint128;
+  buy_orders_beneficiary[token_address][token_id][_origin] := beneficiary;
+  buy_orders_current_bidder[token_address][token_id] := buyer;
+  buy_orders_current_bid_amount[token_address][token_id] := bid_amount
+end
+
+transition ClearPaymentBalancePostWithdraw(to: ByStr20, payment_token_address: ByStr20)
+  RequireLogic;
+  delete payment_tokens[to][payment_token_address]
+end
 
 (* @multi-sig *)
 (* Sets `to` as the contract ownership recipient. *)
