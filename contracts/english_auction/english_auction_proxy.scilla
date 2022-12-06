@@ -17,6 +17,17 @@ let one_msg =
     let nil_msg = Nil {Message} in
     Cons {Message} msg nil_msg
 
+let option_value =
+  tfun 'A =>
+  fun (default: 'A) =>
+  fun (maybe_val: Option 'A) =>
+    match maybe_val with
+    | Some v => v
+    | None => default
+    end
+
+let option_address = @option_value ByStr20
+
 (* for batch transitions *)
 (* token_address, token_id, payment_token_address, start_amount, expiration block number *)
 type OrderParam =
@@ -35,6 +46,7 @@ type Error =
   | ZeroAddressError
   | SelfError
   | NotContractOwnershipRecipientError
+  | InvalidStateContractError
 
 let make_error =
   fun (result : Error) =>
@@ -46,6 +58,7 @@ let make_error =
       | ZeroAddressError                    => "ZeroAddressError"
       | SelfError                           => "SelfError"
       | NotContractOwnershipRecipientError  => "NotContractOwnershipRecipientError"
+      | InvalidStateContractError           => "InvalidStateContractError"
       end
     in
     { _exception : "Error"; source: "proxy"; code : result_code }
@@ -219,47 +232,49 @@ transition Bid(
   end,
   token_id: Uint256,
   amount: Uint128,
-  payment_token_address: ByStr20 with contract
-    field allowances: Map ByStr20 (Map ByStr20 Uint128)
-  end,
   (* `dest` enables buyers to set an address to receive the asset when fulfilling a sell order. *)
-  dest: ByStr20,
-  expiration_bnum: BNum
+  dest: ByStr20
   )
   RequireNotPaused;
   current_logic <- logic;
   RequireNonZeroAddress current_logic;
-  is_zero_address = builtin eq payment_token_address zero_address;
-  match is_zero_address with
-  | True =>
-    accept;
-    msg_to_bid1 = {
-      _tag: "Bid";
-      _recipient: current_logic;
-      _amount: _amount;
-      token_address: token_address;
-      token_id: token_id;
-      amount: amount;
-      payment_token_address: payment_token_address;
-      expiration_bnum: expiration_bnum;
-      dest: dest
-    };
-    msgs1 = one_msg msg_to_bid1;
-    send msgs1
-  | False =>
-    msg_to_bid2 = {
-      _tag: "Bid";
-      _recipient: current_logic;
-      _amount: Uint128 0;
-      token_address: token_address;
-      token_id: token_id;
-      amount: amount;
-      payment_token_address: payment_token_address;
-      expiration_bnum: expiration_bnum;
-      dest: dest
-    };
-    msgs2 = one_msg msg_to_bid2;
-    send msgs2
+  current_state <- state_contract;
+  is_state <- &current_state as ByStr20 with contract field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20) end;
+  match is_state with
+    | None =>
+      error = InvalidStateContractError;
+      Throw error
+    | Some state =>
+      payment_token_option <- & state.sell_order_payment_token[token_address][token_id];
+      payment_token_address = option_address zero_address payment_token_option;
+      is_zero_address = builtin eq payment_token_address zero_address;
+      match is_zero_address with
+      | True =>
+        accept;
+        msg_to_bid1 = {
+          _tag: "Bid";
+          _recipient: current_logic;
+          _amount: _amount;
+          token_address: token_address;
+          token_id: token_id;
+          amount: amount;
+          dest: dest
+        };
+        msgs1 = one_msg msg_to_bid1;
+        send msgs1
+      | False =>
+        msg_to_bid2 = {
+          _tag: "Bid";
+          _recipient: current_logic;
+          _amount: Uint128 0;
+          token_address: token_address;
+          token_id: token_id;
+          amount: amount;
+          dest: dest
+        };
+        msgs2 = one_msg msg_to_bid2;
+        send msgs2
+      end
   end
 end
 

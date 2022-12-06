@@ -743,8 +743,8 @@ procedure BidWithZRC2(
             beneficiary: dest;
             bid_amount: amount
           };
-          msgs1 = one_msg msg_to_update_buy_order;
-          send msgs1
+          msgs2 = one_msg msg_to_update_buy_order;
+          send msgs2
         end
       | Some some_bid =>
         (* We have the existing bid. We track the max only. *)
@@ -774,8 +774,8 @@ procedure BidWithZRC2(
             payment_token_address: payment_token_address;
             amount: current_bid
           };
-          msgs1 = one_msg msg_to_update_payment_token_balance;
-          send msgs1;
+          msgs3 = one_msg msg_to_update_payment_token_balance;
+          send msgs3;
 
           (* Update the buy order with new buyer *)
           msg_to_update_buy_order = {
@@ -788,8 +788,8 @@ procedure BidWithZRC2(
             beneficiary: dest;
             bid_amount: amount
           };
-          msgs2 = one_msg msg_to_update_buy_order;
-          send msgs2
+          msgs4 = one_msg msg_to_update_buy_order;
+          send msgs4
         end
       end
     end
@@ -835,7 +835,7 @@ procedure CancelAuction(
     msgs1 = one_msg msg_to_update_assert;
     send msgs1;
 
-    msg_to_delete_sell_order = {
+    msg_to_delete_sell_order1 = {
       _tag: "DeleteSellOrder";
       _recipient: state;
       _amount: Uint128 0;
@@ -843,7 +843,7 @@ procedure CancelAuction(
       token_id: token_id
     };
 
-    msgs2 = one_msg msg_to_delete_sell_order;
+    msgs2 = one_msg msg_to_delete_sell_order1;
     send msgs2;
 
     (* Check if the buy order exist *)
@@ -872,7 +872,7 @@ procedure CancelAuction(
       msgs3 = one_msg msg_to_update_payment_token_balance;
       send msgs3;
 
-      msg_to_delete_sell_order = {
+      msg_to_delete_sell_order2 = {
         _tag: "DeleteBuyOrder";
         _recipient: state;
         _amount: Uint128 0;
@@ -880,7 +880,7 @@ procedure CancelAuction(
         token_id: token_id
       };
   
-      msgs4 = one_msg msg_to_delete_sell_order;
+      msgs4 = one_msg msg_to_delete_sell_order2;
       send msgs4
     end
   end
@@ -956,7 +956,7 @@ procedure DoStart(
       expiration_bnum: expiration_bnum
     };
     event e
-  | Some start_amount =>
+  | Some some_start_amount =>
     (* It's already listed *)
     error = SellOrderFoundError;
     Throw error
