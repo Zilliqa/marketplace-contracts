@@ -188,27 +188,26 @@ contract EnglishAuctionOrderbook_Logic
 (
   initial_contract_owner: ByStr20,
   initial_state_contract: ByStr20 with contract 
-    field allowlist_address: ByStr20,
-    field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20),
-    field sell_order_expired_block : Map ByStr20 (Map Uint256 BNum),
-    field sell_order_start_amount : Map ByStr20 (Map Uint256 Uint128),
-    field sell_orders: Map ByStr20 (Map Uint256 ByStr20),
-    field buy_orders_count: Map ByStr20 (Map Uint256 Uint128),
-    field buy_orders_beneficiary: Map ByStr20 (Map Uint256 (Map ByStr20 ByStr20)),
-    field buy_orders_current_bidder: Map ByStr20 (Map Uint256 ByStr20),
-    field buy_orders_current_bid_amount: Map ByStr20 (Map Uint256 Uint128),
-    field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint256 (Map ByStr20 Uint128)))), (* need to remove - not in use*)
-    field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)),
-    field payment_tokens: Map ByStr20 (Map ByStr20 Uint128),
     field allowed_payment_tokens: Map ByStr20 Uint32,
-    field service_fee_bps: Uint128,
+    field allowlist_address: ByStr20,
+    field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)),
     field bid_increment_bps: Uint128,
+    field buy_orders_beneficiary: Map ByStr20 (Map Uint256 (Map ByStr20 ByStr20)),
+    field buy_orders_count: Map ByStr20 (Map Uint256 Uint128),
+    field buy_orders_current_bid_amount: Map ByStr20 (Map Uint256 Uint128),
+    field buy_orders_current_bidder: Map ByStr20 (Map Uint256 ByStr20),
     field collection_address: ByStr20 with contract
       field token_collection: Map ByStr20 (Map Uint256 Uint32),
       field collection_owning_brand: Map Uint32 ByStr20,
       field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
       field collection_commission_fee: Map Uint32 Uint128
     end,
+    field payment_tokens: Map ByStr20 (Map ByStr20 Uint128),
+    field sell_order_expired_block : Map ByStr20 (Map Uint256 BNum),
+    field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20),
+    field sell_order_start_amount : Map ByStr20 (Map Uint256 Uint128),
+    field sell_orders: Map ByStr20 (Map Uint256 ByStr20),
+    field service_fee_bps: Uint128,
     field service_fee_recipient: ByStr20
   end,
   proxy: ByStr20,
@@ -229,28 +228,27 @@ field is_paused: Bool = false
 
 (* State Contract *)
 (* Defaults to `initial_state_contract` *)
-field state_contract: ByStr20 with contract 
-  field allowlist_address: ByStr20,
-  field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20),
-  field sell_order_expired_block : Map ByStr20 (Map Uint256 BNum),
-  field sell_order_start_amount : Map ByStr20 (Map Uint256 Uint128),
-  field sell_orders: Map ByStr20 (Map Uint256 ByStr20),
-  field buy_orders_count: Map ByStr20 (Map Uint256 Uint128),
-  field buy_orders_beneficiary: Map ByStr20 (Map Uint256 (Map ByStr20 ByStr20)),
-  field buy_orders_current_bidder: Map ByStr20 (Map Uint256 ByStr20),
-  field buy_orders_current_bid_amount: Map ByStr20 (Map Uint256 Uint128),
-  field buy_orders: Map ByStr20 (Map Uint256 (Map ByStr20 (Map Uint256 (Map ByStr20 Uint128)))), (* need to remove - not in use*)
-  field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)),
-  field payment_tokens: Map ByStr20 (Map ByStr20 Uint128),
+field state_contract: ByStr20 with contract
   field allowed_payment_tokens: Map ByStr20 Uint32,
-  field service_fee_bps: Uint128,
+  field allowlist_address: ByStr20,
+  field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)),
   field bid_increment_bps: Uint128,
+  field buy_orders_beneficiary: Map ByStr20 (Map Uint256 (Map ByStr20 ByStr20)),
+  field buy_orders_count: Map ByStr20 (Map Uint256 Uint128),
+  field buy_orders_current_bid_amount: Map ByStr20 (Map Uint256 Uint128),
+  field buy_orders_current_bidder: Map ByStr20 (Map Uint256 ByStr20),
   field collection_address: ByStr20 with contract
     field token_collection: Map ByStr20 (Map Uint256 Uint32),
     field collection_owning_brand: Map Uint32 ByStr20,
     field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
     field collection_commission_fee: Map Uint32 Uint128
   end,
+  field payment_tokens: Map ByStr20 (Map ByStr20 Uint128),
+  field sell_order_expired_block : Map ByStr20 (Map Uint256 BNum),
+  field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20),
+  field sell_order_start_amount : Map ByStr20 (Map Uint256 Uint128),
+  field sell_orders: Map ByStr20 (Map Uint256 ByStr20),
+  field service_fee_bps: Uint128,
   field service_fee_recipient: ByStr20
 end = initial_state_contract
 
@@ -433,8 +431,8 @@ end
 
 procedure RequireAccessToCancel(seller_address: ByStr20)
   cur_owner <- contract_owner;
-  is_contract_owner = builtin eq cur_owner _sender;
-  is_seller = builtin eq seller_address _sender;
+  is_contract_owner = builtin eq cur_owner _origin;
+  is_seller = builtin eq seller_address _origin;
 
   is_allowed_to_cancel_order = orb is_seller is_contract_owner;
   match is_allowed_to_cancel_order with
@@ -529,7 +527,7 @@ end
 procedure RequireSenderToBeTokenOwner(token_address: ByStr20 with contract field token_owners: Map Uint256 ByStr20 end, token_id: Uint256)
   maybe_token_owner <- & token_address.token_owners[token_id];
   token_owner = option_address zero_address maybe_token_owner;
-  is_token_owner = builtin eq _sender token_owner;
+  is_token_owner = builtin eq _origin token_owner;
   match is_token_owner with
   | True =>
   | False =>
@@ -551,39 +549,6 @@ procedure RequireTransferProxyToBeSpender(token_address: ByStr20 with contract f
   end
 end
 
-procedure AddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, amount: Uint128)
-  state <- state_contract;
-  maybe_bal <- &state.payment_tokens[to][payment_token_address];
-  new_bal =  let cur_bal = get_bal maybe_bal in builtin add cur_bal amount
-
-  (* need to send message to update the state - will update later *)
-  (* payment_tokens[to][payment_token_address] := new_bal *)
-end
-        
-procedure ZRC2Transfer(payment_token_address: ByStr20, to: ByStr20, amount: Uint128)
-  msg_to_zrc2 = {
-    _tag: "Transfer";
-    _recipient: payment_token_address;
-    _amount: Uint128 0;
-    to: to;
-    amount: amount
-  };
-  msgs = one_msg msg_to_zrc2;
-  send msgs
-end
-
-procedure ZRC6TransferFrom(token_address: ByStr20, to: ByStr20, token_id: Uint256)
-  msg_to_zrc6 = {
-    _tag: "TransferFrom";
-    _recipient: token_address;
-    _amount: Uint128 0;
-    to: to;
-    token_id: token_id
-  };
-  msgs = one_msg msg_to_zrc6;
-  send msgs
-end
-
 procedure BidWithNativeZILs(
   token_address: ByStr20 with contract 
     field royalty_recipient: ByStr20, 
@@ -599,7 +564,7 @@ procedure BidWithNativeZILs(
   amount = _amount;
 
   (* Check this bid is the first bid *)
-  maybe_buy_order <- & state.buy_orders[token_address][token_id];
+  maybe_buy_order <- & state.buy_orders_count[token_address][token_id];
   match maybe_buy_order with 
   | None =>
     (* Check if the new amount gte start_amount *)
@@ -622,7 +587,18 @@ procedure BidWithNativeZILs(
       };
   
       msgs1 = one_msg msg_to_update_buy_order;
-      send msgs1
+      send msgs1;
+
+      msg_to_update_payment_token_balance = {
+        _tag: "AddToPaymentTokenBalance";
+        _recipient: state;
+        _amount: Uint128 0;
+        to: _origin;
+        payment_token_address: zero_address;
+        amount: amount
+      };
+      msgs2 = one_msg msg_to_update_payment_token_balance;
+      send msgs2
     end
   | Some some_bid =>
     (* We have the existing bid. We track the max only. *)
@@ -654,8 +630,8 @@ procedure BidWithNativeZILs(
         payment_token_address: zero_address;
         amount: current_bid
       };
-      msgs1 = one_msg msg_to_update_payment_token_balance;
-      send msgs1;
+      msgs3 = one_msg msg_to_update_payment_token_balance;
+      send msgs3;
 
       (* Update the buy order with new buyer *)
       msg_to_update_buy_order = {
@@ -668,8 +644,8 @@ procedure BidWithNativeZILs(
         beneficiary: dest;
         bid_amount: amount
       };
-      msgs2 = one_msg msg_to_update_buy_order;
-      send msgs2
+      msgs4 = one_msg msg_to_update_buy_order;
+      send msgs4
     end
   end
 end
@@ -722,7 +698,7 @@ procedure BidWithZRC2(
       send msgs1;
 
       (* Check this bid is the first bid *)
-      maybe_buy_order <- & state.buy_orders[token_address][token_id];
+      maybe_buy_order <- & state.buy_orders_count[token_address][token_id];
       match maybe_buy_order with 
       | None =>
         (* Check if the new amount gte start_amount *)
@@ -899,9 +875,6 @@ procedure DoStart(
   expiration_bnum: BNum
 )
   state <- state_contract;
-  RequireNotExpired expiration_bnum;
-  RequireAllowedPaymentToken payment_token_address;
-  RequireValidTotalFees token_address token_id;
   
   (* Check if there are any sell_orders  *)
   is_sell_order_exist <- & state.sell_orders[token_address][token_id];
@@ -948,7 +921,7 @@ procedure DoStart(
   
     e = {
       _eventname : "Start";
-      maker: _sender;
+      maker: _origin;
       token_address: token_address;
       token_id: token_id;
       payment_token_address: payment_token_address;
@@ -977,7 +950,10 @@ transition Start(
   RequireNonZeroAddress state;
   RequireNonZeroAddress transfer_proxy;
   RequireProxy;
-  RequireAllowedUser _sender;
+  RequireAllowedUser _origin;
+  RequireNotExpired expiration_bnum;
+  RequireAllowedPaymentToken payment_token_address;
+  RequireValidTotalFees token_address token_id;
   DoStart token_address token_id payment_token_address start_amount expiration_bnum
 end
 
@@ -1146,7 +1122,7 @@ transition End(
       (* If buy order doesn't exist, seller must be able to end the auction *)
       (* and get the asset back *)
 
-      (* Check _sender is the seller *)
+      (* Check _origin is the seller *)
       is_seller = builtin eq _origin seller;
       match is_seller with
       | True => 
@@ -1203,9 +1179,9 @@ transition End(
       buyer = option_address zero_address current_bidder;
 
       (* If buy order exists, seller or buyer must be able to end the auction *)
-      (* Check _sender is the seller or the buyer *)
-      is_seller = builtin eq _sender seller;
-      is_buyer = builtin eq _sender buyer;
+      (* Check _origin is the seller or the buyer *)
+      is_seller = builtin eq _origin seller;
+      is_buyer = builtin eq _origin buyer;
       
       is_seller_or_buyer = orb is_seller is_buyer;
       match is_seller_or_buyer with
@@ -1432,7 +1408,7 @@ transition WithdrawPaymentTokens(payment_token_address: ByStr20)
     
     e = {
       _eventname : "WithdrawPaymentTokens";
-      recipient: _sender;
+      recipient: _origin;
       payment_token_address: payment_token_address;
       amount: balance
     };
@@ -1538,4 +1514,6 @@ end
 transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
 end
 transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition ZilTransferSuccessCallBack()
 end

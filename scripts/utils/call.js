@@ -112,6 +112,40 @@ async function callContract(
   )
 }
 
+async function callWithoutConfirm(
+  privateKey,
+  contract,
+  transition,
+  args,
+  zilsToSend,
+  insertRecipientAsSender = true,
+  insertDeadlineBlock = true
+) {
+  // Check for key
+  if (!privateKey || privateKey === '') {
+    throw new Error('No private key was provided!')
+  }
+  useKey(privateKey)
+
+  const minGasPrice = await zilliqa.blockchain.getMinimumGasPrice()
+  const deployedContract = zilliqa.contracts.at(contract);
+
+  const callTx = await deployedContract.callWithoutConfirm(
+    transition,
+    args,
+    {
+      version: TESTNET_VERSION,
+      amount: new BN(zilsToSend),
+      gasPrice: new BN(minGasPrice.result),
+      gasLimit: Long.fromNumber(25000)
+    },
+    false
+  );
+
+  const confirmedTxn = await callTx.confirm(callTx.id);
+  return confirmedTxn.receipt;
+}
+
 async function sendZil(privateKey, recipientAddress, sendingAmount, gasLimit) {
   let blockchainTxnId = null
   try {
@@ -168,13 +202,18 @@ async function getState(privateKey, contract, token) {
 async function getZRC2State(wallet, token) {
   const tokenContract = zilliqa.contracts.at(token);
   const tokenContractState = await tokenContract.getState();
-  const balance = await tokenContractState.balances[wallet.toLowerCase()];
-  let userBalance = 0;
-  if(balance != undefined) {
-    userBalance = balance.toString();
-    return userBalance;
+  const userBalance = new BigNumber(await tokenContractState.balances[wallet.toLowerCase()]);
+  return userBalance.toString();
+}
+
+async function getZRC6TokenOwner(token_address, token_id) {
+  const tokenContract = zilliqa.contracts.at(token_address);
+  const tokenContractState = await tokenContract.getState();
+  const ownerAddress = await tokenContractState.token_owners[token_id.toLowerCase()]
+  if(ownerAddress != null || ownerAddress != undefined) {
+    return ownerAddress.toLowerCase()
   } else {
-    return 0;
+    return "0x0000000000000000000000000000000000000000"
   }
 }
 
@@ -414,7 +453,7 @@ async function setupBalancesOnAccounts(accounts) {
     await sendZil(
       accounts.contractOwner.privateKey,
       accounts.nftBuyer.address,
-      4000,
+      5000,
       Long.fromNumber(50)
     )
   }
@@ -578,6 +617,7 @@ exports.batchTransfer = batchTransfer
 exports.increaseAllowance = increaseAllowance
 exports.transfer = transfer
 exports.callContract = callContract
+exports.callWithoutConfirm = callWithoutConfirm
 exports.getState = getState
 exports.getBalance = getBalance
 exports.sendZil = sendZil
@@ -589,3 +629,4 @@ exports.getDeadlineBlock = getDeadlineBlock
 exports.setupBalancesOnAccounts = setupBalancesOnAccounts
 exports.clearBalancesOnAccounts = clearBalancesOnAccounts
 exports.getZRC2State = getZRC2State
+exports.getZRC6TokenOwner = getZRC6TokenOwner

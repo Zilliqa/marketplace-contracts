@@ -11,6 +11,7 @@ library EnglishAuctionOrderbook_State
 let zero_address = 0x0000000000000000000000000000000000000000
 let zero_uint128 = Uint128 0
 let one_uint128 = Uint128 1
+let one_uint32 = Uint32 1
 let false = False
 let true = True
 
@@ -135,7 +136,7 @@ field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)) = Emp ByStr20 (Map By
 field payment_tokens: Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
 
 (* There must be an allowlist for the payment tokens (ZRC-2) *)
-field allowed_payment_tokens: Map ByStr20 Bool = Emp ByStr20 Bool
+field allowed_payment_tokens: Map ByStr20 Uint32 = Emp ByStr20 Uint32
 
 (* service fee BPS (e.g. 250 = 2.5% *)
 (* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
@@ -368,13 +369,14 @@ transition SetServiceFeeRecipient(to: ByStr20)
 end
 
 (* @multi-sig *)
+(* if accepted pass 1 *)
 transition AllowPaymentTokenAddress(
   address: ByStr20 with contract 
     field allowances: Map ByStr20 (Map ByStr20 Uint128)
   end
 )
   RequireContractOwner;
-  allowed_payment_tokens[address] := true;
+  allowed_payment_tokens[address] := one_uint32;
   e = {
     _eventname : "AllowPaymentTokenAddress";
     payment_token_addresss: address
@@ -475,6 +477,21 @@ end
 transition ClearPaymentBalancePostWithdraw(to: ByStr20, payment_token_address: ByStr20)
   RequireLogic;
   delete payment_tokens[to][payment_token_address]
+end
+
+(* @multi-sig *)
+(* Address of the new logic contract *)
+transition UpdateLogic(new_logic_contract: ByStr20)
+  RequireNonZeroAddress new_logic_contract;
+  RequireContractOwner;
+  cur_bnum <- & BLOCKNUMBER;
+  logic := new_logic_contract;
+  e = { 
+    _eventname: "LogicContractUpdated";
+    address: new_logic_contract;
+    when: cur_bnum
+  };
+  event e
 end
 
 (* @multi-sig *)
