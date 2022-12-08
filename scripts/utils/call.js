@@ -453,7 +453,7 @@ async function setupBalancesOnAccounts(accounts) {
     await sendZil(
       accounts.contractOwner.privateKey,
       accounts.nftBuyer.address,
-      5000,
+      50000,
       Long.fromNumber(50)
     )
   }

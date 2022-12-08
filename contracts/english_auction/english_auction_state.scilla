@@ -468,6 +468,10 @@ end
 
 transition UpdateBuyOrder(token_address: ByStr20, token_id: Uint256, buyer: ByStr20, beneficiary: ByStr20, bid_amount: Uint128)
   RequireLogic;
+  delete buy_orders_count[token_address][token_id];
+  delete buy_orders_beneficiary[token_address][token_id];
+  delete buy_orders_current_bidder[token_address][token_id];
+  delete buy_orders_current_bid_amount[token_address][token_id];
   buy_orders_count[token_address][token_id] := one_uint128;
   buy_orders_beneficiary[token_address][token_id][_origin] := beneficiary;
   buy_orders_current_bidder[token_address][token_id] := buyer;

@@ -587,18 +587,7 @@ procedure BidWithNativeZILs(
       };
   
       msgs1 = one_msg msg_to_update_buy_order;
-      send msgs1;
-
-      msg_to_update_payment_token_balance = {
-        _tag: "AddToPaymentTokenBalance";
-        _recipient: state;
-        _amount: Uint128 0;
-        to: _origin;
-        payment_token_address: zero_address;
-        amount: amount
-      };
-      msgs2 = one_msg msg_to_update_payment_token_balance;
-      send msgs2
+      send msgs1
     end
   | Some some_bid =>
     (* We have the existing bid. We track the max only. *)
@@ -606,7 +595,8 @@ procedure BidWithNativeZILs(
     (* Minimum Bid = Current Bid + Bid Increment *)
     (* Calculate Minimum Bid *)
     
-    current_bidder <- & state.buy_orders_current_bidder[token_address][token_id];
+    current_bidder_options <- & state.buy_orders_current_bidder[token_address][token_id];
+    current_bidder = option_address zero_address current_bidder_options;
     current_bid_amount <- & state.buy_orders_current_bid_amount[token_address][token_id];
     current_bid = option_uint128 zero_uint128 current_bid_amount;
     
@@ -630,8 +620,8 @@ procedure BidWithNativeZILs(
         payment_token_address: zero_address;
         amount: current_bid
       };
-      msgs3 = one_msg msg_to_update_payment_token_balance;
-      send msgs3;
+      msgs2 = one_msg msg_to_update_payment_token_balance;
+      send msgs2;
 
       (* Update the buy order with new buyer *)
       msg_to_update_buy_order = {
@@ -644,8 +634,8 @@ procedure BidWithNativeZILs(
         beneficiary: dest;
         bid_amount: amount
       };
-      msgs4 = one_msg msg_to_update_buy_order;
-      send msgs4
+      msgs3 = one_msg msg_to_update_buy_order;
+      send msgs3
     end
   end
 end
@@ -782,20 +772,22 @@ procedure CancelAuction(
   token_id: Uint256
   )
   state <- state_contract;
-  is_sell_order_exist <- & state.sell_orders[token_address][token_id];
+  is_sell_order_exist <- & exists state.sell_orders[token_address][token_id];
 
   match is_sell_order_exist with
-  | None =>
+  | False =>
     error = SellOrderNotFoundError;
     Throw error
-  | Some some_seller =>
+  | True =>
     (* Check the sell order is not expired *)
     (* An auction cannot be cancelled once it has been expired. *)
     expiration_block <- & state.sell_order_expired_block[token_address][token_id];
     exp_bnum = option_bnum bnum expiration_block;
-    
     RequireNotExpired exp_bnum;
-    RequireAccessToCancel _origin;
+
+    seller_options <- & state.sell_orders[token_address][token_id];
+    seller = option_address zero_address seller_options;
+    RequireAccessToCancel seller;
 
     (* Asset for the seller  *)
     (* When auction has been cancelled, the seller can withdraw the asset. *)
@@ -803,7 +795,7 @@ procedure CancelAuction(
       _tag: "UpdateAssert";
       _recipient: state;
       _amount: Uint128 0;
-      seller: _origin;
+      seller: seller;
       token_address: token_address;
       token_id: token_id
     };
@@ -832,9 +824,14 @@ procedure CancelAuction(
       (* the current bid amount of the payment tokens. *)
       (* marketplace pays back the old bidder the current amount *)
       
-      current_bidder <- & state.buy_orders_current_bidder[token_address][token_id];
-      current_bid_amount <- & state.buy_orders_current_bid_amount[token_address][token_id];
-      payment_token <- & state.sell_order_payment_token[token_address][token_id];
+      current_bidder_options <- & state.buy_orders_current_bidder[token_address][token_id];
+      current_bidder = option_address zero_address current_bidder_options;
+
+      current_bid_amount_options <- & state.buy_orders_current_bid_amount[token_address][token_id];
+      current_bid_amount = option_uint128 zero_uint128 current_bid_amount_options;
+      
+      payment_token_options <- & state.sell_order_payment_token[token_address][token_id];
+      payment_token = option_address zero_address payment_token_options;
 
       msg_to_update_payment_token_balance = {
         _tag: "AddToPaymentTokenBalance";
