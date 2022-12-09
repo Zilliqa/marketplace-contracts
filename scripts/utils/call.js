@@ -203,7 +203,11 @@ async function getZRC2State(wallet, token) {
   const tokenContract = zilliqa.contracts.at(token);
   const tokenContractState = await tokenContract.getState();
   const userBalance = new BigNumber(await tokenContractState.balances[wallet.toLowerCase()]);
-  return userBalance.toString();
+  if(userBalance.toString() == null || userBalance.toString() == undefined || userBalance.toString() == "NaN" || userBalance.toString() == '') {
+    return 0
+  } else {
+    return userBalance.toString();
+  }
 }
 
 async function getZRC6TokenOwner(token_address, token_id) {

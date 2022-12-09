@@ -717,7 +717,8 @@ procedure BidWithZRC2(
         
         (* Minimum Bid = Current Bid + Bid Increment *)
         (* Calculate Minimum Bid *)
-        current_bidder <- & state.buy_orders_current_bidder[token_address][token_id];
+        current_bidder_options <- & state.buy_orders_current_bidder[token_address][token_id];
+        current_bidder = option_address zero_address current_bidder_options;
         current_bid_amount <- & state.buy_orders_current_bid_amount[token_address][token_id];
         current_bid = option_uint128 zero_uint128 current_bid_amount;
     
