@@ -77,7 +77,7 @@ const accounts = {
   },
   address01: {
     address: getAddressFromPrivateKey(process.env.TOKEN1_PRIVATE_KEY),
-    privateKey: process.env.N_01_PRIVATE_KEY,
+    privateKey: process.env.TOKEN1_PRIVATE_KEY,
   },
   address02: {
     address: getAddressFromPrivateKey(process.env.TOKEN2_PRIVATE_KEY),
@@ -132,6 +132,19 @@ async function createPairADT(address, string) {
     constructor: "Pair",
     argtypes: ["ByStr20", "String"],
     arguments: [address, string],
+  };
+}
+
+async function createCollectionItemParam(
+  collectionContractAddress,
+  tokenAddress,
+  tokenId,
+  collection_id
+) {
+  return {
+    constructor: `${collectionContractAddress.toLowerCase()}.CollectionItemParam`,
+    argtypes: [],
+    arguments: [tokenAddress.toLowerCase(), tokenId, collection_id],
   };
 }
 
@@ -2121,7 +2134,7 @@ describe("Native ZIL", () => {
     ]);
   });
 
-  test("End: Seller ends Auction when expired", async () => {
+  test("End: Seller ends Auction when expired (not Collection Item)", async () => {
     const englishAuctionContract = zilliqa.contracts.at(englishAuctionAddress);
     const transferProxyStartBalance = await getBalance(_transferProxyContract);
     let tokenId = String(1);
@@ -2310,5 +2323,295 @@ describe("Native ZIL", () => {
         },
       })
     );
+  });
+
+  test("End: Seller ends Auction when expired (Collection Item)", async () => {
+    const collectionContract = zilliqa.contracts.at(collectionContractAddress)
+    const englishAuctionContract = zilliqa.contracts.at(englishAuctionAddress);
+    const transferProxyStartBalance = await getBalance(_transferProxyContract);
+
+    let tokenId = String(2);
+    let amount = String(100000000000000);
+
+    const cancelTx = await callContract(
+      accounts.nftSeller.privateKey,
+      englishAuctionContract,
+      "Cancel",
+      [
+        {
+          vname: "token_address",
+          type: "ByStr20",
+          value: nftTokenAddress,
+        },
+        {
+          vname: "token_id",
+          type: "Uint256",
+          value: "1",
+        },
+      ],
+      0,
+      false,
+      false
+    );
+    console.log("End: Cancel Sell for TokenId: 1", cancelTx.receipt);
+    expect(cancelTx.receipt.success).toEqual(true);
+
+    let globalBNum = await getBlockNumber(zilliqa);
+    let expiration_block_number = String(globalBNum + 100);
+
+    let commission_fee = "129";
+
+    const createCollectionTx = await callContract(
+      accounts.address01.privateKey,
+      collectionContract,
+      'CreateCollection',
+      [
+        {
+          vname: "commission_fee",
+          type: "Uint128",
+          value: commission_fee
+        }
+      ],
+      0,
+      false,
+      false
+    )
+    expect(createCollectionTx.receipt.success).toEqual(true)
+
+    const collectionItem = await createCollectionItemParam(
+      collectionContractAddress,
+      nftTokenAddress,
+      "2",
+      "1"
+    )
+
+    await addTokenToCollection(
+      collectionContract,
+      accounts.nftSeller.privateKey,
+      accounts.address01.privateKey,
+      collectionItem
+    )
+
+    const orderParam = await createOrderParam(
+      englishAuctionAddress,
+      nftTokenAddress,
+      tokenId,
+      zero_address,
+      amount,
+      expiration_block_number
+    );
+
+    const startTx = await callContract(
+      accounts.nftSeller.privateKey,
+      englishAuctionContract,
+      "Start",
+      [
+        {
+          vname: "order",
+          type: `${englishAuctionContract.address}.OrderParam`,
+          value: orderParam,
+        },
+      ],
+      0,
+      false,
+      false
+    );
+    expect(startTx.receipt.success).toEqual(true);
+
+    const bidTx = await callContract(
+      accounts.nftBuyer.privateKey,
+      englishAuctionContract,
+      "Bid",
+      [
+        {
+          vname: "token_address",
+          type: "ByStr20",
+          value: nftTokenAddress,
+        },
+        {
+          vname: "token_id",
+          type: "Uint256",
+          value: tokenId,
+        },
+        {
+          vname: "amount",
+          type: "Uint128",
+          value: amount,
+        },
+        {
+          vname: "dest",
+          type: "ByStr20",
+          value: accounts.nftBuyer.address,
+        },
+      ],
+      amount,
+      false,
+      false
+    );
+
+    console.log("End: Seller ends Auction", bidTx.receipt);
+    expect(bidTx.receipt.success).toEqual(true);
+
+    const transferProxyEndBalance = await getBalance(_transferProxyContract);
+    expect(parseInt(transferProxyEndBalance)).toBe(
+      parseInt(transferProxyStartBalance) + parseInt(amount)
+    );
+
+    const englishAuctionState1 = zilliqa.contracts.at(_englishAuctionState);
+    const auctionState1 = await englishAuctionState1.getState();
+
+    expect(JSON.stringify(auctionState1.buy_orders_count)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [tokenId]: "1",
+        },
+      })
+    );
+
+    expect(JSON.stringify(auctionState1.buy_orders_beneficiary)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [tokenId]: {
+            [accounts.nftBuyer.address.toLowerCase()]:
+              accounts.nftBuyer.address.toLowerCase(),
+          },
+        },
+      })
+    );
+
+    expect(JSON.stringify(auctionState1.buy_orders_current_bidder)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [tokenId]: accounts.nftBuyer.address.toLowerCase(),
+        },
+      })
+    );
+
+    expect(JSON.stringify(auctionState1.buy_orders_current_bid_amount)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {
+          [tokenId]: amount,
+        },
+      })
+    );
+
+    await zilliqa.provider.send("IncreaseBlocknum", 1000);
+    const address01BalanceBefore = await getBalance(accounts.address01.address);
+
+    const endTx = await callContract(
+      accounts.nftSeller.privateKey,
+      englishAuctionContract,
+      "End",
+      [
+        {
+          vname: "token_address",
+          type: "ByStr20",
+          value: nftTokenAddress,
+        },
+        {
+          vname: "token_id",
+          type: "Uint256",
+          value: tokenId,
+        },
+      ],
+      0,
+      false,
+      false
+    );
+
+    console.log("End: Seller ends Auction", endTx.receipt);
+    expect(endTx.receipt.success).toEqual(true);
+
+    const englishAuctionState2 = zilliqa.contracts.at(_englishAuctionState);
+    const auctionState2 = await englishAuctionState2.getState();
+
+    // console.log(JSON.stringify(auctionState2));
+
+    expect(JSON.stringify(auctionState2.buy_orders_beneficiary)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.buy_orders_count)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.buy_orders_current_bidder)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.buy_orders_current_bid_amount)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.sell_order_expired_block)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.sell_order_payment_token)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.sell_order_start_amount)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.sell_orders)).toBe(
+      JSON.stringify({
+        [nftTokenAddress.toLowerCase()]: {},
+      })
+    );
+
+    expect(JSON.stringify(auctionState2.assets)).toBe(
+      JSON.stringify({
+        [accounts.nftBuyer.address.toLowerCase()]: {
+          [nftTokenAddress.toLowerCase()]: {
+            [tokenId]: { argtypes: [], arguments: [], constructor: "True" },
+          },
+        },
+        [accounts.nftSeller.address.toLowerCase()]: {
+          [nftTokenAddress.toLowerCase()]: {
+            [String(1)]: { argtypes: [], arguments: [], constructor: "True" },
+          },
+        },
+      })
+    );
+    
+    let commission_fee_paid = new BN(amount).mul(new BN(commission_fee)).div(new BN(10000));
+    // let service_fee_recipient = auctionState2.service_fee_recipient;
+    let service_fee_bps = auctionState2.service_fee_bps;
+    let service_fee_recipient_fee = new BN(amount).mul(new BN(service_fee_bps)).div(new BN(10000));
+    let seller_share = new BN(amount).sub(new BN(service_fee_recipient_fee)).sub(new BN(commission_fee_paid));
+
+    expect(JSON.stringify(auctionState2.payment_tokens)).toBe(
+      JSON.stringify({
+        [accounts.address01.address.toLowerCase()]: {
+          [zero_address]: commission_fee_paid.toString(),
+        },
+        [accounts.nftSeller.address.toLowerCase()]: {
+          [zero_address]: seller_share.toString(),
+        },
+        [accounts.contractOwner.address.toLowerCase()]: {
+          [zero_address]: service_fee_recipient_fee.toString(),
+        },
+      })
+    );
+
+    let total_from_state = new BN(commission_fee_paid).add(new BN(seller_share)).add(new BN(service_fee_recipient_fee));
+
+    expect(total_from_state.toString()).toEqual(amount.toString());
   });
 });
