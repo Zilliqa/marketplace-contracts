@@ -1,0 +1,538 @@
+(* SPDX-License-Identifier: GPL-3.0 *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils
+
+library EnglishAuctionOrderbook_State
+
+let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint128 = Uint128 0
+let one_uint128 = Uint128 1
+let one_uint32 = Uint32 1
+let false = False
+let true = True
+
+let min_bps = Uint128 1
+let max_bps = Uint128 10000
+
+let one_msg = 
+  fun (msg : Message) => 
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let get_bal =
+  fun (maybe_bal: Option Uint128) =>
+    match maybe_bal with
+    | None => zero_uint128
+    | Some bal => bal
+    end
+
+(* Error exceptions *)
+type Error =
+  | NotPausedError
+  | PausedError
+  | NotContractOwnerError
+  | ZeroAddressDestinationError
+  | ThisAddressDestinationError
+  | SelfError
+  | NotContractOwnershipRecipientError
+  | InvalidBidIncrementBPSError
+  | InvalidServiceFeeBPSError
+  | ZeroAddressError
+  | NotOperatorError
+
+let make_error =
+  fun (result : Error) =>
+    let result_code = 
+      match result with
+      | NotPausedError                      => "NotPausedError"
+      | PausedError                         => "PausedError"
+      | NotContractOwnerError               => "NotContractOwnerError"
+      | ZeroAddressDestinationError         => "ZeroAddressDestinationError"
+      | ThisAddressDestinationError         => "ThisAddressDestinationError"
+      | SelfError                           => "SelfError"
+      | NotContractOwnershipRecipientError  => "NotContractOwnershipRecipientError"
+      | InvalidBidIncrementBPSError         => "InvalidBidIncrementBPSError"
+      | InvalidServiceFeeBPSError           => "InvalidServiceFeeBPSError"
+      | ZeroAddressError                    => "ZeroAddressError"
+      | NotOperatorError                    => "NotOperatorError"
+      end
+    in
+    { _exception : "Error"; source: "state"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract EnglishAuctionOrderbook_State
+(
+  initial_contract_owner: ByStr20,
+  initial_collection_contract: ByStr20 with contract
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
+)
+
+(* Logic Contract Address  *)
+field logic: ByStr20 = zero_address
+
+(* Allowlist Contract Address *)
+(* Defaults to `zero_address` *)
+field allowlist_address: ByStr20 = zero_address
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+(* Contract ownership recipient *)
+(* Defaults to `zero_address` *)
+field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Collection Contract Address *)
+field collection_address: ByStr20 with contract
+  field token_collection: Map ByStr20 (Map Uint256 Uint32),
+  field collection_owning_brand: Map Uint32 ByStr20,
+  field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+  field collection_commission_fee: Map Uint32 Uint128
+end = initial_collection_contract
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
+
+(* token_address -> (token_id -> seller) *)
+field sell_orders: Map ByStr20 (Map Uint256 ByStr20) = Emp ByStr20 (Map Uint256 ByStr20)
+
+(* token_address -> (token_id -> payment_token) *)
+field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20) = Emp ByStr20 (Map Uint256 ByStr20)
+
+(* token_address -> (token_id -> expired_block) *)
+field sell_order_expired_block : Map ByStr20 (Map Uint256 BNum) = Emp ByStr20 (Map Uint256 BNum)
+
+(* token_address -> (token_id -> start_amount) *)
+field sell_order_start_amount : Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* token_address -> (token_id -> no.of total bids) *)
+field buy_orders_count: Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* token_address -> (token_id -> (bidder -> beneficiary)) *)
+field buy_orders_beneficiary: Map ByStr20 (Map Uint256 (Map ByStr20 ByStr20)) = Emp ByStr20 (Map Uint256 (Map ByStr20 ByStr20))
+
+(* token_address -> (token_id -> current_bidder) *)
+field buy_orders_current_bidder: Map ByStr20 (Map Uint256 ByStr20) = Emp ByStr20 (Map Uint256 ByStr20)
+
+(* token_address -> (token_id -> current_bidder) *)
+field buy_orders_current_bid_amount: Map ByStr20 (Map Uint256 Uint128) = Emp ByStr20 (Map Uint256 Uint128)
+
+(* owner -> ( token_address -> token set ) *)
+field assets: Map ByStr20 (Map ByStr20 (Map Uint256 Bool)) = Emp ByStr20 (Map ByStr20 (Map Uint256 Bool))
+
+(* owner -> ( payment_token_address -> amount ) *)
+field payment_tokens: Map ByStr20 (Map ByStr20 Uint128) = Emp ByStr20 (Map ByStr20 Uint128)
+
+(* There must be an allowlist for the payment tokens (ZRC-2) *)
+field allowed_payment_tokens: Map ByStr20 Uint32 = Emp ByStr20 Uint32
+
+(* service fee BPS (e.g. 250 = 2.5% *)
+(* A marketplace may take service fee (x% of every transaction) and use basis points (BPS) for the fee.  *)
+(* `service_fee_bps` must range from `1` to `10000`. *)
+(* Defaults to 250 *)
+field service_fee_bps: Uint128 = Uint128 250
+
+(* bid increment BPS (e.g. 1000 = 10% *)
+(* This is used to calculate the Minimum Bid *)
+(* Minimum Bid = Current Bid + Bid Increment *)
+(* If Current Bid is 100 and Bid Increment BPS is 1000 (10%), then, Bid Increment is 10 and Minimum Bid is 110 *)
+(* Defaults to 1000 *)
+field bid_increment_bps: Uint128 = Uint128 1000
+
+(* Service Fee Recipient *)
+(* Defaults to `initial_contract_owner` *)
+field service_fee_recipient: ByStr20 = initial_contract_owner
+
+(* Procedures *)
+procedure Throw(error : Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireValidDestination(to: ByStr20)
+  is_zero_address = builtin eq to zero_address;
+  match is_zero_address with
+  | False =>
+  | True =>
+    error = ZeroAddressDestinationError;
+    Throw error
+  end;
+
+  is_this_address = builtin eq to _this_address;
+  match is_this_address with
+  | False =>
+  | True =>
+    error = ThisAddressDestinationError;
+    Throw error
+  end
+end
+
+procedure RequireValidServiceFeeBPS(val_bps: Uint128)
+  (* max: 10% (arbitrary number) *)
+  max = Uint128 1000;
+  is_gte_min = uint128_ge val_bps min_bps;
+  is_lte_max = uint128_le val_bps max;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidServiceFeeBPSError;
+      Throw error
+  end
+end
+
+procedure RequireValidBidIncrementBPS(val_bps: Uint128)
+  is_gte_min = uint128_ge val_bps min_bps;
+  is_lte_max = uint128_le val_bps max_bps;
+  
+  is_valid = andb is_gte_min is_lte_max;
+  match is_valid with 
+    | True => 
+    | False =>
+      error = InvalidBidIncrementBPSError;
+      Throw error
+  end
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireNotSelf(address_a: ByStr20, address_b: ByStr20)
+  is_self = builtin eq address_a address_b;
+  match is_self with
+  | False =>
+  | True =>
+    error = SelfError;
+    Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  (* Reference: *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  (* Reference: *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
+procedure DoAddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, amount: Uint128)
+  maybe_bal <- payment_tokens[to][payment_token_address];
+  
+  new_bal = 
+    let cur_bal = get_bal maybe_bal in
+    builtin add cur_bal amount;
+    
+  payment_tokens[to][payment_token_address] := new_bal
+end
+
+procedure RequireNonZeroAddress(to: ByStr20)
+  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
+  is_zero_address = builtin eq to zero_address;
+  match is_zero_address with
+  | False =>
+  | True =>
+    error = ZeroAddressError;
+    Throw error
+  end
+end
+
+procedure RequireLogic()
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  is_logic = builtin eq current_logic _sender;
+  match is_logic with
+  | True =>
+  | False =>
+    error = NotOperatorError;
+    Throw error
+  end
+end
+
+(* Starts an individual auction *)
+transition Start(
+  token_address: ByStr20 with contract 
+    field royalty_fee_bps: Uint128
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  start_amount: Uint128,
+  expiration_bnum: BNum
+)
+  RequireLogic;
+  sell_orders[token_address][token_id] := _origin;
+  sell_order_payment_token[token_address][token_id] := payment_token_address;
+  sell_order_expired_block[token_address][token_id] := expiration_bnum;
+  sell_order_start_amount[token_address][token_id] := start_amount
+end
+
+(* @multi-sig *)
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Unpauses the contract. *)
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetServiceFeeBPS(fee_bps: Uint128)
+  RequireContractOwner;
+  RequireValidServiceFeeBPS fee_bps;
+  service_fee_bps := fee_bps;
+  e = {
+    _eventname : "SetServiceFeeBPS";
+    service_fee_bps: fee_bps
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetBidIncrementBPS(increment_bps: Uint128)
+  RequireContractOwner;
+  RequireValidBidIncrementBPS increment_bps;
+  bid_increment_bps := increment_bps;
+  e = {
+    _eventname : "SetBidIncrementBPS";
+    bid_increment_bps: increment_bps
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetServiceFeeRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireValidDestination to;
+
+  service_fee_recipient := to;
+
+  e = { 
+    _eventname: "SetServiceFeeRecipient";
+    to: to
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* if accepted pass 1 *)
+transition AllowPaymentTokenAddress(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  RequireContractOwner;
+  allowed_payment_tokens[address] := one_uint32;
+  e = {
+    _eventname : "AllowPaymentTokenAddress";
+    payment_token_addresss: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition DisallowPaymentTokenAddress(
+  address: ByStr20 with contract 
+    field allowances: Map ByStr20 (Map ByStr20 Uint128)
+  end
+)
+  RequireContractOwner;
+  delete allowed_payment_tokens[address];
+  e = {
+    _eventname : "DisallowPaymentTokenAddress";
+    payment_token_addresss: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition SetAllowlist(address: ByStr20)
+  RequireContractOwner;
+  allowlist_address := address;
+  
+  e = { 
+    _eventname: "SetAllowlist";
+    address: address
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition UpdateCollectionContract(
+  address: ByStr20 with contract 
+    field token_collection: Map ByStr20 (Map Uint256 Uint32),
+    field collection_owning_brand: Map Uint32 ByStr20,
+    field has_had_first_sale: Map ByStr20 (Map Uint256 Bool),
+    field collection_commission_fee: Map Uint32 Uint128
+  end
+  )
+  RequireContractOwner;
+  collection_address := address;
+  
+  e = { 
+    _eventname: "UpdateCollectionContract";
+    address: address
+  };
+  event e
+end
+
+(* Update assert status called by Logic *)
+transition UpdateAssert(seller: ByStr20, token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  assets[seller][token_address][token_id] := true
+end
+
+(* Update assert status called by Logic *)
+transition DeleteAssert(seller: ByStr20, token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  delete assets[seller][token_address][token_id]
+end
+
+(* Update Payment Token Balance for Bidders / sellers *)
+transition AddToPaymentTokenBalance(to: ByStr20, payment_token_address: ByStr20, amount: Uint128)
+  RequireLogic;
+  DoAddToPaymentTokenBalance to payment_token_address amount
+end
+
+(* Delete Sell Orders called by Logic *)
+transition DeleteSellOrder(token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  delete sell_orders[token_address][token_id];
+  delete sell_order_payment_token[token_address][token_id];
+  delete sell_order_expired_block[token_address][token_id];
+  delete sell_order_start_amount[token_address][token_id]
+end
+
+(* Delete Buy Order after cancel order, called by Logic *)
+transition DeleteBuyOrder(token_address: ByStr20, token_id: Uint256)
+  RequireLogic;
+  delete buy_orders_count[token_address][token_id];
+  delete buy_orders_beneficiary[token_address][token_id];
+  delete buy_orders_current_bidder[token_address][token_id];
+  delete buy_orders_current_bid_amount[token_address][token_id]
+end
+
+transition UpdateBuyOrder(token_address: ByStr20, token_id: Uint256, buyer: ByStr20, beneficiary: ByStr20, bid_amount: Uint128)
+  RequireLogic;
+  delete buy_orders_count[token_address][token_id];
+  delete buy_orders_beneficiary[token_address][token_id];
+  delete buy_orders_current_bidder[token_address][token_id];
+  delete buy_orders_current_bid_amount[token_address][token_id];
+  buy_orders_count[token_address][token_id] := one_uint128;
+  buy_orders_beneficiary[token_address][token_id][_origin] := beneficiary;
+  buy_orders_current_bidder[token_address][token_id] := buyer;
+  buy_orders_current_bid_amount[token_address][token_id] := bid_amount
+end
+
+transition ClearPaymentBalancePostWithdraw(to: ByStr20, payment_token_address: ByStr20)
+  RequireLogic;
+  delete payment_tokens[to][payment_token_address]
+end
+
+(* @multi-sig *)
+(* Address of the new logic contract *)
+transition UpdateLogic(new_logic_contract: ByStr20)
+  RequireNonZeroAddress new_logic_contract;
+  RequireContractOwner;
+  cur_bnum <- & BLOCKNUMBER;
+  logic := new_logic_contract;
+  e = { 
+    _eventname: "LogicContractUpdated";
+    address: new_logic_contract;
+    when: cur_bnum
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `to` as the contract ownership recipient. *)
+(* To reset `contract_ownership_recipient`, use `zero_address`. *)
+(* i.e., `0x0000000000000000000000000000000000000000` *)
+transition SetContractOwnershipRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireNotSelf to _sender;
+
+  contract_ownership_recipient := to;
+
+  e = {
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `contract_ownership_recipient` as the contract owner. *)
+transition AcceptContractOwnership()
+  recipient <- contract_ownership_recipient;
+
+  is_recipient = builtin eq _sender recipient;
+  match is_recipient with
+  | False =>
+    error = NotContractOwnershipRecipientError;
+    Throw error
+  | True =>
+    contract_owner := _sender;
+    contract_ownership_recipient := zero_address;
+
+    e = {
+      _eventname: "AcceptContractOwnership";
+      contract_owner: _sender
+    };
+    event e
+  end
+end

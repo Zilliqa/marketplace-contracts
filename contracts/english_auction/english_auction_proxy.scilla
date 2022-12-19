@@ -1,0 +1,468 @@
+(* SPDX-License-Identifier: GPL-3.0 *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils
+
+library EnglishAuctionOrderbook_Proxy
+
+let zero_address = 0x0000000000000000000000000000000000000000
+let false = False
+let true = True
+
+let one_msg = 
+  fun (msg : Message) => 
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+let option_value =
+  tfun 'A =>
+  fun (default: 'A) =>
+  fun (maybe_val: Option 'A) =>
+    match maybe_val with
+    | Some v => v
+    | None => default
+    end
+
+let option_address = @option_value ByStr20
+
+(* for batch transitions *)
+(* token_address, token_id, payment_token_address, start_amount, expiration block number *)
+type OrderParam =
+| OrderParam of ByStr20 with contract 
+  field royalty_recipient: ByStr20, 
+  field royalty_fee_bps: Uint128, 
+  field spenders: Map Uint256 ByStr20, 
+  field token_owners: Map Uint256 ByStr20 
+end Uint256 ByStr20 Uint128 BNum
+
+(* Error exceptions *)
+type Error =
+  | NotPausedError
+  | PausedError
+  | NotContractOwnerError
+  | ZeroAddressError
+  | SelfError
+  | NotContractOwnershipRecipientError
+  | InvalidStateContractError
+
+let make_error =
+  fun (result : Error) =>
+    let result_code = 
+      match result with
+      | NotPausedError                      => "NotPausedError"
+      | PausedError                         => "PausedError"
+      | NotContractOwnerError               => "NotContractOwnerError"
+      | ZeroAddressError                    => "ZeroAddressError"
+      | SelfError                           => "SelfError"
+      | NotContractOwnershipRecipientError  => "NotContractOwnershipRecipientError"
+      | InvalidStateContractError           => "InvalidStateContractError"
+      end
+    in
+    { _exception : "Error"; source: "proxy"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract EnglishAuctionOrderbook_Proxy (initial_contract_owner: ByStr20)
+
+(* logic *)
+field logic: ByStr20 = zero_address
+
+(* state *)
+field state_contract: ByStr20 = zero_address
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+(* Contract ownership recipient *)
+(* Defaults to `zero_address` *)
+field contract_ownership_recipient: ByStr20 = zero_address
+
+(* Emergency stop mechanism *)
+(* Defaults to False *)
+field is_paused: Bool = false
+
+(* Procedures *)
+procedure Throw(error : Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireNonZeroAddress(to: ByStr20)
+  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
+  is_zero_address = builtin eq to zero_address;
+  match is_zero_address with
+  | False =>
+  | True =>
+    error = ZeroAddressError;
+    Throw error
+  end
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireNotSelf(address: ByStr20)
+  is_self = builtin eq address _sender;
+  match is_self with
+  | False =>
+  | True =>
+    error = SelfError;
+    Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  (* Reference: *)
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  (* Reference: *)
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
+procedure CancelAuction(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256
+  )
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_cancel_auction = {
+    _tag: "CancelAuction";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_cancel_auction;
+  send msgs
+end
+
+procedure DoStart(
+  token_address: ByStr20 with contract 
+    field royalty_fee_bps: Uint128
+  end,
+  token_id: Uint256,
+  payment_token_address: ByStr20,
+  start_amount: Uint128,
+  expiration_bnum: BNum
+)
+  current_logic <- logic;
+  current_state <- state_contract;
+  RequireNonZeroAddress current_logic;
+  RequireNonZeroAddress current_state;
+  msg_to_start = {
+    _tag: "Start";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id;
+    payment_token_address: payment_token_address;
+    start_amount: start_amount;
+    expiration_bnum: expiration_bnum
+  };
+  msgs1 = one_msg msg_to_start;
+  send msgs1
+end
+
+procedure SetBatchStart(order: OrderParam)
+  match order with
+  | OrderParam token_address token_id payment_token_address start_amount expiration_bnum =>
+    DoStart token_address token_id payment_token_address start_amount expiration_bnum
+  end
+end
+
+(* Starts an individual auction *)
+(* Seller can start an auction for an asset only if the asset has no ongoing auction. *)
+transition Start(order: OrderParam)
+  RequireNotPaused;
+  match order with
+  | OrderParam token_address token_id payment_token_address start_amount expiration_bnum =>
+    DoStart token_address token_id payment_token_address start_amount expiration_bnum
+  end
+end
+
+(* batch starting auctions *)
+transition BatchStart(order_list: List OrderParam)
+  RequireNotPaused;
+  forall order_list SetBatchStart
+end
+
+(* Bids on an item *)
+transition Bid(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256,
+  amount: Uint128,
+  (* `dest` enables buyers to set an address to receive the asset when fulfilling a sell order. *)
+  dest: ByStr20
+  )
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  current_state <- state_contract;
+  is_state <- &current_state as ByStr20 with contract field sell_order_payment_token : Map ByStr20 (Map Uint256 ByStr20) end;
+  match is_state with
+    | None =>
+      error = InvalidStateContractError;
+      Throw error
+    | Some state =>
+      payment_token_option <- & state.sell_order_payment_token[token_address][token_id];
+      payment_token_address = option_address zero_address payment_token_option;
+      is_zero_address = builtin eq payment_token_address zero_address;
+      match is_zero_address with
+      | True =>
+        accept;
+        msg_to_bid1 = {
+          _tag: "Bid";
+          _recipient: current_logic;
+          _amount: _amount;
+          token_address: token_address;
+          token_id: token_id;
+          amount: amount;
+          dest: dest
+        };
+        msgs1 = one_msg msg_to_bid1;
+        send msgs1
+      | False =>
+        msg_to_bid2 = {
+          _tag: "Bid";
+          _recipient: current_logic;
+          _amount: Uint128 0;
+          token_address: token_address;
+          token_id: token_id;
+          amount: amount;
+          dest: dest
+        };
+        msgs2 = one_msg msg_to_bid2;
+        send msgs2
+      end
+  end
+end
+
+(* @multi-sig *)
+(* Cancels an auction *)
+transition Cancel(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256
+  )
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_cancel = {
+    _tag: "Cancel";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_cancel;
+  send msgs
+end
+
+(* Finalizes an auction *)
+transition End(
+  token_address: ByStr20 with contract 
+    field royalty_recipient: ByStr20, 
+    field royalty_fee_bps: Uint128, 
+    field spenders: Map Uint256 ByStr20, 
+    field token_owners: Map Uint256 ByStr20 
+  end,
+  token_id: Uint256
+  )
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_end = {
+    _tag: "End";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_end;
+  send msgs
+end
+
+(* Withraws payment tokens *)
+transition WithdrawPaymentTokens(payment_token_address: ByStr20)
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_withdraw_payment_tokens = {
+    _tag: "WithdrawPaymentTokens";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    payment_token_address: payment_token_address
+  };
+  msgs = one_msg msg_to_withdraw_payment_tokens;
+  send msgs
+end
+
+(* Withraws assets *)
+transition WithdrawAsset(token_address: ByStr20, token_id: Uint256)
+  RequireNotPaused;
+  current_logic <- logic;
+  RequireNonZeroAddress current_logic;
+  msg_to_withdraw_asset = {
+    _tag: "WithdrawAsset";
+    _recipient: current_logic;
+    _amount: Uint128 0;
+    token_address: token_address;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_withdraw_asset;
+  send msgs
+end
+
+(* @multi-sig *)
+transition UpdateLogic(to: ByStr20)
+  RequireContractOwner;
+  RequireNonZeroAddress to;
+  RequireNotSelf to;
+  current_block_number <- & BLOCKNUMBER;
+  logic := to;
+  e = { 
+    _eventname: "ProxyUpdated";
+    address: to;
+    when: current_block_number
+  };
+  event e
+end
+
+(* @multi-sig *)
+transition UpdateState(to: ByStr20)
+  RequireContractOwner;
+  RequireNonZeroAddress to;
+  RequireNotSelf to;
+  current_block_number <- & BLOCKNUMBER;
+  state_contract := to;
+  e = { 
+    _eventname: "StateContractUpdated";
+    address: to;
+    when: current_block_number
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Pauses the contract. Use this when things are going wrong ('circuit breaker'). *)
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Unpauses the contract. *)
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `to` as the contract ownership recipient. *)
+(* To reset `contract_ownership_recipient`, use `zero_address`. *)
+(* i.e., `0x0000000000000000000000000000000000000000` *)
+transition SetContractOwnershipRecipient(to: ByStr20)
+  RequireContractOwner;
+  RequireNotSelf to;
+
+  contract_ownership_recipient := to;
+
+  e = {
+    _eventname: "SetContractOwnershipRecipient";
+    to: to
+  };
+  event e
+end
+
+(* @multi-sig *)
+(* Sets `contract_ownership_recipient` as the contract owner. *)
+transition AcceptContractOwnership()
+  recipient <- contract_ownership_recipient;
+
+  is_recipient = builtin eq _sender recipient;
+  match is_recipient with
+  | False =>
+    error = NotContractOwnershipRecipientError;
+    Throw error
+  | True =>
+    contract_owner := _sender;
+    contract_ownership_recipient := zero_address;
+
+    e = {
+      _eventname: "AcceptContractOwnership";
+      contract_owner: _sender
+    };
+    event e
+  end
+end
+
+(* empty callbacks *)
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition ZRC6_TransferFromCallback(from:ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end

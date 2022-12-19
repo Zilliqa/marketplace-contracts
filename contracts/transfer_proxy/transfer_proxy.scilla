@@ -1,0 +1,242 @@
+(* SPDX-License-Identifier: GPL-3.0 *)
+scilla_version 0
+
+(***************************************************)
+(*               Associated library                *)
+(***************************************************)
+import BoolUtils IntUtils
+
+library TransferProxy
+
+let zero_address = 0x0000000000000000000000000000000000000000
+let zero_uint128 = Uint128 0
+let false = False
+let true = True
+
+let one_msg = 
+  fun (msg : Message) => 
+    let nil_msg = Nil {Message} in
+    Cons {Message} msg nil_msg
+
+(* Error exceptions *)
+type Error =
+  | NotContractOwnerError
+  | NotPausedError
+  | PausedError
+  | NotOperatorError
+  | NotMultiSigError
+  
+let make_error =
+  fun (result : Error) =>
+    let result_code = 
+      match result with
+      | NotContractOwnerError              => Int32 -1
+      | NotPausedError                     => Int32 -2
+      | PausedError                        => Int32 -3
+      | NotOperatorError                   => Int32 -22
+      | NotMultiSigError                   => Int32 -23
+      end
+    in
+    { _exception : "Error"; source : "transferproxy"; code : result_code }
+
+(***************************************************)
+(*             The contract definition             *)
+(***************************************************)
+
+contract TransferProxy(initial_contract_owner: ByStr20)
+
+(* Contract Owner *)
+(* Defaults to `initial_contract_owner` *)
+field contract_owner: ByStr20 = initial_contract_owner
+
+field operators: Map ByStr20 Bool = Emp ByStr20 Bool
+
+field is_paused: Bool = false
+
+(***************************************************)
+(*                     procedure                   *)
+(***************************************************)
+
+procedure Throw(error : Error)
+  e = make_error error;
+  throw e
+end
+
+procedure RequireContractOwner()
+  cur_owner <- contract_owner;
+  is_contract_owner = builtin eq cur_owner _sender;
+  match is_contract_owner with
+  | True => 
+  | False =>
+    error = NotContractOwnerError;
+    Throw error
+  end
+end
+
+procedure RequireNotPaused()
+  paused <- is_paused;
+  match paused with
+  | False =>
+  | True =>
+    (* Contract is paused *)
+    error = PausedError;
+    Throw error
+  end
+end
+
+procedure RequirePaused()
+  paused <- is_paused;
+  match paused with
+  | True =>
+  | False =>
+    (* Contract is paused *)
+    error = NotPausedError;
+    Throw error
+  end
+end
+
+procedure ZRC2TransferFrom_(token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_zrc2 = {
+    _tag: "TransferFrom";
+    _recipient: token_address;
+    _amount: Uint128 0;
+    from: from;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_zrc2;
+  send msgs
+end
+
+procedure ZRC2Transfer_(token_address: ByStr20, to: ByStr20, amount: Uint128)
+  msg_to_zrc2 = {
+    _tag: "Transfer";
+    _recipient: token_address;
+    _amount: Uint128 0;
+    to: to;
+    amount: amount
+  };
+  msgs = one_msg msg_to_zrc2;
+  send msgs
+end
+
+procedure ZRC6TransferFrom_(
+  token_address: ByStr20,
+  to: ByStr20,
+  token_id: Uint256)
+  msg_to_zrc6 = {
+    _tag: "TransferFrom";
+    _recipient: token_address;
+    _amount: Uint128 0;
+    to: to;
+    token_id: token_id
+  };
+  msgs = one_msg msg_to_zrc6;
+  send msgs
+end
+
+procedure RequireOperator()
+  is_operator_exist <- exists operators[_sender];
+  match is_operator_exist with
+  | True =>
+  | False =>
+    error = NotOperatorError;
+    Throw error
+  end
+end
+
+(***************************************************)
+(*                     transition                  *)
+(***************************************************)
+
+transition updateOperator(to: ByStr20, status: Bool)
+  cur_owner <- contract_owner;
+  is_valid = builtin eq cur_owner _sender;
+  match is_valid with
+  | False =>
+    error = NotMultiSigError;
+    Throw error
+  | True =>
+    cur_bnum <- & BLOCKNUMBER;  
+    operators[to] := status;
+    e = {_eventname : "OperatorUpdated"; when : cur_bnum};
+    event e
+  end
+end
+
+transition Pause()
+  RequireNotPaused;
+  RequireContractOwner;
+  is_paused := true;
+  e = {
+    _eventname: "Pause";
+    is_paused: true
+  };
+  event e
+end
+
+transition Unpause()
+  RequirePaused;
+  RequireContractOwner;
+  is_paused := false;
+  e = {
+    _eventname: "Unpause";
+    is_paused: false
+  };
+  event e
+end
+
+transition ZRC2TransferFrom (token_address: ByStr20, from: ByStr20, to: ByStr20, amount: Uint128)
+  RequireNotPaused;
+  RequireOperator;
+  ZRC2TransferFrom_ token_address from to amount
+end
+
+transition ZRC2Transfer (token_address: ByStr20, to: ByStr20, amount: Uint128)
+  RequireNotPaused;
+  RequireOperator;
+  ZRC2Transfer_ token_address to amount
+end
+
+transition ZilOut (to: ByStr20, amount: Uint128)
+  RequireNotPaused;
+  RequireOperator;
+  msg = {
+    _tag: "AddFunds";
+    _recipient: to;
+    _amount: amount
+  };
+  msg = one_msg msg;
+  send msg
+end
+
+transition ZRC6TransferFrom (token_address: ByStr20, to: ByStr20, token_id: Uint256)
+  RequireNotPaused;
+  RequireOperator;
+  ZRC6TransferFrom_ token_address to token_id
+end
+
+transition ZilIn ()
+  RequireNotPaused;
+  RequireOperator;
+  accept;
+  msg = {
+    _tag: "ZilTransferSuccessCallBack";
+    _recipient: _sender;
+    _amount: Uint128 0
+  };
+  msg = one_msg msg;
+  send msg
+end
+
+(* empty callbacks *)
+transition ZRC6_RecipientAcceptTransferFrom(from: ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition ZRC6_TransferFromCallback(from:ByStr20, to: ByStr20, token_id: Uint256)
+end
+transition RecipientAcceptTransferFrom(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+transition TransferFromSuccessCallBack(initiator: ByStr20, sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
