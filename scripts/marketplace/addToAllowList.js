@@ -2,18 +2,18 @@ const { callWithoutConfirm } = require("../utils/call.js");
 
 async function addToAllowList(
   nftOwnerPrivateKey,
-  fixedPriceState,
-  allowListContract
+  allowListContract,
+  allowListWallets
 ) {
   let result = await callWithoutConfirm(
     nftOwnerPrivateKey,
-    fixedPriceState,
-    "SetAllowList",
+    allowListContract,
+    "Allow",
     [
       {
-        vname: "allowed_addresses",
-        type: "ByStr20",
-        value: allowListContract,
+        vname: "address_list",
+        type: "List (ByStr20)",
+        value: allowListWallets,
       },
     ],
     0,

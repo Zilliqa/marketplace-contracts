@@ -98,7 +98,7 @@ procedure RequireContractOwner()
 end
 
 procedure RequireNonZeroAddress(to: ByStr20)
-  (* Reference: https://github.com/ConsenSys/smart-contract-best-practices/blob/master/docs/tokens.md *)
+  (* Reference: https://consensys.github.io/smart-contract-best-practices/development-recommendations/token-specific/zero-address/*)
   is_zero_address = builtin eq to zero_address;
   match is_zero_address with
   | False =>

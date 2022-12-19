@@ -308,12 +308,12 @@ transition ClearAllowList()
 end
 
 (* @multi-sig *)
-transition SetAllowlist(allowed_addresses: ByStr20)
+transition SetAllowlist(address: ByStr20)
   RequireContractOwner;
-  allowlist_address := allowed_addresses;
+  allowlist_address := address;
   e = { 
     _eventname: "SetAllowlist";
-    address: allowed_addresses
+    address: address
   };
   event e
 end
