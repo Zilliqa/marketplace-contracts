@@ -44,14 +44,14 @@ let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | NotContractOwnerError              => Int32 -1
-      | NotPausedError                     => Int32 -2
-      | PausedError                        => Int32 -3
-      | SelfError                          => Int32 -4
-      | NotContractOwnershipRecipientError => Int32 -5
-      | NotMultiSigError                   => Int32 -6
-      | ZeroAddressError                   => Int32 -7
-      | InvalidStateContractError          => Int32 -8
+      | NotContractOwnerError              => "NotContractOwnerError"
+      | NotPausedError                     => "NotPausedError"
+      | PausedError                        => "PausedError"
+      | SelfError                          => "SelfError"
+      | NotContractOwnershipRecipientError => "NotContractOwnershipRecipientError"
+      | NotMultiSigError                   => "NotMultiSigError"
+      | ZeroAddressError                   => "ZeroAddressError"
+      | InvalidStateContractError          => "InvalidStateContractError"
       end
     in
     { _exception : "Error"; source: "proxy"; code : result_code }

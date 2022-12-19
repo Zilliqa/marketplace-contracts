@@ -139,33 +139,33 @@ let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | NotContractOwnerError                       => Int32 -1
-      | ZeroAddressDestinationError                 => Int32 -2
-      | ThisAddressDestinationError                 => Int32 -3
-      | SellOrderNotFoundError                      => Int32 -4
-      | BuyOrderNotFoundError                       => Int32 -5
-      | NotSpenderError                             => Int32 -6
-      | NotTokenOwnerError                          => Int32 -7
-      | TokenOwnerError                             => Int32 -8
-      | ExpiredError                                => Int32 -9
-      | NotAllowedToCancelOrder                     => Int32 -10
-      | NotSelfError                                => Int32 -11
-      | SelfError                                   => Int32 -12
-      | NotAllowedPaymentToken                      => Int32 -13
-      | InvalidBPSError                             => Int32 -14
-      | NotEqualAmountError                         => Int32 -15
-      | NotContractOwnershipRecipientError          => Int32 -16
-      | NotAllowedUserError                         => Int32 -17
-      | TotalFeesTooHigh                            => Int32 -18
-      | InvalidRoyaltyFeeBPSError                   => Int32 -19
-      | NotProxyAdminError                          => Int32 -20
-      | ZeroAddressError                            => Int32 -21
-      | InvalidSellSideError                        => Int32 -22
-      | AllowListNotFoundError                      => Int32 -23
-      | AllowedPaymentTokensContractNotFoundError   => Int32 -24
-      | CollectionAddressNotFoundError              => Int32 -25
-      | InvalidCollectionAddress                    => Int32 -26
-      | NotSameAddressError                         => Int32 -27
+      | NotContractOwnerError                       => "NotContractOwnerError"
+      | ZeroAddressDestinationError                 => "ZeroAddressDestinationError"
+      | ThisAddressDestinationError                 => "ThisAddressDestinationError"
+      | SellOrderNotFoundError                      => "SellOrderNotFoundError"
+      | BuyOrderNotFoundError                       => "BuyOrderNotFoundError"
+      | NotSpenderError                             => "NotSpenderError"
+      | NotTokenOwnerError                          => "NotTokenOwnerError"
+      | TokenOwnerError                             => "TokenOwnerError"
+      | ExpiredError                                => "ExpiredError"
+      | NotAllowedToCancelOrder                     => "NotAllowedToCancelOrder"
+      | NotSelfError                                => "NotSelfError"
+      | SelfError                                   => "SelfError"
+      | NotAllowedPaymentToken                      => "NotAllowedPaymentToken"
+      | InvalidBPSError                             => "InvalidBPSError"
+      | NotEqualAmountError                         => "NotEqualAmountError"
+      | NotContractOwnershipRecipientError          => "NotContractOwnershipRecipientError"
+      | NotAllowedUserError                         => "NotAllowedUserError"
+      | TotalFeesTooHigh                            => "TotalFeesTooHigh"
+      | InvalidRoyaltyFeeBPSError                   => "InvalidRoyaltyFeeBPSError"
+      | NotProxyAdminError                          => "NotProxyAdminError"
+      | ZeroAddressError                            => "ZeroAddressError"
+      | InvalidSellSideError                        => "InvalidSellSideError"
+      | AllowListNotFoundError                      => "AllowListNotFoundError"
+      | AllowedPaymentTokensContractNotFoundError   => "AllowedPaymentTokensContractNotFoundError"
+      | CollectionAddressNotFoundError              => "CollectionAddressNotFoundError"
+      | InvalidCollectionAddress                    => "InvalidCollectionAddress"
+      | NotSameAddressError                         => "NotSameAddressError"
       end
     in
     { _exception : "Error"; source: "logic"; code : result_code }
@@ -996,6 +996,7 @@ transition SetOrder(
   RequireNonZeroAddress proxy;
   RequireNonZeroAddress state;
   RequireNonZeroAddress transfer_proxy;
+  RequireProxy;
   RequireAllowedUser _origin;
   RequireNotExpired expiration_bnum;
   RequireAllowedPaymentToken payment_token_address;
@@ -1032,6 +1033,7 @@ transition FulfillOrder(
   RequireAllowedUser buyer;
   RequireAllowedUser dest;
   RequireValidDestination dest;
+  RequireProxy;
 
   sell_side_ <- & state.sell_side;
   is_sell_order = builtin eq side sell_side_;

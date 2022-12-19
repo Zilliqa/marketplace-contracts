@@ -25,11 +25,11 @@ let make_error =
   fun (result : Error) =>
     let result_code = 
       match result with
-      | NotContractOwnerError              => Int32 -1
-      | SelfError                          => Int32 -2
-      | NotContractOwnershipRecipientError => Int32 -3
-      | ZeroAddressError                   => Int32 -4
-      | NotOperatorError                   => Int32 -5
+      | NotContractOwnerError              => "NotContractOwnerError"
+      | SelfError                          => "SelfError"
+      | NotContractOwnershipRecipientError => "NotContractOwnershipRecipientError"
+      | ZeroAddressError                   => "ZeroAddressError"
+      | NotOperatorError                   => "NotOperatorError"
       end
     in
     { _exception : "Error"; source : "state"; code : result_code }

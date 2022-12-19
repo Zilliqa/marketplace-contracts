@@ -545,8 +545,14 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -17))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "NotTokenOwnerError"))])'
       },
+      { line: 1, message: 'Raised from RequireValidTotalFees' },
+      { line: 1, message: 'Raised from RequireThisToBeSpender' },
+      { line: 1, message: 'Raised from RequireAllowedPaymentToken' },
+      { line: 1, message: 'Raised from RequireNotExpired' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -589,13 +595,14 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -7))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "NotTokenOwnerError"))])'
       },
       { line: 1, message: 'Raised from RequireValidTotalFees' },
       { line: 1, message: 'Raised from RequireThisToBeSpender' },
       { line: 1, message: 'Raised from RequireAllowedPaymentToken' },
       { line: 1, message: 'Raised from RequireNotExpired' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -638,13 +645,14 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -8))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "TokenOwnerError"))])'
       },
       { line: 1, message: 'Raised from RequireValidTotalFees' },
       { line: 1, message: 'Raised from RequireThisToBeSpender' },
       { line: 1, message: 'Raised from RequireAllowedPaymentToken' },
       { line: 1, message: 'Raised from RequireNotExpired' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -964,7 +972,7 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "proxy")) ; (code : (Int32 -3))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "proxy")) ; (code : (String "PausedError"))])'
       },
       { line: 1, message: 'Raised from SetBatchOrder' }
     ])
@@ -1033,8 +1041,17 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -17))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "NotSameAddressError"))])'
       },
+      { line: 1, message: 'Raised from RequireProxy' },
+      { line: 1, message: 'Raised from RequireValidDestination' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireNonZeroAddress' },
+      { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from FulfillOrder' }
     ])
   })
@@ -1101,9 +1118,10 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -4))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "SellOrderNotFoundError"))])'
       },
       { line: 1, message: 'Raised from RequireSameAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireValidDestination' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
@@ -1178,9 +1196,10 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -5))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "BuyOrderNotFoundError"))])'
       },
       { line: 1, message: 'Raised from RequireSameAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireValidDestination' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
@@ -1258,9 +1277,10 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -9))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "ExpiredError"))])'
       },
       { line: 1, message: 'Raised from RequireSameAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireValidDestination' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
@@ -1569,7 +1589,7 @@ describe('Native ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -5))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "BuyOrderNotFoundError"))])'
       },
       { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -1872,13 +1892,14 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -7))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "NotTokenOwnerError"))])'
       },
       { line: 1, message: 'Raised from RequireValidTotalFees' },
       { line: 1, message: 'Raised from RequireThisToBeSpender' },
       { line: 1, message: 'Raised from RequireAllowedPaymentToken' },
       { line: 1, message: 'Raised from RequireNotExpired' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -1923,10 +1944,11 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -13))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "NotAllowedPaymentToken"))])'
       },
       { line: 1, message: 'Raised from RequireNotExpired' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -1969,13 +1991,14 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -8))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "TokenOwnerError"))])'
       },
       { line: 1, message: 'Raised from RequireValidTotalFees' },
       { line: 1, message: 'Raised from RequireThisToBeSpender' },
       { line: 1, message: 'Raised from RequireAllowedPaymentToken' },
       { line: 1, message: 'Raised from RequireNotExpired' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
@@ -2286,9 +2309,10 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -4))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "SellOrderNotFoundError"))])'
       },
       { line: 1, message: 'Raised from RequireSameAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireValidDestination' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
@@ -2363,9 +2387,10 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -5))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "BuyOrderNotFoundError"))])'
       },
       { line: 1, message: 'Raised from RequireSameAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireValidDestination' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
@@ -2606,9 +2631,10 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -9))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "ExpiredError"))])'
       },
       { line: 1, message: 'Raised from RequireSameAddress' },
+      { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireValidDestination' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
       { line: 1, message: 'Raised from RequireAllowedUser' },
@@ -2851,7 +2877,7 @@ describe('Wrapped ZIL', () => {
     expect(tx.receipt.exceptions).toEqual([
       {
         line: 1,
-        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (Int32 -5))])'
+        message: 'Exception thrown: (Message [(_exception : (String "Error")) ; (source : (String "logic")) ; (code : (String "BuyOrderNotFoundError"))])'
       },
       { line: 1, message: 'Raised from RequireProxy' },
       { line: 1, message: 'Raised from RequireNonZeroAddress' },
