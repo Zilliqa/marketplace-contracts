@@ -27,10 +27,35 @@ async function setOrder(
       "SetOrder",
       [
         {
-          vname: "order",
-          type: `${fixedPriceProxy}.OrderParam`,
-          value: formattedSaleAdtOrder,
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
         },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: price
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: expiryBlock
+        }
       ],
       0,
       false,
@@ -44,10 +69,35 @@ async function setOrder(
       "SetOrder",
       [
         {
-          vname: "order",
-          type: `${fixedPriceProxy}.OrderParam`,
-          value: formattedSaleAdtOrder,
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
         },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentToken
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: price
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: expiryBlock
+        }
       ],
       price,
       false,

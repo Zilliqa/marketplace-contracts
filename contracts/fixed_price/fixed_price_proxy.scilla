@@ -215,12 +215,9 @@ procedure SetBatchOrders_(order: OrderParam)
   end
 end
 
-transition SetOrder(order: OrderParam)
+transition SetOrder(token_address: ByStr20, token_id: Uint256, payment_token_address: ByStr20, sale_price: Uint128, side: Uint32, expiration_bnum: BNum)
   RequireNotPaused;
-  match order with
-  | OrderParam token_address token_id payment_token_address sale_price side expiration_bnum =>
-    SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum
-  end
+  SetOrder_ token_address token_id payment_token_address sale_price side expiration_bnum
 end
 
 (* Batch set order *)

@@ -514,16 +514,9 @@ describe('Native ZIL', () => {
   test('SetOrder: throws NotAllowedUserError', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      '0x0000000000000000000000000000000000000000',
-      '10000',
-      '0',
-      String(globalBNum + 35)
-    )
+    let salePrice = "10000";
+    let side = "0";
+    let tokenId = "1";
 
     const tx = await callContract(
       accounts.forbidden.privateKey,
@@ -531,9 +524,34 @@ describe('Native ZIL', () => {
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: String(globalBNum + 35)
         }
       ],
       0,
@@ -563,16 +581,9 @@ describe('Native ZIL', () => {
   test('SetOrder: throws NotTokenOwnerError (stranger creates sell order for token #1)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      zero_address,
-      '20000',
-      '0',
-      String(globalBNum + 35)
-    )
+    let salePrice = "20000";
+    let side = "0"
+    let tokenId = "1"
 
     const tx = await callContract(
       accounts.stranger.privateKey,
@@ -580,9 +591,34 @@ describe('Native ZIL', () => {
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: String(globalBNum + 35)
         }
       ],
       0,
@@ -613,16 +649,9 @@ describe('Native ZIL', () => {
   test('SetOrder: throws TokenOwnerError (seller creates buy order for token #1)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      zero_address,
-      '20000',
-      '1',
-      String(globalBNum + 35)
-    )
+    let salePrice = "20000";
+    let side = "1"
+    let tokenId = "1"
 
     const tx = await callContract(
       accounts.nftSeller.privateKey,
@@ -630,9 +659,34 @@ describe('Native ZIL', () => {
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: String(globalBNum + 35)
         }
       ],
       0,
@@ -671,26 +725,40 @@ describe('Native ZIL', () => {
     const side = String(1)
     const newExpiryBlock = String(globalBNum + 99999)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      tokenId,
-      zero_address,
-      salePrice,
-      side,
-      newExpiryBlock
-    )
-
     const tx = await callContract(
       accounts.nftBuyer.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: newExpiryBlock
         }
       ],
       0,
@@ -748,26 +816,40 @@ describe('Native ZIL', () => {
     const side = String(0)
     const expiryBlock = String(globalBNum + 35)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      tokenId,
-      zero_address,
-      salePrice,
-      side,
-      expiryBlock
-    )
-
     const tx = await callContract(
       accounts.nftSeller.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: expiryBlock
         }
       ],
       0,
@@ -831,26 +913,40 @@ describe('Native ZIL', () => {
     const side = String(1)
     const expiryBlock = String(globalBNum + 35)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      tokenId,
-      zero_address,
-      salePrice,
-      side,
-      expiryBlock
-    )
-
     const tx = await callContract(
       accounts.nftBuyer.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: zero_address
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: expiryBlock
         }
       ],
       salePrice,
@@ -1790,25 +1886,40 @@ describe('Wrapped ZIL', () => {
       expiryBlock: String(globalBNum + 20)
     }
 
-    const formattedSaleAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      sellOrderParams.tokenId,
-      sellOrderParams.paymentToken,
-      sellOrderParams.price,
-      sellOrderParams.side,
-      sellOrderParams.expiryBlock
-    )
-
     const txSellOrder = await callContract(
       accounts.nftSeller.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedSaleAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: sellOrderParams.tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: sellOrderParams.paymentToken
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: sellOrderParams.price
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: sellOrderParams.side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: sellOrderParams.expiryBlock
         }
       ],
       0,
@@ -1824,25 +1935,40 @@ describe('Wrapped ZIL', () => {
 
     // Then a buy order for the same token_id
     // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedBuyAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      buyOrderParams.tokenId,
-      buyOrderParams.paymentToken,
-      buyOrderParams.price,
-      buyOrderParams.side,
-      buyOrderParams.expiryBlock
-    )
-
     const txBuyOrder = await callContract(
       accounts.nftBuyer.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedBuyAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: buyOrderParams.tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: buyOrderParams.paymentToken
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: buyOrderParams.price
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: buyOrderParams.side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: buyOrderParams.expiryBlock
         }
       ],
       0,
@@ -1860,16 +1986,9 @@ describe('Wrapped ZIL', () => {
   test('SetOrder: throws NotTokenOwnerError (stranger creates sell order for token #1)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      paymentTokenAddress,
-      '20000',
-      '0',
-      String(globalBNum + 35)
-    )
+    let salePrice = "20000";
+    let side = "0";
+    let tokenId = "1";
 
     const tx = await callContract(
       accounts.stranger.privateKey,
@@ -1877,9 +1996,34 @@ describe('Wrapped ZIL', () => {
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: String(globalBNum + 35)
         }
       ],
       0,
@@ -1910,18 +2054,9 @@ describe('Wrapped ZIL', () => {
   test('SetOrder: throws NotAllowedPaymentToken (seller creates sell order for token #2)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '2',
-      notAcceptedPaymentTokenAddress,
-      '20000',
-      '0',
-      String(globalBNum + 35)
-    )
-
-    console.log(formattedAdtOrder, "formattedAdtOrder");
+    let salePrice = "20000";
+    let side = "0";
+    let tokenId = "2";
 
     const tx = await callContract(
       accounts.nftSeller.privateKey,
@@ -1929,9 +2064,34 @@ describe('Wrapped ZIL', () => {
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: notAcceptedPaymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: String(globalBNum + 35)
         }
       ],
       0,
@@ -1959,16 +2119,9 @@ describe('Wrapped ZIL', () => {
   test('SetOrder: throws TokenOwnerError (seller must not create a buy order for token #1)', async () => {
     const fixedPriceContract = zilliqa.contracts.at(fixedPriceAddress)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      '1',
-      paymentTokenAddress,
-      '20000',
-      '1',
-      String(globalBNum + 35)
-    )
+    let salePrice = "20000";
+    let tokenId = "1";
+    let side = "1";
 
     const tx = await callContract(
       accounts.nftSeller.privateKey,
@@ -1976,9 +2129,34 @@ describe('Wrapped ZIL', () => {
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: String(globalBNum + 35)
         }
       ],
       0,
@@ -2017,26 +2195,40 @@ describe('Wrapped ZIL', () => {
     const side = String(1)
     const newExpiryBlock = String(globalBNum + 99999)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      tokenId,
-      paymentTokenAddress,
-      salePrice,
-      side,
-      newExpiryBlock
-    )
-
     const tx = await callContract(
       accounts.nftBuyer.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: newExpiryBlock
         }
       ],
       0,
@@ -2091,26 +2283,40 @@ describe('Wrapped ZIL', () => {
     const side = String(0)
     const expiryBlock = String(globalBNum + 35)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      tokenId,
-      paymentTokenAddress,
-      salePrice,
-      side,
-      expiryBlock
-    )
-
     const tx = await callContract(
       accounts.nftSeller.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: expiryBlock
         }
       ],
       0,
@@ -2172,26 +2378,40 @@ describe('Wrapped ZIL', () => {
     const side = String(1)
     const expiryBlock = String(globalBNum + 35)
 
-    // The 'SetOrder' takes in an ADT called 'OrderParam' so need to construct it first
-    const formattedAdtOrder = await createFixedPriceOrder(
-      fixedPriceAddress,
-      nftTokenAddress,
-      tokenId,
-      paymentTokenAddress,
-      salePrice,
-      side,
-      expiryBlock
-    )
-
     const tx = await callContract(
       accounts.nftBuyer.privateKey,
       fixedPriceContract,
       'SetOrder',
       [
         {
-          vname: 'order',
-          type: `${fixedPriceAddress}.OrderParam`,
-          value: formattedAdtOrder
+          vname: 'token_address',
+          type: 'ByStr20',
+          value: nftTokenAddress
+        },
+        {
+          vname: 'token_id',
+          type: 'Uint256',
+          value: tokenId
+        },
+        {
+          vname: 'payment_token_address',
+          type: 'ByStr20',
+          value: paymentTokenAddress
+        },
+        {
+          vname: 'sale_price',
+          type: 'Uint128',
+          value: salePrice
+        },
+        {
+          vname: 'side',
+          type: 'Uint32',
+          value: side
+        },
+        {
+          vname: 'expiration_bnum',
+          type: 'BNum',
+          value: expiryBlock
         }
       ],
       0,
