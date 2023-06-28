@@ -1,0 +1,21 @@
+name: CICD
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout scm
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Setup node
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+        cache: 'npm'
+    - name: Build artefacts
+      run: ./ci_scilla_type_check.sh && npm i
